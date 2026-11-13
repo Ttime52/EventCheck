@@ -16,10 +16,10 @@ npm run prisma:generate
 ```
 
 The default `.env.example` values connect Prisma to the PostgreSQL container
-defined in `compose.yaml`. Copy the file to `.env`; `.env` is ignored and must
-not contain committed credentials. The baseline has no feature-owned tables;
-F-01 owns User and Session schema, F-02 owns Event, F-03 owns Registration,
-and F-04 reuses those records.
+defined in `compose.yaml` on host port 5433. Copy the file to `.env`; `.env` is
+ignored and must not contain committed credentials. The current branch contains
+the F-01 User/Session schema; F-02 owns Event, F-03 owns Registration, and F-04
+reuses those records when those features are implemented.
 
 ## Local PostgreSQL
 
@@ -51,6 +51,7 @@ After starting PostgreSQL, Prisma commands can use the `DATABASE_URL` from
 npm run prisma:validate
 npm run prisma:generate
 npm run db:migrate
+npm run db:seed
 ```
 
 ## Development and checks
@@ -65,8 +66,25 @@ npm run db:migrate
 ```
 
 The frontend runs on port 5173 and proxies `/api` requests to the backend on
-port 3000. Authentication, event, and registration behavior are intentionally
-not implemented by this baseline.
+port 3000. F-01 authentication is implemented with seeded local accounts,
+server-side PostgreSQL sessions, role checks, and cookie-based login/logout.
+F-02 event publishing and F-03/F-04 registration behavior remain pending.
+
+To seed local accounts, set `SEED_PARTICIPANT_PASSWORD` and
+`SEED_ORGANIZER_PASSWORD` in the ignored `.env`, then run `npm run db:seed`.
+Synthetic seeding refuses to run when `NODE_ENV=production`.
+
+Run unit and frontend tests with `npm test`. Database-backed F-01 integration
+verification requires the Docker PostgreSQL service and a separate test
+database URL. Create `eventcheck_test`, apply the versioned migration, and run
+the suite with:
+
+```sh
+DATABASE_URL="postgresql://eventcheck:change-me@127.0.0.1:5433/eventcheck_test?schema=public" \
+  npm run test:integration --workspace server
+```
+
+F-02-dependent authorization journeys remain pending until F-02 is implemented.
 
 ## Structure
 
@@ -75,8 +93,9 @@ not implemented by this baseline.
 - `docs/` — approved requirements, design, contracts, and sprint planning
 
 Feature branches should add their owned Prisma models and migrations without
-duplicating another feature's schema. This branch is shared infrastructure;
-do not commit credentials, local `.env` files, dependencies, or build output.
+duplicating another feature's schema. This F-01 branch contains authentication
+and shared baseline work; F-02 event-publishing integration remains pending.
+Do not commit credentials, local `.env` files, dependencies, or build output.
 
 ## Lab 5 deployment target
 
