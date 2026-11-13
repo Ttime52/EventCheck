@@ -53,15 +53,15 @@ Public `GET` discovery/detail requests may be unauthenticated under approved Q-0
 
 ## 3. Technology Stack and Design Rationale
 
-The repository currently contains documentation only and no committed framework or runtime choice. The following stack is therefore **Proposed**, not approved. The design remains portable to an equivalent implementation.
+The repository contains documentation only, but both team members confirmed the following core stack during the Issue #3 PR review. These core selections are **Approved (Team Confirmed)**; deployment services and unconfirmed tooling remain Proposed. The design remains portable to an equivalent implementation only where a later reviewed decision permits change.
 
-| Area | Proposed technology or boundary | Responsibility and rationale | Status and constraints |
+| Area | Technology or boundary | Responsibility and rationale | Status and constraints |
 | --- | --- | --- | --- |
-| Frontend | React + TypeScript + Vite | Accessible views, routing, form state, API client, and explicit states; familiar tooling limits custom DOM code. | Proposed; team confirmation required. Must not hold authorization state as trusted data. |
-| Backend | Node.js + Express + TypeScript | Routes, middleware, validation, services, transaction boundaries, and safe error mapping. | Proposed; team confirmation required. Keep one backend deployment and a testable service layer. |
+| Frontend | React + TypeScript + Vite | Accessible views, routing, form state, API client, and explicit states; familiar tooling limits custom DOM code. | Approved (Team Confirmed). Must not hold authorization state as trusted data. |
+| Backend | Node.js + Express + TypeScript | Routes, middleware, validation, services, transaction boundaries, and safe error mapping. | Approved (Team Confirmed). Keep one backend deployment and a testable service layer. |
 | API | JSON over HTTPS with resource-oriented REST-like routes | Simple browser-to-backend contract suitable for Sprint 1 and later feature contracts. | Proposed. Route names below are design candidates, not completed APIs. |
-| Database | PostgreSQL | Foreign keys, unique constraints, transactions, row locks/conditional updates, and durable state directly support BR-08–BR-11 and NFR-05. | Proposed; team confirmation required. The selected engine must support the stated transaction guarantees. |
-| Data access | Prisma ORM with explicit transaction/constraint queries | Centralizes migrations, seed workflow, and queries while retaining explicit transaction boundaries. | Proposed; team confirmation required. No frontend or in-memory substitute may be the system of record. |
+| Database | PostgreSQL | Foreign keys, unique constraints, transactions, row locks/conditional updates, and durable state directly support BR-08–BR-11 and NFR-05. | Approved (Team Confirmed). The implementation must preserve the stated transaction guarantees. |
+| Data access | Prisma ORM with explicit transaction/constraint queries | Centralizes migrations, seed workflow, and queries while retaining explicit transaction boundaries. | Approved (Team Confirmed). No frontend or in-memory substitute may be the system of record. |
 | Sessions | Server-side session records and opaque cookie identifier | Matches approved D-02/Q-09 and supports logout invalidation and server-side expiry checks. | Approved design; cookie attributes remain deployment-configured. |
 | Testing | Vitest, Supertest, and Playwright with real-database integration | Verifies authorization, persistence, constraints, races, and selected UI journeys at the boundary where they occur. | Proposed tools; method required by the Sprint Plan. |
 | Deployment | Docker, Artifact Registry, one Cloud Run application, Cloud SQL, Secret Manager; local first | Packages frontend, backend, and migration tooling coherently while preserving Sprint 1 local reproducibility. | Proposed; Lab 5 operational verification; no deployment claimed. |
@@ -202,7 +202,7 @@ Persistence boundaries are transaction boundaries: event publication commits its
 
 ### 5.2 Database lifecycle, migrations, and fixtures
 
-The concrete database and ORM are still **Proposed**. If the team selects PostgreSQL with Prisma, the implementable workflow is: configure `DATABASE_URL` from the environment; create versioned Prisma migrations in source control; apply migrations locally with the development command and deploy with the production-safe migration command; run a deterministic seed script that hashes synthetic passwords with a maintained password-hashing library; and use isolated fixture factories for tests. The logical procedure is the same for an equivalent transactional relational database and migration tool.
+With the team-approved PostgreSQL and Prisma stack, the implementable workflow is: configure `DATABASE_URL` from the environment; create versioned Prisma migrations in source control; apply migrations locally with the development command and deploy with the production-safe migration command; run a deterministic seed script that hashes synthetic passwords with a maintained password-hashing library; and use isolated fixture factories for tests. The migration, seed, and rollback design remains subject to the stated transactional safeguards.
 
 Local setup creates a database from documented environment variables, applies all migrations, and seeds only synthetic Participant/Organizer accounts and sample University Events. Tests use a disposable database or transaction-isolated schema, apply migrations from zero, load reproducible fixtures, and reset between cases; no test relies on browser storage or manual rows. Restart checks reconnect to the same database and retrieve accepted records.
 
@@ -519,7 +519,7 @@ CI/CD should run lint/build/unit/API tests, migration checks, and selected integ
 | --- | --- | --- | --- |
 | Three-layer web architecture | Microservices, serverless-only | Small team gains simple local execution and clear tests; a single deployment gives less independent scaling. | Proposed; architecture baseline |
 | Server-side sessions | JWT/localStorage tokens | Approved design supports revocation, idle/absolute expiry, and HttpOnly cookies; requires session persistence and lookup. | Approved; D-02, Q-09 |
-| Relational transactional model | Document store, in-memory state | Foreign keys, uniqueness, and transactions directly enforce registration invariants; schema migrations require care. | Proposed; BR-08–BR-11 |
+| Relational transactional model | Document store, in-memory state | Foreign keys, uniqueness, and transactions directly enforce registration invariants; schema migrations require care. | Approved (Team Confirmed); BR-08–BR-11 |
 | Backend authorization | UI-only checks, client role flags | Central enforcement protects direct API use and ownership; adds middleware/service checks. | Required; FR-05, BR-04/05 |
 | Database-safe registration writes | Read-count then insert, in-memory mutex | Works across concurrent requests/instances and preserves committed invariants; requires database-specific transaction tests. | Required; NFR-05 |
 | Public discovery | Login-gated discovery | Approved Q-08 improves discovery while keeping registration/private data protected; public projections must be narrow. | Approved; Q-08 |
@@ -529,15 +529,15 @@ CI/CD should run lint/build/unit/API tests, migration checks, and selected integ
 
 ### 14.1 Technology confirmation register
 
-| Component | Candidate technology | Rationale/trade-off | Status | Confirmation required |
+| Component | Selected or candidate technology | Rationale/trade-off | Status | Confirmation required |
 | --- | --- | --- | --- | --- |
-| Frontend | React + TypeScript + Vite | Productive component/accessibility tooling; adds a build toolchain. | Proposed | Team technology decision |
-| Backend | Node.js + Express + TypeScript | Simple middleware and one-language full stack; requires disciplined module boundaries. | Proposed | Team technology decision |
-| Database/ORM | PostgreSQL + Prisma | Durable relational constraints and versioned migrations; locking details must remain explicit. | Proposed | Team technology decision |
+| Frontend | React + TypeScript + Vite | Productive component/accessibility tooling; adds a build toolchain. | Approved (Team Confirmed) | Confirmed by both team members during the Issue #3 PR review |
+| Backend | Node.js + Express + TypeScript | Simple middleware and one-language full stack; requires disciplined module boundaries. | Approved (Team Confirmed) | Confirmed by both team members during the Issue #3 PR review |
+| Database/ORM | PostgreSQL + Prisma | Durable relational constraints and versioned migrations; locking details must remain explicit. | Approved (Team Confirmed) | Confirmed by both team members during the Issue #3 PR review |
 | Testing | Vitest + Supertest + Playwright | Covers unit/service, API/database, and selected UI journeys; increases setup surface. | Proposed | Team test-tool decision |
 | GCP runtime | Artifact Registry + single Cloud Run application + Cloud SQL + Secret Manager | Coherent instructor-aligned managed path; quotas, billing, IAM, and migration ordering require care. | Proposed | Team/account and Lab 5 decision |
 
-Exact frontend/backend/database framework, API route names, CSRF library, session-store implementation, and deployment topology remain Proposed until the team records a technology decision. They must not be represented as completed implementation.
+Exact API route names, API contracts, CSRF library, session-store implementation, testing tools, and deployment topology remain Proposed until separately confirmed. Approved core technologies must not be represented as completed implementation evidence.
 
 ## 15. Requirements and Feature Traceability
 
@@ -563,7 +563,7 @@ All baseline IDs are preserved: FR-01–FR-23, BR-01–BR-18, NFR-01–NFR-12, D
 | Session persistence and expiry boundary defects | Mitigated by server-side timestamps, controlled-clock tests, restart checks, and logout replay tests. |
 | Sprint 2 schema evolution | Medium risk; use migrations and preserve cancelled history, attendance uniqueness, and active-count invariants. |
 | Two-student workload | Feasible only with the planned vertical slice, shared review, and no unapproved scope expansion. |
-| Exact framework, ORM, API naming, CSRF library, and deployment provider | Open technical decisions; this SDS proposes constraints and responsibilities but does not claim approval. |
+| Exact API naming/contracts, CSRF library, session-store implementation, GCP deployment configuration, cloud account/IAM/cost decisions, and testing tools | Open technical decisions; the core React/TypeScript/Vite, Node.js/Express/TypeScript, PostgreSQL, and Prisma selections are team-approved, but these remaining choices require separate confirmation. |
 | Sprint 2 policy questions Q-01–Q-06/Q-10 and Sprint 3 summary policy D-10/BR-18 | Remain governed by the SRS and sprint gates; do not silently resolve them in implementation. |
 
 Assumptions are limited to seeded synthetic accounts, a transactional database, HTTPS in deployed environments, and the approved public discovery/session/time decisions. If a technology or policy conflicts with the SRS, the conflict must be reported and reviewed rather than silently changing another document.
