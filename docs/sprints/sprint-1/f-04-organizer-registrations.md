@@ -42,17 +42,19 @@ The Organizer opens an owned Event detail and selects Registration List. The UI 
 | Event Registration List | Owning Organizer | Load one selected owned Event's registrations; show authorized fields and explicit empty state. |
 | Unauthorized/Not Found state | Visitor, Participant, non-owning Organizer | Show safe denial/not-found without revealing whether another user's Event exists. |
 
-### API specification (Proposed)
+### API specification
 
-| Method and candidate path | Authentication/authorization | Success | Failure and privacy |
+| Method and approved path | Authentication/authorization | Proposed request/response | Proposed status and privacy policy |
 | --- | --- | --- | --- |
-| `GET /api/v1/organizer/events/{id}/registrations` | Valid Organizer session and ownership predicate | Proposed `200` with `data.registrations`; entries contain registration ID, Participant identifier/display name, state, and UTC timestamp rendered Asia/Bangkok by UI. | `401` missing/invalid session; safe `403/404` for wrong role, missing, or non-owned Event; no unrelated rows. |
+| `GET /api/v1/organizer/events/{id}/registrations` | Valid Organizer session; backend verifies `event.organizerId = session.userId` | Proposed illustrative JSON: `{ "data": { "registrations": [{ "id": "registration-id", "participantId": "participant-id", "participantDisplayName": "Participant", "status": "ACTIVE", "registeredAt": "2026-01-01T01:00:00Z" }] } }`; UI renders timestamp in Asia/Bangkok. | Proposed `200`; `401` missing/invalid session, `403` wrong role, privacy-preserving `404` missing/inaccessible Event, safe `500` persistence failure; no unrelated rows. |
 
-The route, envelope, pagination, and error codes remain Proposed. The backend must not accept owner identity from query/body fields. F-04 is read-only: no cancellation, check-in, attendee edits, or Participant impersonation.
+The path and method above are **Approved (Teammate Confirmed)**. Request fields, response fields, exact status codes, envelope, pagination, and error codes remain Proposed; the complete API contract is not yet approved. `400` applies only to malformed syntax if applicable; `422` applies only to validly structured invalid domain input. The backend must not accept owner identity from query/body fields. F-04 is read-only: no cancellation, check-in, attendee edits, or Participant impersonation. Sprint 1 pagination is optional; the initial authorized list may return all records, with bounded pagination requiring a separately reviewed convention.
 
 ### Data and persistence boundary
 
 F-04 reads committed Registration rows created by F-03 and joins only the selected Event and authorized Participant display fields. It must not return passwords, hashes, session identifiers, unrelated profile fields, or registrations for another Event. Event and Registration foreign keys provide association; the owner predicate provides authorization. A read after application restart uses the configured PostgreSQL database and does not rely on browser storage.
+
+F-04 requires no new tables, columns, or migrations. It reuses the F-01 User/session, F-02 Event, and F-03 Registration schema. An index such as `(eventId, status)` may be an optional query optimization proposal, but is not a new mandatory F-04 requirement and must not introduce attendee-management or Attendance tables in Sprint 1.
 
 ### Cross-feature integration
 
@@ -104,7 +106,7 @@ F-04 reads committed Registration rows created by F-03 and joins only the select
 ### Baseline and open decisions
 
 - Approved baseline: F-01 server sessions, F-02 ownership/Event identity, F-03 committed Registration data, approved UTC/Asia/Bangkok convention, and team-approved React/TypeScript/Vite, Node.js/Express/TypeScript, PostgreSQL, and Prisma stack.
-- Proposed/open: exact route, envelope, error codes, pagination, CSRF transport, testing tools, and deployment configuration.
+- Proposed/open: request/response fields and envelope, exact statuses/error codes, pagination, CSRF transport, testing tools, and deployment configuration. The F-04 endpoint path/method is teammate-confirmed; the complete API contract is not yet approved.
 
 ### Future completion evidence placeholders
 
