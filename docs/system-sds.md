@@ -57,14 +57,14 @@ The repository currently contains documentation only and no committed framework 
 
 | Area | Proposed technology or boundary | Responsibility and rationale | Status and constraints |
 | --- | --- | --- | --- |
-| Frontend | Small TypeScript web application using a conventional component framework (for example React) | Accessible views, routing, form state, API client, and explicit states. A familiar framework limits custom DOM code. | Proposed. Must not hold authorization state as trusted data. |
-| Backend | TypeScript runtime with a lightweight HTTP framework (for example Node.js + Express/Fastify) | Routes, middleware, validation, services, transaction boundaries, and safe error mapping. | Proposed. Keep one backend deployment and a testable service layer. |
+| Frontend | React + TypeScript + Vite | Accessible views, routing, form state, API client, and explicit states; familiar tooling limits custom DOM code. | Proposed; team confirmation required. Must not hold authorization state as trusted data. |
+| Backend | Node.js + Express + TypeScript | Routes, middleware, validation, services, transaction boundaries, and safe error mapping. | Proposed; team confirmation required. Keep one backend deployment and a testable service layer. |
 | API | JSON over HTTPS with resource-oriented REST-like routes | Simple browser-to-backend contract suitable for Sprint 1 and later feature contracts. | Proposed. Route names below are design candidates, not completed APIs. |
-| Database | PostgreSQL or an equivalent transactional relational database | Foreign keys, unique constraints, transactions, row locks/conditional updates, and durable state directly support BR-08–BR-11 and NFR-05. | Proposed. The selected engine must support the stated transaction guarantees. |
-| Data access | Parameterized SQL or a thin ORM/query builder | Centralizes queries and transaction handling without hiding locking behavior. | Proposed. No frontend or in-memory substitute may be the system of record. |
+| Database | PostgreSQL | Foreign keys, unique constraints, transactions, row locks/conditional updates, and durable state directly support BR-08–BR-11 and NFR-05. | Proposed; team confirmation required. The selected engine must support the stated transaction guarantees. |
+| Data access | Prisma ORM with explicit transaction/constraint queries | Centralizes migrations, seed workflow, and queries while retaining explicit transaction boundaries. | Proposed; team confirmation required. No frontend or in-memory substitute may be the system of record. |
 | Sessions | Server-side session records and opaque cookie identifier | Matches approved D-02/Q-09 and supports logout invalidation and server-side expiry checks. | Approved design; cookie attributes remain deployment-configured. |
-| Testing | Unit/service tests plus API/integration tests against a real database; selected UI/e2e checks | Verifies authorization, persistence, constraints, and races at the boundary where they occur. | Method required by the Sprint Plan; test framework is Proposed. |
-| Deployment | Local frontend/backend/database first; Docker/CI/CD/GCP at Lab 5 | Keeps Sprint 1 reproducible while preserving a path to later operational delivery. | Local readiness is Sprint 1; cloud delivery is not claimed. |
+| Testing | Vitest, Supertest, and Playwright with real-database integration | Verifies authorization, persistence, constraints, races, and selected UI journeys at the boundary where they occur. | Proposed tools; method required by the Sprint Plan. |
+| Deployment | Docker, Artifact Registry, one Cloud Run application, Cloud SQL, Secret Manager; local first | Packages frontend, backend, and migration tooling coherently while preserving Sprint 1 local reproducibility. | Proposed; Lab 5 operational verification; no deployment claimed. |
 
 ## 4. Component Design
 
@@ -86,6 +86,50 @@ Logical components are modules in the frontend, backend, or persistence layer. T
 | Attendance Service | Eligibility, exactly-once check-in, attendance retrieval and privacy. | FR-19–FR-21, BR-16, BR-17, SR-01, SR-02 | 2 |
 | Reporting Service | Access-controlled, consistent committed aggregates and zero-denominator behavior. | FR-22, FR-23, BR-18, SR-01, SR-02 | 3 |
 | Validation/Error Module | Shared field validation, typed error categories, safe messages, and rollback/no-partial-state handling for rejected or failed writes. | FR-07, FR-16, FR-20, NFR-06 | 1–3 |
+
+### 4.1 UI structure and navigation
+
+The frontend uses role-aware routes and shared loading, empty, validation, success, error, and conflict states. Route guards improve navigation and redirect unauthenticated users to Login, but backend authorization remains authoritative. Public event list/detail routes remain available without login under Q-08.
+
+| Screen | Purpose | Permitted roles | Key operations | Requirements/features | Sprint |
+| --- | --- | --- | --- | --- | --- |
+| Published Event List | Browse published University Events and availability. | Visitor, Participant, Organizer | List/filter public events. | FR-11, FR-12; F-03 | 1 |
+| Published Event Detail | Show public details and registration availability. | Visitor, Participant, Organizer | View details; start registration when eligible. | FR-12; F-03 | 1 |
+| Login | Authenticate seeded account and establish session. | Visitor | Submit credentials; show generic failure. | FR-01, FR-02; F-01 | 1 |
+| Participant Registration | Submit self-registration and show outcome/conflict. | Participant | Register; display validation, full, duplicate, and success states. | FR-13, FR-16; F-03 | 1 |
+| My Registrations List | Retrieve persisted personal registrations. | Participant | List own records; empty state. | FR-14; F-03 | 1 |
+| My Registration Detail | Open one personal registration. | Participant | View event, status, and registration time. | FR-14; F-03 | 1 |
+| Organizer Event List | Manage only owned events. | Organizer | List owned records; empty state. | FR-09; F-02 | 1 |
+| Create and Publish Event | Validate and publish an owned event. | Organizer | Submit fields; show field errors and success. | FR-06–FR-08; F-02 | 1 |
+| Owned Event Detail | Show management details for one owned event. | Owning Organizer | Open event management view. | FR-09; F-02 | 1 |
+| Event Registration List | Show registrations for one owned event. | Owning Organizer | Retrieve event-scoped list; empty state. | FR-15; F-04 | 1 |
+| Cancellation/Capacity/Deadline | Future lifecycle management. | Participant or owning Organizer | Cancel, edit capacity/deadline. | FR-10, FR-17, FR-18; F-05, F-06 | 2 |
+| Check-in and Attendance | Future check-in and attendance retrieval. | Owning Organizer or Participant | Check in; view own/owned attendance. | FR-19–FR-21; F-07 | 2 |
+| Summaries | Future event-level reports. | Owning Organizer | View reconciled summaries. | FR-22, FR-23; F-08 | 3 |
+
+Logout is available from authenticated Participant and Organizer navigation. Wrong-role or wrong-owner routes show a safe denial/not-found state; expired sessions clear local user state and redirect to Login with a non-sensitive notice. Controls show visible focus, keyboard order, labels, and inline validation. Loading states disable duplicate submits, empty states explain that no records exist, successes confirm persistence, and errors distinguish validation from business conflicts without leaking private data.
+
+```mermaid
+flowchart TD
+    V[Visitor] --> L[Published Event List]
+    V --> D[Published Event Detail]
+    V --> Login[Login]
+    Login -->|Participant| P[Participant navigation]
+    Login -->|Organizer| O[Organizer navigation]
+    P --> PL[My Registrations List]
+    P --> PD[My Registration Detail]
+    P --> D
+    D -->|Visitor attempts registration| Login
+    P --> PR[Participant Registration]
+    O -.->|Registration denied| Denied[Safe denial]
+    O --> OL[Organizer Event List]
+    O --> C[Create and Publish Event]
+    O --> OD[Owned Event Detail]
+    OD --> RL[Event Registration List]
+    P -.->|Sprint 2| FutureP[Cancellation and attendance]
+    O -.->|Sprint 2/3| FutureO[Capacity, check-in, summaries]
+    L --> D
+```
 
 ## 5. Data Design
 
@@ -155,6 +199,14 @@ erDiagram
 Recommended indexes are unique `login_identifier`, `Event(organizer_id)`, `Event(publication_state, start_utc)`, `Registration(event_id, status)`, `Registration(participant_id, status)`, unique active participant/event, `Attendance(registration_id)`, and `Session(session_id)`.
 
 Persistence boundaries are transaction boundaries: event publication commits its validated Event; registration commits the registration and any capacity guard together; cancellation commits lifecycle state and place release together; check-in commits exactly one Attendance. Failed operations roll back all writes. A naive read-count-then-insert sequence is unsafe because two requests can observe the same free place; the concurrency design in Section 9 is mandatory.
+
+### 5.2 Database lifecycle, migrations, and fixtures
+
+The concrete database and ORM are still **Proposed**. If the team selects PostgreSQL with Prisma, the implementable workflow is: configure `DATABASE_URL` from the environment; create versioned Prisma migrations in source control; apply migrations locally with the development command and deploy with the production-safe migration command; run a deterministic seed script that hashes synthetic passwords with a maintained password-hashing library; and use isolated fixture factories for tests. The logical procedure is the same for an equivalent transactional relational database and migration tool.
+
+Local setup creates a database from documented environment variables, applies all migrations, and seeds only synthetic Participant/Organizer accounts and sample University Events. Tests use a disposable database or transaction-isolated schema, apply migrations from zero, load reproducible fixtures, and reset between cases; no test relies on browser storage or manual rows. Restart checks reconnect to the same database and retrieve accepted records.
+
+Production migrations run as a reviewed, backup-aware deployment step before code requiring the new schema, with additive changes first and destructive cleanup only after compatibility is verified. Sprint 2 migrations add cancellation/deadline state and attendance constraints without rewriting existing registrations; each migration is versioned, reviewed, and reversible where practical. Database URLs, passwords, and cloud credentials are environment/secret-manager values, never tracked files or client bundles. These are procedures and proposals, not claims of executed migrations or seed runs.
 
 ## 6. Authentication and Session Design
 
@@ -319,6 +371,48 @@ Capacity edits in Sprint 2 use the same Event-row guard and require the new capa
 
 The following endpoint inventory is **Proposed** until feature contracts approve exact routes and representations. All protected routes require a valid server-side session and backend authorization.
 
+### 10.1 API-wide conventions (Proposed)
+
+Candidate routes use an `/api/v1` base path, HTTPS, JSON request/response bodies, and cookie-authenticated requests. State-changing browser requests require CSRF protection and explicit credential-aware CORS configuration. Validation returns field details; success responses use a `data` envelope; errors use an `error` object with a stable code, safe message, and optional details. Typical statuses are 200/201/204 for success, 400/422 for malformed or invalid fields, 401 for missing/expired authentication, 403 for wrong role/owner, 404 for safe not-found, 409 for business conflicts, and 500 for an unexpected failure.
+
+Collection endpoints may accept bounded `limit` and opaque `cursor` parameters and return `data` plus a `page.nextCursor`; Sprint 1 does not require pagination for small seeded lists. Instants serialize as UTC ISO 8601 values; the UI labels initial display/input as Asia/Bangkok. A request/correlation ID is returned in a response header and included in server logs without credentials. Error messages never reveal passwords, session identifiers, participant lists, or unrelated-record existence. The envelope and codes remain Proposed until team review or feature contracts.
+
+Illustrative examples only (not implemented endpoint evidence):
+
+```json
+{
+  "data": {
+    "id": "example-id"
+  }
+}
+```
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Please correct the highlighted fields.",
+    "details": [
+      {
+        "field": "capacity",
+        "message": "Capacity must be a positive integer."
+      }
+    ]
+  }
+}
+```
+
+```json
+{
+  "error": {
+    "code": "EVENT_FULL",
+    "message": "No places are available for this event."
+  }
+}
+```
+
+These conventions support FR-02, FR-05, FR-07, FR-13, FR-16, NFR-01, and NFR-06 while leaving detailed schemas to feature contracts.
+
 | Method/path | Requester and auth | Responsibility and typical outcomes | Requirements | Sprint |
 | --- | --- | --- | --- | --- |
 | `POST /auth/login` | Any visitor | Verify credentials; set session cookie. `200`, generic `401`, validation `422`. | FR-01, FR-02, NFR-02 | 1 |
@@ -368,13 +462,13 @@ Validation occurs at the API boundary and again in the service/transaction where
 flowchart TB
     Dev[Local developer machine]
     Browser[Browser]
-    Web[Frontend dev server or static host]
+    Web[Frontend + API in one application container]
     App[Backend application process]
     DB[(Transactional database)]
     Sess[(Session records)]
     Env[Environment configuration/secrets]
-    Browser --> Web
-    Web -->|HTTPS/JSON| App
+    Browser -->|HTTPS| Web
+    Web --> App
     App --> DB
     App --> Sess
     Env -.-> Web
@@ -387,6 +481,37 @@ flowchart TB
 Sprint 1 targets a reproducible local frontend, backend, and real database with seeded synthetic accounts. Connection strings, cookie/security mode, and secrets come from environment configuration or a local secret mechanism and are never committed. The session store may be a database table in the first implementation; it remains server-side and durable across application restart.
 
 Lab 5 is the checkpoint for Docker, CI/CD, and GCP/durable deployment. Later sprints reuse the same logical boundaries for regression and release hardening. No cloud deployment, CI result, or production readiness is claimed by this document.
+
+### 13.1 Lab 5 obligations and proposed GCP deployment plan
+
+Lab 5 requirements R-01 through R-12 are the mandatory course checkpoint. R-01–R-08 cover the required packaged application, working journey, persistent data, configuration/secrets, automation, and deployment evidence. R-09 requires the reviewed GitHub PR workflow; R-10 requires Lab 5 labels and preserved history; R-11 requires participation of both teammates; and R-12 requires a public repository. The exact evidence, commands, and checkpoint interpretation belong to the Lab 5 submission. This SDS documents design intent, not completed evidence. Artifact Registry, Workload Identity Federation, image digests, and a separate Cloud Run migration/seed job are recommended mechanisms for the proposed architecture, not individually stated mandatory requirements.
+
+Subject to team, account, and cost confirmation, the instructor-aligned candidate is one Docker image containing the EventCheck frontend, backend, and migration/seed tooling, pushed to Artifact Registry and served by a single Cloud Run application. PostgreSQL on Cloud SQL stores domain data and server-side session rows. Google Secret Manager supplies database URLs, cookie keys, and other sensitive configuration to Cloud Run; no secret is bundled into the frontend. Cloud Run uses a least-privilege service account with Cloud SQL and Secret Manager access, and Cloud SQL is not publicly writable.
+
+```mermaid
+flowchart LR
+    Browser[Browser]
+    Image[Artifact Registry<br/>versioned Docker image]
+    Run[Cloud Run<br/>single UI + API application]
+    SQL[(Cloud SQL PostgreSQL<br/>domain + session records)]
+    Secrets[Secret Manager<br/>runtime secrets]
+    Actions[GitHub Actions<br/>build/test/deploy]
+    Browser -->|HTTPS| Run
+    Actions -->|push image| Image
+    Image -->|deploy exact digest| Run
+    Run -->|private authenticated connection| SQL
+    Run -.->|read approved secrets| Secrets
+    Job[Cloud Run migration/seed job<br/>same versioned image]
+    Actions -->|start before promotion| Job
+    Job -->|migrate and seed| SQL
+    Job -.->|completes before revision promotion| Run
+```
+
+The migration/seed job runs and succeeds before the application revision is promoted; it is separate from serving traffic and uses the same versioned image. GitHub Actions builds/tests on reviewed feature PRs into `sprint-1-staging`, then a release PR into `main`; deployment is from `main` only and records the deployed commit SHA and image digest. Workload Identity Federation provides keyless GitHub-to-GCP authentication rather than a long-lived service-account key.
+
+The single Cloud Run origin simplifies browser routing, but cookies still use Secure over HTTPS and a deployment-appropriate SameSite policy. If any separate origin is introduced later, credentialed CORS must allow only the frontend origin and CSRF protection/origin validation must cover state-changing requests; same-site behavior must not be assumed across arbitrary domains. Session expiration remains the approved 30-minute idle and 8-hour absolute lifetime. Cloud Run restarts/redeployments must reconnect to Cloud SQL and retrieve previously committed records; verification must inspect persisted data, not only HTTP responses.
+
+CI/CD should run lint/build/unit/API tests, migration checks, and selected integration checks before deployment; deployment verification should exercise health, login, public discovery, persistence across backend restart/redeployment, and a protected operation without claiming success until evidence is recorded. This GCP plan is Proposed and belongs to Lab 5, not mandatory Sprint 1 implementation. Artifact Registry, Cloud Run, Cloud SQL, Secret Manager, Workload Identity Federation, quotas, billing, and student-account permissions require team confirmation.
 
 ## 14. Design Decisions and Trade-offs
 
@@ -401,6 +526,16 @@ Lab 5 is the checkpoint for Docker, CI/CD, and GCP/durable deployment. Later spr
 | UTC storage, Asia/Bangkok display/input | Local-time storage | Avoids comparison ambiguity and matches approved initial user context; conversion/labels must be tested. | Approved; D-08, Q-11 |
 | Combined Create & Publish | Mandatory draft workflow | Meets Sprint 1 with fewer states while retaining validation; draft UI may be added only if later approved. | Approved baseline; D-04 |
 | Later lifecycle modules | Sprint 1 implementation of all features | Keeps two-person scope feasible and preserves the proposed Sprint 2/3 allocation; shared schema must anticipate migrations. | Proposed team planning decision; D-13 |
+
+### 14.1 Technology confirmation register
+
+| Component | Candidate technology | Rationale/trade-off | Status | Confirmation required |
+| --- | --- | --- | --- | --- |
+| Frontend | React + TypeScript + Vite | Productive component/accessibility tooling; adds a build toolchain. | Proposed | Team technology decision |
+| Backend | Node.js + Express + TypeScript | Simple middleware and one-language full stack; requires disciplined module boundaries. | Proposed | Team technology decision |
+| Database/ORM | PostgreSQL + Prisma | Durable relational constraints and versioned migrations; locking details must remain explicit. | Proposed | Team technology decision |
+| Testing | Vitest + Supertest + Playwright | Covers unit/service, API/database, and selected UI journeys; increases setup surface. | Proposed | Team test-tool decision |
+| GCP runtime | Artifact Registry + single Cloud Run application + Cloud SQL + Secret Manager | Coherent instructor-aligned managed path; quotas, billing, IAM, and migration ordering require care. | Proposed | Team/account and Lab 5 decision |
 
 Exact frontend/backend/database framework, API route names, CSRF library, session-store implementation, and deployment topology remain Proposed until the team records a technology decision. They must not be represented as completed implementation.
 
@@ -441,5 +576,7 @@ Assumptions are limited to seeded synthetic accounts, a transactional database, 
 - [EventCheck Three-Sprint Plan](sprints/plan.md)
 - `group_work_specs_v1.pdf`, Theme 3 and Section 6 (course reference, if available locally)
 - `project_deliverable_1_v1.pdf`, Part C system-level design guidance (course reference, if available locally)
+- `01_SE_Lab_5_updated.pdf`, Lab 5 requirements R-01 through R-12 and Sections 4–5 (course reference)
+- `03_Student-Guide-GCP-Deployment-and+CI+CD-V1_1.pdf`, Episodes 0, 2, 3, 5, 6, and 7 (course reference)
 
 The SDS records planned design only. It does not claim implementation, test execution, deployment, GitHub-rendered diagram verification, stakeholder interviews, or approval of unresolved technical choices.
