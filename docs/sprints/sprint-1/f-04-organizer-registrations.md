@@ -44,11 +44,11 @@ The Organizer opens an owned Event detail and selects Registration List. The UI 
 
 ### API specification
 
-| Method and approved path | Authentication/authorization | Proposed request/response | Proposed status and privacy policy |
+| Method and approved path | Authentication/authorization | Approved request/response | Approved status and privacy policy |
 | --- | --- | --- | --- |
-| `GET /api/v1/organizer/events/{id}/registrations` | Valid Organizer session; backend verifies `event.organizerId = session.userId` | Proposed illustrative JSON: `{ "data": { "registrations": [{ "id": "registration-id", "participantId": "participant-id", "participantDisplayName": "Participant", "status": "ACTIVE", "registeredAt": "2026-01-01T01:00:00Z" }] } }`; UI renders timestamp in Asia/Bangkok. | Proposed `200`; `401` missing/invalid session, `403` wrong role, privacy-preserving `404` missing/inaccessible Event, safe `500` persistence failure; no unrelated rows. |
+| `GET /api/v1/organizer/events/{id}/registrations` | Valid Organizer session; backend verifies `event.organizerId = session.userId` | Return the reviewed `{ "data": { "registrations": [{ "id": "registration-id", "participantId": "participant-id", "participantDisplayName": "Participant", "status": "ACTIVE", "registeredAt": "2026-01-01T01:00:00Z" }] } }` structure; UI renders timestamp in Asia/Bangkok. | Approved `200`/`401`/`403`/privacy-preserving `404`/safe `500` policy; no unrelated rows. |
 
-The path and method above are **Approved (Teammate Confirmed)**. Request fields, response fields, exact status codes, envelope, pagination, and error codes remain Proposed; the complete API contract is not yet approved. `400` applies only to malformed syntax if applicable; `422` applies only to validly structured invalid domain input. The backend must not accept owner identity from query/body fields. F-04 is read-only: no cancellation, check-in, attendee edits, or Participant impersonation. Sprint 1 pagination is optional; the initial authorized list may return all records, with bounded pagination requiring a separately reviewed convention.
+The path/method, reviewed request/response structure, `{ "data": ... }` success envelope, `{ "error": { "code", "message", "details": [...] } }` error envelope, and HTTP status/error-handling policy above are **Approved (Teammate Confirmed)**. CSRF transport remains Proposed. Pagination is out of scope for Sprint 1; the initial authorized list may return all records, with future pagination requiring a separately reviewed extension. The backend must not accept owner identity from query/body fields. F-04 is read-only: no cancellation, check-in, attendee edits, or Participant impersonation.
 
 ### Data and persistence boundary
 
@@ -106,7 +106,7 @@ F-04 requires no new tables, columns, or migrations. It reuses the F-01 User/ses
 ### Baseline and open decisions
 
 - Approved baseline: F-01 server sessions, F-02 ownership/Event identity, F-03 committed Registration data, approved UTC/Asia/Bangkok convention, and team-approved React/TypeScript/Vite, Node.js/Express/TypeScript, PostgreSQL, and Prisma stack.
-- Proposed/open: request/response fields and envelope, exact statuses/error codes, pagination, CSRF transport, testing tools, and deployment configuration. The F-04 endpoint path/method is teammate-confirmed; the complete API contract is not yet approved.
+- Proposed/open: CSRF transport, testing tools, and deployment configuration. Pagination is out of scope for Sprint 1. The F-04 endpoint path/method and reviewed request/response/error policy are teammate-confirmed; physical implementation details remain outside this contract approval.
 
 ### Future completion evidence placeholders
 
