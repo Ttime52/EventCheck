@@ -30,7 +30,7 @@ Provide seeded Participant and Organizer login, logout, and safe current-user re
 
 - Synthetic seeded Participant and Organizer accounts with server-assigned roles; do not include real credentials in this contract, source control, screenshots, or routine logs.
 - D-02 and Q-09 are approved/resolved in the SRS. Use server-side sessions; do not substitute JWT, local storage bearer tokens, or another authentication architecture.
-- The System-Level SDS records React/TypeScript/Vite, Node.js/Express/TypeScript, PostgreSQL, and Prisma as team-approved core technologies. The exact session-store implementation and testing tools remain open.
+- The System-Level SDS records React/TypeScript/Vite, Node.js/Express/TypeScript, PostgreSQL, and Prisma as team-approved core technologies. It also defines the session store as server-side and durable across application restarts; the exact physical store/schema, migration, and testing tools remain open.
 - The cookie-authenticated frontend/API deployment must use HTTPS in production and an explicitly reviewed SameSite/CORS/CSRF configuration.
 - F-02 depends on the current authenticated identity and role. F-03/F-04 contracts must use the same session and identity boundary for their protected operations.
 
@@ -48,7 +48,7 @@ The backend must authenticate the session and authorize the role on every protec
 
 Included: seeded account authentication; server-side session creation, validation and expiry; current identity; logout and replay rejection; role-aware protected access; password hashing; safe API/UI states; fixation and CSRF protections.
 
-Excluded: account self-registration, recovery, email verification, account administration, third-party identity providers, multi-role accounts, “remember me,” JWT/local-storage authentication, and MFA requirements. Session continuity through application restarts is unspecified by the SRS and requires review if it is needed. Session-store and CSRF library choices are technical decisions for review, not new approved requirements.
+Excluded: account self-registration, recovery, email verification, account administration, third-party identity providers, multi-role accounts, “remember me,” JWT/local-storage authentication, and MFA requirements. Session continuity across application restarts is not an explicit SRS requirement. The System-Level SDS nevertheless defines a durable server-side session store, so the implementation must preserve valid, unexpired session records across an application restart. This is an SDS design expectation, not an additional F-01 acceptance criterion or user-visible SRS requirement. Physical session-store/schema, migration, cleanup, and CSRF library choices remain technical decisions for review.
 
 ## B. Feature design / Feature SDS
 
@@ -119,7 +119,7 @@ Proposed common format: success bodies use { "data": ... }; failures use { "erro
 | User | Stable user ID, unique login identifier, display name, role, password hash | Seed synthetic Participant and Organizer accounts; one role per account. Store salted password hashes using a maintained password-hashing library. Never persist or return plaintext passwords. |
 | Session | Opaque session identifier, user ID foreign key, created time, last-activity time, expiry time, invalidation time/state | Cookie carries only the opaque identifier. Store session-to-user linkage server-side. Idle expiry is derived from last activity plus 30 minutes; absolute expiry is 8 hours from authentication and never refreshed by activity. Reject invalidated and expired rows. |
 
-Physical session table/store implementation and whether the logical expiry time is stored or derived are open technical decisions. Align the selected store and migration with the System-Level SDS; do not create duplicate User or Session models in the feature layer.
+Physical session table/store implementation and whether the logical expiry time is stored or derived are open technical decisions. The selected store must remain server-side and durable across application restarts as specified by the System-Level SDS. Align the store and migration with that design; do not create duplicate User or Session models in the feature layer. Restart continuity is an SDS design expectation, not a new SRS requirement or separate F-01 acceptance criterion.
 
 - Seed-data expectation: reproducibly seed synthetic accounts for both roles. Keep actual passwords outside tracked documents and source code; document safe local seed access in the README/private course handoff.
 - Migration expectation: version the User credential/role fields and server-side Session persistence needed by the approved architecture. Do not claim a migration exists or has run.
@@ -194,4 +194,3 @@ Confirm before implementation: route prefix and exact paths; response envelope a
 | Test command, counts, failures/skips, tested commit | TBD; not executed |
 | TDD red/green revisions for applicable rule work | TBD |
 | Build/integration result and accepted Sprint 1 release | TBD |
-

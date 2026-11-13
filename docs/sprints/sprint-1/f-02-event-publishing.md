@@ -211,4 +211,3 @@ Confirm before implementation: exact API prefix/routes and response shape; valid
 | Test command, counts, failures/skips, tested commit | TBD; not executed |
 | TDD red/green revisions for applicable rule work | TBD |
 | Build/integration result and accepted Sprint 1 release | TBD |
-

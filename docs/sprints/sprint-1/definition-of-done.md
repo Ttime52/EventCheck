@@ -78,4 +78,3 @@ Issue I-04 creates the F-01 and F-02 contract drafts and this shared DoD. The AC
 | Version | Date | Status | Change |
 | --- | --- | --- | --- |
 | 0.1 | 2026-11-13 | Draft for teammate review | Initial shared Sprint 1 Product Definition of Done derived from Part E/Part F and the approved SRS baseline. |
-
