@@ -81,6 +81,8 @@ out
 # Nuxt.js build / generate output
 .nuxt
 dist
+playwright-report/
+test-results/
 .output
 
 # Gatsby files

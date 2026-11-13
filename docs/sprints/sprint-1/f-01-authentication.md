@@ -2,13 +2,13 @@
 
 **Issue:** I-04 — Contract: Authentication & Event Publishing
 
-**Contract version:** 0.1
+**Contract version:** 0.2
 
 **Status:** Draft for teammate review; implementation evidence recorded, not yet accepted for completion
 
 **Baseline:** EventCheck SRS, Feature Inventory, Traceability Matrix, Sprint Plan, and System-Level SDS reviewed for Issue I-04.
 
-> This is a versioned design and verification plan. Implementation and verification evidence is recorded below; teammate acceptance, a tested commit, and completion evidence remain pending.
+> This is a versioned design and verification plan. Implementation and verification evidence is recorded below; teammate acceptance, F-02 integration, and completion evidence remain pending.
 
 ## A. Feature overview
 
@@ -146,7 +146,9 @@ Each criterion is an observable product outcome. API routes/envelopes noted as c
 | AC-F01-12 | FR-01 to FR-05, NFR-08 | Login, logout, and expired-session UI states provide labelled keyboard-accessible controls, explicit loading/success/error feedback, a generic credential failure, and a safe expired-session return to Login. |
 | AC-F01-13 | NFR-09, NFR-10 | The accepted F-01 contract retains version history and stable IDs; every AC maps to an actual test result and tested commit before the feature is declared Done, with failures/skips disclosed and required checks passing. |
 
-## D. Software Test Specification (planned; not executed)
+## D. Software Test Specification
+
+Section D defines the test specifications, fixtures, steps, and expected assertions. Section E records actual execution results and evidence; entries in Section D are not themselves execution claims.
 
 The implementation team should choose approved harnesses before coding. Unit tests cover credential and expiry policy; API/database integration tests cover the real session/authorization boundary; selected UI/E2E checks cover user-visible states. All checks below are plans and expected assertions, not evidence that executable tests exist.
 
@@ -177,12 +179,13 @@ Important TDD candidates: TEST-F01-06 and TEST-F01-07 for exact idle/absolute ex
 | Version | Date | Status | Change |
 | --- | --- | --- | --- |
 | 0.1 | 2026-11-13 | Draft for teammate review | Initial F-01 feature design, UI/API/data proposals, AC, and planned STS from the approved SRS and System-Level SDS. No implementation or verification claimed. |
+| 0.2 | 2026-11-14 | Draft for teammate review | Recorded post-commit PostgreSQL integration evidence and current AC/TEST verification status. No approval or completion claim. |
 
 ### Decisions and open items
 
 Approved baseline applied: D-02, Q-09; FR-01 to FR-05 and BR-04. The approved 30-minute idle and 8-hour absolute timeouts are preserved.
 
-Confirm before implementation: route prefix and exact paths; response envelope and stable error codes; cookie name and SameSite/CORS deployment configuration; CSRF mechanism/token transport; physical session store/schema and cleanup policy; local seeded-account access and the maintained password-hashing library. These details are proposals or technical choices in the SDS.
+Implemented choices awaiting teammate confirmation: route prefix and exact paths; response envelope and stable error codes; cookie name and SameSite/CORS deployment configuration; CSRF mechanism/token transport; physical session store/schema and cleanup policy; local seeded-account access and the maintained password-hashing library. These details remain proposals or technical choices in the SDS pending confirmation.
 
 ### Future completion evidence (placeholders)
 
@@ -190,37 +193,44 @@ Confirm before implementation: route prefix and exact paths; response envelope a
 | --- | --- |
 | Teammate contract review and decision | Pending — record reviewer, review date, substantive findings, and accepted contract revision |
 | Implementation Issue / branch / PR | TBD |
-| Actual test source files and names for TEST-F01-* | TBD; planned tests only |
-| Test command, counts, failures/skips, tested commit | TBD; not executed |
+| Actual test source files and names for TEST-F01-* | Recorded below; F-02-dependent checks and the browser expiry scenario remain pending |
+| Test command, counts, failures/skips, tested commit | PostgreSQL integration: 6 passed, 0 failed, 0 skipped at commit `4edc4034a2ce4b763f60a37e825e024de8706329` |
 | TDD red/green revisions for applicable rule work | TBD |
 | Build/integration result and accepted Sprint 1 release | TBD |
 
 ### Current verification record
 
-The following record reflects checks executed on the working tree at revision `6a9fe29243385acc23b26c0a25d64353262ceef2`. The working tree was not clean, so this revision is a baseline reference only and is **not** a tested feature commit. The dedicated PostgreSQL integration suite was not executed successfully in this environment because Docker/PostgreSQL was unavailable; no development or production database was substituted.
+The following record reflects the post-commit PostgreSQL integration run against the isolated database `127.0.0.1:5433/eventcheck_test`. The source revision was `4edc4034a2ce4b763f60a37e825e024de8706329`; the working tree was clean when inspected. Command: `DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration --workspace=server`. Result: 1 test file passed, 6 tests passed, 0 failed, 0 skipped, duration 698 ms.
+
+Implementation evidence: GitHub Issue #8, branch `feature/06-auth-role-access`. No pull-request URL is recorded because none was provided.
 
 | AC ID | TEST ID | Current status | Evidence and limitation |
 | --- | --- | --- | --- |
-| AC-F01-01 | TEST-F01-01 | PARTIAL | `server/src/auth.integration.test.ts`; integration execution blocked by unavailable isolated PostgreSQL. |
-| AC-F01-02 | TEST-F01-02 | PARTIAL | Same integration test; generic credential cases are specified, but fresh execution was blocked. |
-| AC-F01-03 | TEST-F01-03 | PARTIAL | Same integration test; server-derived identity case is present, but fresh execution was blocked. |
-| AC-F01-04 | TEST-F01-04 | PARTIAL | Same integration test; logout/replay assertions are present, but fresh execution was blocked. |
-| AC-F01-05 | TEST-F01-05 | PARTIAL | Same integration test; malformed/revoked session assertions are present, but fresh execution was blocked. |
-| AC-F01-06 | TEST-F01-06 | PARTIAL | Exact idle-boundary assertions are present, but fresh PostgreSQL execution was blocked. |
-| AC-F01-07 | TEST-F01-07 | PARTIAL | Absolute-boundary assertions are present, but fresh PostgreSQL execution was blocked. |
+| AC-F01-01 | TEST-F01-01 | PASS | `server/src/auth.integration.test.ts`; post-commit isolated PostgreSQL run passed. |
+| AC-F01-02 | TEST-F01-02 | PASS | Same passing integration test covers missing, unknown, and incorrect credentials. |
+| AC-F01-03 | TEST-F01-03 | PASS | Same passing integration test covers server-derived identity and spoofing resistance. |
+| AC-F01-04 | TEST-F01-04 | PASS | Same passing integration test covers logout invalidation and replay rejection. |
+| AC-F01-05 | TEST-F01-05 | PASS | Same passing integration test covers malformed and revoked session rejection. |
+| AC-F01-06 | TEST-F01-06 | PASS | Same passing integration test covers 29:59 validity, 30:00 rejection, and idle refresh behavior. |
+| AC-F01-07 | TEST-F01-07 | PASS | Same passing integration test covers activity before the absolute limit and rejection at the 8-hour boundary. |
 | AC-F01-08 | TEST-F01-08 | PENDING INTEGRATION | Isolated middleware coverage exists; actual F-02 Organizer-only routes are not available. |
-| AC-F01-09 | TEST-F01-09 | PARTIAL | `server/src/security.test.ts` passed; database/log secrecy integration evidence remains blocked. |
-| AC-F01-10 | TEST-F01-10 | PENDING INTEGRATION | Origin/session-rotation assertions exist; F-02 cross-feature CSRF execution remains pending and PostgreSQL was unavailable. |
-| AC-F01-11 | TEST-F01-11 | PARTIAL | Cookie assertions are implemented; fresh production/local header verification requires the isolated integration environment. |
-| AC-F01-12 | TEST-F01-12 | PARTIAL | `client/src/App.test.tsx`: 6 tests passed. Browser keyboard/focus and responsive checks at 375px, 390px, 768px, and 1440px were not executed. |
-| AC-F01-13 | TEST-F01-13 | PENDING | `npm run typecheck`, `npm run build`, `prisma validate`, and `git diff --check` passed; no tested commit or teammate acceptance exists. |
+| AC-F01-09 | TEST-F01-09 | PARTIAL | Integration run passed response/hash secrecy assertions; full routine-log and database inspection evidence remains limited. |
+| AC-F01-10 | TEST-F01-10 | PENDING INTEGRATION | Origin/session-rotation assertions passed in the isolated run; F-02 cross-feature CSRF execution remains pending. |
+| AC-F01-11 | TEST-F01-11 | PASS | Post-commit integration run passed local and production-mode cookie creation/clearing assertions, including Secure, HttpOnly, SameSite, Path, and Max-Age behavior. |
+| AC-F01-12 | TEST-F01-12 | PARTIAL | `client/src/App.test.tsx`: 6 tests passed. Local macOS Playwright Chromium run passed 8 of 9 tests; the expired/revoked-session browser scenario was intentionally skipped pending a deterministic fixture. |
+| AC-F01-13 | TEST-F01-13 | PENDING | PostgreSQL evidence is tied to commit `4edc4034a2ce4b763f60a37e825e024de8706329`; browser results were executed after that commit with uncommitted Playwright changes, and F-02 integration plus teammate acceptance remain outstanding. |
+
+Browser verification for TEST-F01-12 was executed locally on macOS with Playwright Chromium: 9 tests total, 8 passed, 0 failed, 1 intentionally skipped, duration 6.5 seconds. Passed coverage includes Participant and Organizer login, server-derived identity/role, invalid and missing credentials, logout/session refresh, password visibility, keyboard interaction, focus, and responsive unauthenticated/authenticated layouts at 375px, 390px, 768px, and 1440px. The expired/revoked-session browser scenario remains skipped pending a deterministic expiry fixture.
+
+Suggested macOS execution: install Chromium with `npx playwright install chromium`, start PostgreSQL with `docker compose up -d postgres`, seed only synthetic local accounts using the ignored seed variables, then run `npm run test:e2e`. Keep the isolated `eventcheck_test` database reserved for integration tests and do not use destructive reset commands against the development database.
 
 Executed commands for this record:
 
-- `npm run test --workspace client`: 1 file, 6 tests passed.
-- `npm run test --workspace server`: security unit test passed; health test blocked by `listen EPERM`; integration tests skipped without PostgreSQL.
-- `npm run typecheck`: passed for server and client.
-- `npm run build`: passed for server and client.
-- `DATABASE_URL=...eventcheck_test... npm run prisma:validate --workspace server`: passed.
-- `git diff --check`: passed.
+- Historical pre-commit frontend run: `npm run test --workspace client`: 1 file, 6 tests passed; this result is not attributed to commit `4edc4034a2ce4b763f60a37e825e024de8706329`.
+- `DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration --workspace=server`: 1 file passed; 6 tests passed, 0 failed, 0 skipped, 698 ms, against `127.0.0.1:5433/eventcheck_test` at commit `4edc4034a2ce4b763f60a37e825e024de8706329`.
+- `npx playwright test --list`: 1 file, 9 browser tests discovered in `e2e/f01-auth.spec.ts`.
+- `npm run test:e2e`: Playwright Chromium, 9 tests total, 8 passed, 0 failed, 1 skipped, duration 6.5 seconds. This run occurred after commit `4edc4034a2ce4b763f60a37e825e024de8706329` with uncommitted Playwright changes, so it is not attributed to that commit.
+- Historical pre-commit server run: security unit test passed; health test was blocked by `listen EPERM`; this is retained only as historical context and is not used as post-commit integration evidence.
+- Historical pre-commit workspace checks: `npm run typecheck`, `npm run build`, Prisma validation, and `git diff --check` passed; these results are not attributed to the tested commit without supporting logs.
+- `git diff --check` for this documentation correction: passed.
 - Invalid `eventcheck_test_backup` integration configuration: rejected with exit code 2.
