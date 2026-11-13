@@ -4,11 +4,11 @@
 
 **Contract version:** 0.1
 
-**Status:** Draft for teammate review; not yet accepted for implementation
+**Status:** Draft for teammate review; implementation evidence recorded, not yet accepted for completion
 
 **Baseline:** EventCheck SRS, Feature Inventory, Traceability Matrix, Sprint Plan, and System-Level SDS reviewed for Issue I-04.
 
-> This is a versioned design and verification plan. It records no implementation, test execution, review approval, or completion evidence.
+> This is a versioned design and verification plan. Implementation and verification evidence is recorded below; teammate acceptance, a tested commit, and completion evidence remain pending.
 
 ## A. Feature overview
 
@@ -194,3 +194,33 @@ Confirm before implementation: route prefix and exact paths; response envelope a
 | Test command, counts, failures/skips, tested commit | TBD; not executed |
 | TDD red/green revisions for applicable rule work | TBD |
 | Build/integration result and accepted Sprint 1 release | TBD |
+
+### Current verification record
+
+The following record reflects checks executed on the working tree at revision `6a9fe29243385acc23b26c0a25d64353262ceef2`. The working tree was not clean, so this revision is a baseline reference only and is **not** a tested feature commit. The dedicated PostgreSQL integration suite was not executed successfully in this environment because Docker/PostgreSQL was unavailable; no development or production database was substituted.
+
+| AC ID | TEST ID | Current status | Evidence and limitation |
+| --- | --- | --- | --- |
+| AC-F01-01 | TEST-F01-01 | PARTIAL | `server/src/auth.integration.test.ts`; integration execution blocked by unavailable isolated PostgreSQL. |
+| AC-F01-02 | TEST-F01-02 | PARTIAL | Same integration test; generic credential cases are specified, but fresh execution was blocked. |
+| AC-F01-03 | TEST-F01-03 | PARTIAL | Same integration test; server-derived identity case is present, but fresh execution was blocked. |
+| AC-F01-04 | TEST-F01-04 | PARTIAL | Same integration test; logout/replay assertions are present, but fresh execution was blocked. |
+| AC-F01-05 | TEST-F01-05 | PARTIAL | Same integration test; malformed/revoked session assertions are present, but fresh execution was blocked. |
+| AC-F01-06 | TEST-F01-06 | PARTIAL | Exact idle-boundary assertions are present, but fresh PostgreSQL execution was blocked. |
+| AC-F01-07 | TEST-F01-07 | PARTIAL | Absolute-boundary assertions are present, but fresh PostgreSQL execution was blocked. |
+| AC-F01-08 | TEST-F01-08 | PENDING INTEGRATION | Isolated middleware coverage exists; actual F-02 Organizer-only routes are not available. |
+| AC-F01-09 | TEST-F01-09 | PARTIAL | `server/src/security.test.ts` passed; database/log secrecy integration evidence remains blocked. |
+| AC-F01-10 | TEST-F01-10 | PENDING INTEGRATION | Origin/session-rotation assertions exist; F-02 cross-feature CSRF execution remains pending and PostgreSQL was unavailable. |
+| AC-F01-11 | TEST-F01-11 | PARTIAL | Cookie assertions are implemented; fresh production/local header verification requires the isolated integration environment. |
+| AC-F01-12 | TEST-F01-12 | PARTIAL | `client/src/App.test.tsx`: 6 tests passed. Browser keyboard/focus and responsive checks at 375px, 390px, 768px, and 1440px were not executed. |
+| AC-F01-13 | TEST-F01-13 | PENDING | `npm run typecheck`, `npm run build`, `prisma validate`, and `git diff --check` passed; no tested commit or teammate acceptance exists. |
+
+Executed commands for this record:
+
+- `npm run test --workspace client`: 1 file, 6 tests passed.
+- `npm run test --workspace server`: security unit test passed; health test blocked by `listen EPERM`; integration tests skipped without PostgreSQL.
+- `npm run typecheck`: passed for server and client.
+- `npm run build`: passed for server and client.
+- `DATABASE_URL=...eventcheck_test... npm run prisma:validate --workspace server`: passed.
+- `git diff --check`: passed.
+- Invalid `eventcheck_test_backup` integration configuration: rejected with exit code 2.
