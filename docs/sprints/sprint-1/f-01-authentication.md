@@ -192,15 +192,15 @@ Implemented choices awaiting teammate confirmation: route prefix and exact paths
 | Evidence | Status / future link |
 | --- | --- |
 | Teammate contract review and decision | Pending — record reviewer, review date, substantive findings, and accepted contract revision |
-| Implementation Issue / branch / PR | TBD |
+| Implementation Issue / branch / PR | GitHub Issue #8; branch `feature/06-auth-role-access`; PR URL pending |
 | Actual test source files and names for TEST-F01-* | Recorded below; F-02-dependent checks and the browser expiry scenario remain pending |
-| Test command, counts, failures/skips, tested commit | PostgreSQL integration: 6 passed, 0 failed, 0 skipped at commit `4edc4034a2ce4b763f60a37e825e024de8706329` |
+| Test command, counts, failures/skips, tested commit | PostgreSQL integration: 6 passed, 0 failed, 0 skipped at commit `4eef1206087bbaf648a8c88b71803e32a1d76b26`; historical 4edc403 evidence retained below |
 | TDD red/green revisions for applicable rule work | TBD |
 | Build/integration result and accepted Sprint 1 release | TBD |
 
 ### Current verification record
 
-The following record reflects the post-commit PostgreSQL integration run against the isolated database `127.0.0.1:5433/eventcheck_test`. The source revision was `4edc4034a2ce4b763f60a37e825e024de8706329`; the working tree was clean when inspected. Command: `DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration --workspace=server`. Result: 1 test file passed, 6 tests passed, 0 failed, 0 skipped, duration 698 ms.
+The following record reflects the latest post-commit verification at source revision `4eef1206087bbaf648a8c88b71803e32a1d76b26` (verified with `git rev-parse HEAD`). The isolated PostgreSQL database was `127.0.0.1:5433/eventcheck_test`. Historical PostgreSQL evidence at commit `4edc4034a2ce4b763f60a37e825e024de8706329` remains preserved below.
 
 Implementation evidence: GitHub Issue #8, branch `feature/06-auth-role-access`. No pull-request URL is recorded because none was provided.
 
@@ -218,18 +218,19 @@ Implementation evidence: GitHub Issue #8, branch `feature/06-auth-role-access`. 
 | AC-F01-10 | TEST-F01-10 | PENDING INTEGRATION | Origin/session-rotation assertions passed in the isolated run; F-02 cross-feature CSRF execution remains pending. |
 | AC-F01-11 | TEST-F01-11 | PASS | Post-commit integration run passed local and production-mode cookie creation/clearing assertions, including Secure, HttpOnly, SameSite, Path, and Max-Age behavior. |
 | AC-F01-12 | TEST-F01-12 | PARTIAL | `client/src/App.test.tsx`: 6 tests passed. Local macOS Playwright Chromium run passed 8 of 9 tests; the expired/revoked-session browser scenario was intentionally skipped pending a deterministic fixture. |
-| AC-F01-13 | TEST-F01-13 | PENDING | PostgreSQL evidence is tied to commit `4edc4034a2ce4b763f60a37e825e024de8706329`; browser results were executed after that commit with uncommitted Playwright changes, and F-02 integration plus teammate acceptance remain outstanding. |
+| AC-F01-13 | TEST-F01-13 | PENDING | PostgreSQL and Playwright evidence are now recorded against commit `4eef1206087bbaf648a8c88b71803e32a1d76b26`; F-02 integration, teammate acceptance, and formal completion evidence remain outstanding. |
 
-Browser verification for TEST-F01-12 was executed locally on macOS with Playwright Chromium: 9 tests total, 8 passed, 0 failed, 1 intentionally skipped, duration 6.5 seconds. Passed coverage includes Participant and Organizer login, server-derived identity/role, invalid and missing credentials, logout/session refresh, password visibility, keyboard interaction, focus, and responsive unauthenticated/authenticated layouts at 375px, 390px, 768px, and 1440px. The expired/revoked-session browser scenario remains skipped pending a deterministic expiry fixture.
+Browser verification for TEST-F01-12 was executed locally on macOS with Playwright Chromium at commit `4eef1206087bbaf648a8c88b71803e32a1d76b26`: 9 tests total, 8 passed, 0 failed, 1 intentionally skipped, duration 6.1 seconds. Passed coverage includes Participant and Organizer login, server-derived identity/role, invalid and missing credentials, logout/session refresh, password visibility, keyboard interaction, focus, and responsive unauthenticated/authenticated layouts at 375px, 390px, 768px, and 1440px. The expired/revoked-session browser scenario remains skipped pending a deterministic expiry fixture.
 
 Suggested macOS execution: install Chromium with `npx playwright install chromium`, start PostgreSQL with `docker compose up -d postgres`, seed only synthetic local accounts using the ignored seed variables, then run `npm run test:e2e`. Keep the isolated `eventcheck_test` database reserved for integration tests and do not use destructive reset commands against the development database.
 
 Executed commands for this record:
 
 - Historical pre-commit frontend run: `npm run test --workspace client`: 1 file, 6 tests passed; this result is not attributed to commit `4edc4034a2ce4b763f60a37e825e024de8706329`.
-- `DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration --workspace=server`: 1 file passed; 6 tests passed, 0 failed, 0 skipped, 698 ms, against `127.0.0.1:5433/eventcheck_test` at commit `4edc4034a2ce4b763f60a37e825e024de8706329`.
+- `DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration --workspace=server`: 1 file passed; 6 tests passed, 0 failed, 0 skipped, 768 ms, against `127.0.0.1:5433/eventcheck_test` at commit `4eef1206087bbaf648a8c88b71803e32a1d76b26`.
+- Historical PostgreSQL run: the same command against `127.0.0.1:5433/eventcheck_test` at commit `4edc4034a2ce4b763f60a37e825e024de8706329` passed 1 file, 6 tests, 0 failed, 0 skipped in 698 ms.
 - `npx playwright test --list`: 1 file, 9 browser tests discovered in `e2e/f01-auth.spec.ts`.
-- `npm run test:e2e`: Playwright Chromium, 9 tests total, 8 passed, 0 failed, 1 skipped, duration 6.5 seconds. This run occurred after commit `4edc4034a2ce4b763f60a37e825e024de8706329` with uncommitted Playwright changes, so it is not attributed to that commit.
+- `npm run test:e2e`: Playwright Chromium, 9 tests total, 8 passed, 0 failed, 1 skipped, duration 6.1 seconds, at commit `4eef1206087bbaf648a8c88b71803e32a1d76b26`.
 - Historical pre-commit server run: security unit test passed; health test was blocked by `listen EPERM`; this is retained only as historical context and is not used as post-commit integration evidence.
 - Historical pre-commit workspace checks: `npm run typecheck`, `npm run build`, Prisma validation, and `git diff --check` passed; these results are not attributed to the tested commit without supporting logs.
 - `git diff --check` for this documentation correction: passed.
