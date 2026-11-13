@@ -1,0 +1,11 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Feature-owned models are added by F-01 (User/Session), F-02 (Event), and
+// F-03 (Registration). This baseline intentionally creates no feature tables.

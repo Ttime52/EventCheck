@@ -1,0 +1,18 @@
+{
+  "name": "eventcheck",
+  "private": true,
+  "workspaces": ["client", "server"],
+  "scripts": {
+    "install:all": "npm install",
+    "dev": "concurrently \"npm run dev --workspace server\" \"npm run dev --workspace client\"",
+    "typecheck": "npm run typecheck --workspace server && npm run typecheck --workspace client",
+    "test": "npm run test --workspace server && npm run test --workspace client",
+    "build": "npm run build --workspace server && npm run build --workspace client",
+    "prisma:generate": "npm run prisma:generate --workspace server",
+    "prisma:validate": "npm run prisma:validate --workspace server",
+    "db:migrate": "npm run db:migrate --workspace server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
