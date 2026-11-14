@@ -2,13 +2,17 @@
 
 **Issue:** I-04 — Contract: Authentication & Event Publishing
 
-**Contract version:** 0.1
+**Implementation issue:** GitHub Issue #9 — Issue 7: Feature Event Creation & Publishing
 
-**Status:** Draft for teammate review; not yet accepted for implementation
+**Pull request:** PR #17 (`feature/07-event-creation-publishing`)
+
+**Contract version:** 0.4
+
+**Status:** Approved/Accepted for Implementation; completion and merge approval remain pending
 
 **Baseline:** EventCheck SRS, Feature Inventory, Traceability Matrix, Sprint Plan, and System-Level SDS reviewed for Issue I-04.
 
-> This is a versioned design and verification plan. It records no implementation, test execution, review approval, or completion evidence.
+> This is a versioned design and verification plan. The F-02 design is accepted for implementation; acceptance does not mark the feature Done, merged, or released.
 
 ## A. Feature overview
 
@@ -29,7 +33,7 @@ Allow an authenticated Organizer to create and publish a valid University Event 
 ### Dependencies and prerequisites
 
 - F-01 valid server-side session with role Participant or Organizer; the backend derives the owner from that session.
-- PostgreSQL and Prisma are team-approved core technology selections in the System-Level SDS. Exact route names, request/response envelope and error codes remain proposed.
+- PostgreSQL and Prisma are team-approved core technology selections in the System-Level SDS. The reviewed route names, request/response envelopes, error codes, and status choices are approved for this F-02 implementation.
 - Seed only synthetic test events and users. No real credentials, production data, or production secrets belong in fixture files or evidence.
 - Coordinate the published event projection and endpoint with F-03; this contract verifies the publication integration boundary, not all public discovery behavior.
 - F-04 may consume F-02 owned-event identity for registration-list retrieval. Its contract must reuse F-02 event IDs and owner predicate and define its own registration-list fields.
@@ -59,13 +63,13 @@ The Organizer UI gathers event fields and sends a request to the backend. F-01 m
 
 1. Organizer opens the Create and Publish Event view.
 2. UI accepts title, description, location, start date/time, end date/time, and capacity; it labels entered/displayed time as Asia/Bangkok (UTC+7).
-3. UI converts entered time to an offset-aware ISO 8601 instant for the candidate API. Backend validates nonblank text, valid instants, end strictly after start, and positive integer capacity.
+3. UI converts entered time to an offset-aware ISO 8601 instant for the approved F-02 API. Backend validates nonblank text, valid instants, end strictly after start, and positive integer capacity.
 4. Backend derives owner from the authenticated Organizer session. It does not trust a client-supplied owner ID or publication state.
 5. On valid input, the backend inserts one Event with published state and commits. It returns a safe event-management summary.
 6. On invalid input or storage failure, the backend returns a safe error and commits no partial event.
 7. Organizer event list/detail queries filter by that same server-derived owner. A committed published event becomes eligible for F-03 public list/detail retrieval.
 
-There is no separate draft state in this chosen Sprint 1 workflow. The System SDS's REST-like routes and API envelopes remain proposed pending review.
+There is no separate draft state in this chosen Sprint 1 workflow. The reviewed REST-like routes, API envelopes, and error policy below are approved for F-02 implementation.
 
 ### Validation and state rules
 
@@ -75,11 +79,11 @@ There is no separate draft state in this chosen Sprint 1 workflow. The System SD
 | Start/end | Each represents a valid date-time instant; end is strictly later than start | Return field-level safe validation; do not create or publish |
 | Timezone | UI input/display is explicitly labelled Asia/Bangkok (UTC+7); stored and compared value is the corresponding UTC instant | Reject malformed/unparseable input; never silently reinterpret it as server-local time |
 | Capacity | JSON numeric integer greater than zero | Reject missing, zero, negative, fractional, string, or non-numeric capacity; no event row |
-| Owner | Always authenticated Organizer ID from validated F-01 session | Client owner override is rejected as an unsupported field in this proposed request schema |
+| Owner | Always authenticated Organizer ID from validated F-01 session | Client owner override is rejected as an unsupported field in the approved request schema |
 | Publication | Combined create-and-publish produces a published Event only after all validation succeeds | No public discovery on failed validation/write |
 | Sprint 1 capacity | Capacity cannot be modified after publication in Sprint 1 | No capacity-edit UI or supported update API; the Sprint 2 edit route is not available in this increment |
 
-Text maximum lengths and a canonical trimming policy are not established in the SRS/SDS. Agree them during API/schema review before implementation; do not invent silent limits in the contract.
+Text maximum lengths and a canonical trimming policy are not established in the SRS/SDS. They remain open for a future reviewed extension; the current implementation does not invent silent limits in the approved F-02 contract.
 
 ### Normal, alternative, failure, and boundary scenarios
 
@@ -114,16 +118,16 @@ UI state requirements:
 
 ### API specifications
 
-The System-Level SDS describes /api/v1, JSON envelopes and these candidate routes, but explicitly marks the route names and API conventions Proposed. Confirm path, envelope, field names, stable error codes, and exact status choices before implementation. The examples are planned contract shapes only.
+The System-Level SDS describes /api/v1 and JSON envelopes. The route names, field names, stable error codes, response envelopes, and status choices below are the reviewed and approved F-02 API contract. F-03 public discovery remains a separate contract and integration boundary.
 
-Common proposed conventions: HTTPS; JSON; success { "data": ... }; error { "error": { "code": "...", "message": "...", "details": [...] } }; statuses from the SDS. Cookie-authenticated state-changing create requests must pass the reviewed CSRF/origin check.
+Approved conventions: HTTPS; JSON; success { "data": ... }; error { "error": { "code": "...", "message": "...", "details": [...] } }; statuses from the SDS. Cookie-authenticated state-changing create requests must pass the reviewed CSRF/origin check.
 
-| Method and candidate path | Authentication/authorization | Request | Success response | Failure and persistence |
+| Method and approved path | Authentication/authorization | Request | Success response | Failure and persistence |
 | --- | --- | --- | --- | --- |
-| POST /api/v1/events | Valid session; Organizer role; CSRF protection | title, description, location, offset-aware startAt, endAt, positive integer capacity. Do not accept organizerId or publicationState; proposed schema rejects unknown owner override. | Proposed 201, data.event = { id, title, description, location, startAt, endAt, capacity, publicationState: "PUBLISHED" }; dates serialized as UTC ISO 8601. | 401 no session; 403 wrong role; 422 field validation; 400 malformed body; safe 500 on unexpected write failure. Any rejection/failure leaves no partial event. Exact code/envelope is proposed. |
-| GET /api/v1/organizer/events | Valid session; Organizer role | No owner parameter; filter is server-derived | Proposed 200 array of that Organizer's management summaries; empty array is explicit | 401 missing/invalid/expired session; 403 wrong role; no other owner's events returned |
-| GET /api/v1/organizer/events/{eventId} | Valid session; Organizer role and owner predicate | Path contains target event ID; caller cannot change owner | Proposed 200 own management detail | 401; wrong role safe 403; missing or non-owned event safe 404 (privacy-preserving choice proposed); no private detail in error |
-| PATCH /api/v1/organizer/events/{eventId} | Not a supported Sprint 1 operation for any actor | No Sprint 1 request schema | No success behavior in this contract | Candidate outcome 404/unsupported route, no mutation. Capacity/deadline editing is Sprint 2 and requires its own reviewed contract. |
+| POST /api/v1/events | Valid session; Organizer role; CSRF protection | title, description, location, offset-aware startAt, endAt, positive integer capacity. Do not accept organizerId or publicationState; the approved schema rejects unknown owner override. | 201, data.event = { id, title, description, location, startAt, endAt, capacity, publicationState: "PUBLISHED" }; dates serialized as UTC ISO 8601. | 401 no session; 403 wrong role; 422 field validation; 400 malformed body; safe 500 on unexpected write failure. Any rejection/failure leaves no partial event. |
+| GET /api/v1/organizer/events | Valid session; Organizer role | No owner parameter; filter is server-derived | 200 array of that Organizer's management summaries; empty array is explicit | 401 missing/invalid/expired session; 403 wrong role; no other owner's events returned |
+| GET /api/v1/organizer/events/{eventId} | Valid session; Organizer role and owner predicate | Path contains target event ID; caller cannot change owner | 200 own management detail | 401; wrong role safe 403; missing or non-owned event safe 404; no private detail in error |
+| PATCH /api/v1/organizer/events/{eventId} | Not a supported Sprint 1 operation for any actor | No Sprint 1 request schema | No success behavior in this contract | Approved boundary outcome: 404/unsupported route, no mutation. Capacity/deadline editing is Sprint 2 and requires its own reviewed contract. |
 
 For create, the response and stored event contain the selected fields, stable ID, derived owner link in persistence, and published state. Do not expose internal credentials/session data or unrelated user data. GET /api/v1/events and GET /api/v1/events/{eventId} belong to F-03; F-02 only requires an integration check that its committed published event is visible through that public contract with the public projection.
 
@@ -140,7 +144,7 @@ Persistence and migration expectations:
 - Stable Event identity, owner link and accepted fields survive application restart against the configured real database (NFR-04).
 - Use versioned migrations for Event fields, ownership FK, publication state, positive-capacity/date integrity constraints, and indexes aligned with the System-Level SDS. Do not claim migrations have been created or run.
 - Seed only reproducible synthetic accounts/events. Feature tests should create isolated event fixtures; no real user data or credentials.
-- Store date-time values as UTC instants. Convert initial form input from labelled Asia/Bangkok (UTC+7); serialize instants as UTC ISO 8601 per the proposed SDS API convention.
+- Store date-time values as UTC instants. Convert initial form input from labelled Asia/Bangkok (UTC+7); serialize instants as UTC ISO 8601 per the approved F-02 API convention.
 - A successful create-and-publish commit is the visibility boundary for F-03 discovery. Public projection, registration capacity consumption, and registration concurrency are owned by F-03, not duplicated here.
 
 ## C. Acceptance Criteria
@@ -153,7 +157,7 @@ Persistence and migration expectations:
 | AC-F02-04 | FR-07, BR-12, D-08, NFR-06 | Invalid start/end instants, equal start/end, and end-before-start are rejected; no server-local reinterpretation or partial record occurs. |
 | AC-F02-05 | FR-07, BR-05, NFR-06 | Missing, zero, negative, fractional, string, or nonnumeric capacity is rejected without persistence; capacity 1 is accepted with otherwise valid input. |
 | AC-F02-06 | FR-06, FR-08, BR-01, NFR-01 | Anonymous callers and Participants cannot create/publish an Event through direct API requests; denial leaves database state unchanged. |
-| AC-F02-07 | FR-06, BR-02, NFR-01 | Event owner always equals the authenticated Organizer. Under this contract's proposed request schema, a client owner override is rejected with a safe field validation error (proposed 422) and cannot create or expose an event under another user's ownership. |
+| AC-F02-07 | FR-06, BR-02, NFR-01 | Event owner always equals the authenticated Organizer. Under the approved request schema, a client owner override is rejected with a safe field validation error (422) and cannot create or expose an event under another user's ownership. |
 | AC-F02-08 | FR-09, BR-02, NFR-01 | Organizer event list returns only that Organizer's events and gives an explicit empty result when none exist; client-supplied owner filters cannot reveal another owner's rows. |
 | AC-F02-09 | FR-09, BR-02, NFR-01 | The owning Organizer can retrieve management details for an owned event; another Organizer, Participant, or visitor receives no private detail, with missing/non-owned access handled safely. |
 | AC-F02-10 | FR-08, BR-15 Sprint 1 boundary, D-04 | Sprint 1 has no supported event-update/capacity-edit UI or API. A direct edit attempt cannot change a published event's capacity or other fields. |
@@ -163,9 +167,9 @@ Persistence and migration expectations:
 | AC-F02-14 | FR-06 to FR-09, NFR-08 | Form, list, and detail views have accessible labels/focus plus explicit loading, success, empty, validation, authentication, and permission states. |
 | AC-F02-15 | NFR-09, NFR-10 | The accepted F-02 contract retains version history and stable IDs; every AC maps to an actual test result and tested commit before the feature is declared Done, with failures/skips disclosed and required checks passing. |
 
-## D. Software Test Specification (planned; not executed)
+## D. Software Test Specification
 
-Tests below verify this contract through UI, API and real-database boundaries. The exact test libraries remain proposed in the System SDS; choose the harness before implementation. No executable tests are added or run by Issue I-04. Read-only/UI/review tests assert no database change; write tests state the expected committed row or unchanged before-state.
+Tests below verify this contract through UI, API and real-database boundaries. The repository records executable unit, integration, frontend, and Playwright tests for the implemented scope; the actual commands and results are recorded in the implementation evidence. Read-only/UI/review tests assert no database change; write tests state the expected committed row or unchanged before-state.
 
 | Test ID | AC | Level | Preconditions and inputs | Planned steps | Expected result and database/privacy assertions |
 | --- | --- | --- | --- | --- | --- |
@@ -175,7 +179,7 @@ Tests below verify this contract through UI, API and real-database boundaries. T
 | TEST-F02-04 | AC-F02-04 | Unit + API Integration | Valid Organizer; malformed instant, equal instants, end earlier than start | Submit each boundary payload | Rejected as date validation; no local-time fallback; zero created/published rows |
 | TEST-F02-05 | AC-F02-05 | Unit + API Integration | Valid text/date fields; capacity cases: omitted, 0, -1, 1.5, string, nonnumeric, and 1 | Submit each case | All invalid capacities return field error and no row; positive integer 1 succeeds; state matches AC |
 | TEST-F02-06 | AC-F02-06 | API Integration | No session and Participant session; before-state Event count recorded | Call create-and-publish directly as both actors | Safe 401/403 outcomes; no Event row, publication, or ownership change; no hidden-control assumption |
-| TEST-F02-07 | AC-F02-07 | API Integration + Database Integration | Organizer A and B; valid payload containing attempted owner override to B | Submit as A with owner override; query result and DB | Per proposed schema the override returns a safe 422 field-validation result; no Event is created under A or B. If the team approves ignore semantics instead, version this test/contract and verify any created Event is owned only by A. |
+| TEST-F02-07 | AC-F02-07 | API Integration + Database Integration | Organizer A and B; valid payload containing attempted owner override to B | Submit as A with owner override; query result and DB | The approved schema returns a safe 422 field-validation result; no Event is created under A or B. |
 | TEST-F02-08 | AC-F02-08 | API Integration + Database Integration | Two Organizers with separate events; one account with none | Call owned-event list as each; attempt owner filter for the other ID | Each list contains only its own events; empty case returns explicit empty array; tampered filter cannot widen scope |
 | TEST-F02-09 | AC-F02-09 | API Integration | Event owned by Organizer A; Organizer B, Participant, visitor; nonexistent ID | Fetch management detail as each actor | Owner receives detail; all other access returns safe denial/not-found with no title, owner ID, or private management fields |
 | TEST-F02-10 | AC-F02-10 | API Integration + Database Integration | Published event with capacity 1; stored snapshot; candidate update route | Attempt Sprint 1 PATCH/update as owner and non-owner | No supported update succeeds; capacity and other fields remain unchanged; response uses reviewed unsupported/denied result |
@@ -194,20 +198,38 @@ Important TDD candidates: TEST-F02-03 to TEST-F02-05 for required fields, time o
 | Version | Date | Status | Change |
 | --- | --- | --- | --- |
 | 0.1 | 2026-11-13 | Draft for teammate review | Initial F-02 feature design, UI/API/data proposals, AC, and planned STS from the approved SRS and System-Level SDS. No implementation or verification claimed. |
+| 0.2 | 2026-11-14 | Draft for teammate review | Reconciled the implemented F-02 routes, response/error envelopes, owner-only detail boundary, persistence constraints, and API/UI verification mapping with the implementation. |
+| 0.3 | 2026-11-14 | Approved/Accepted for Implementation | Teammate accepted the F-02 design: Organizer-only create/list/detail APIs, session-derived ownership, six-field validation, UTC persistence with Asia/Bangkok presentation, transactional publish, and Sprint 1 no-edit boundary. Completion, release, and merge approval remain pending. |
+| 0.4 | 2026-11-14 | Approved/Accepted for Implementation | Recorded PR #17, tested commit `46e4de9663799dc3c519d934f6a10acfd3852fe9`, current verification evidence, targeted browser-coverage additions, required F-01 integration scope, and deferred F-03 discovery integration. |
 
 ### Decisions and open items
 
 Approved baseline applied: D-04 (six fields, combined create-and-publish, fixed published capacity in Sprint 1); D-08/Q-11 (UTC storage and Asia/Bangkok display/input); Q-08 public-discovery boundary; D-02/Q-09 session identity. No new business rule or requirement ID is introduced.
 
-Confirm before implementation: exact API prefix/routes and response shape; validation error code/status mapping; owner override policy (this draft proposes rejecting it); maximum text lengths/normalization; detail endpoint path; safe non-owner status; database constraint/migration details; and coordination of the public event projection with F-03. Capacity/deadline editing remains excluded until Sprint 2 review.
+The following implementation decisions are confirmed for F-02: `/api/v1/events` is the Organizer-only create-and-publish route; `/api/v1/organizer/events` and `/api/v1/organizer/events/{eventId}` are owner-filtered management reads; success responses use `{ "data": ... }`; failures use `{ "error": { "code", "message", "details" } }`; validation uses 422, malformed JSON uses 400, missing session uses 401, wrong role uses 403, and missing/non-owned detail uses privacy-preserving 404. The backend derives `organizerId` from the validated session, rejects client owner/publication overrides, persists UTC instants and `PUBLISHED` state transactionally, and exposes no Sprint 1 edit/capacity-update operation.
 
-### Future completion evidence (placeholders)
+Text maximum lengths and canonical trimming remain open for a future reviewed extension; the current F-02 implementation does not add silent limits in the approved contract. F-03 public discovery remains a deferred integration boundary and must be verified before the Sprint 1 release. Capacity/deadline editing remains excluded until Sprint 2 review.
+
+### Teammate review and release-gate record
+
+| Item | Record |
+| --- | --- |
+| Contract review decision | Teammate accepted the F-02 API routes, response/error formats, session-derived Organizer ownership, validation rules, PostgreSQL persistence, create-and-publish workflow, and read-only Sprint 1 management boundary for implementation. |
+| Review date | 2026-11-14 |
+| Reviewer identity | Teammate reviewer; name/handle was not included in the supplied review record. |
+| Implementation issue | [GitHub Issue #9](https://github.com/Ttime52/EventCheck/issues/9) — Issue 7: Feature Event Creation & Publishing. |
+| Pull request | [PR #17](https://github.com/Ttime52/EventCheck/pull/17), branch `feature/07-event-creation-publishing`, base `sprint-1-staging`. |
+| Tested PR commit | `46e4de9663799dc3c519d934f6a10acfd3852fe9`. |
+| Closing reference | `Closes #9` is correct for the F-02 implementation issue; it is recorded in PR #17. |
+| Completion condition | Contract acceptance does not mark F-02 Done. AC-F02-11/F-03 public discovery integration, final current-PR browser evidence, teammate review/merge approval, and Sprint 1 release checks remain required. |
+
+### Completion evidence (pending Done gate)
 
 | Evidence | Status / future link |
 | --- | --- |
-| Teammate contract review and decision | Pending — record reviewer, review date, substantive findings, and accepted contract revision |
-| Implementation Issue / branch / PR | TBD |
-| Actual test source files and names for TEST-F02-* | TBD; planned tests only |
-| Test command, counts, failures/skips, tested commit | TBD; not executed |
-| TDD red/green revisions for applicable rule work | TBD |
-| Build/integration result and accepted Sprint 1 release | TBD |
+| Teammate contract review and decision | Accepted for implementation on 2026-11-14; reviewer identity remains unspecified in the supplied record. |
+| Implementation Issue / branch / PR | GitHub Issue #9; branch `feature/07-event-creation-publishing`; PR #17; `Closes #9` confirmed. |
+| Actual test source files and names for TEST-F02-* | `server/src/events.test.ts`, `server/src/events.integration.test.ts`, `client/src/App.test.tsx`, `e2e/f02-event-publishing.spec.ts`, and F-01 integration coverage. |
+| Test command, counts, failures/skips, tested commit | PR #17 reports 13 unit tests, 14 PostgreSQL integration tests, and 10 Playwright tests passed at `46e4de9663799dc3c519d934f6a10acfd3852fe9`; local follow-up verification is recorded separately in the implementation evidence. |
+| TDD red/green revisions for applicable rule work | Red/green validation evidence is recorded in the implementation evidence; completion remains subject to current-PR traceability. |
+| Build/integration result and accepted Sprint 1 release | Typecheck, build, Prisma validation/generation, and PR-reported integration checks passed; F-03 integration and final Sprint 1 release approval remain pending. |

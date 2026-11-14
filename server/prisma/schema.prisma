@@ -12,6 +12,10 @@ enum Role {
   ORGANIZER
 }
 
+enum PublicationState {
+  PUBLISHED
+}
+
 model User {
   id              String    @id @default(uuid())
   loginIdentifier String    @unique
@@ -19,6 +23,7 @@ model User {
   role            Role
   passwordHash    String
   sessions        Session[]
+  events          Event[]
   createdAt       DateTime  @default(now())
 }
 
@@ -33,4 +38,21 @@ model Session {
 
   @@index([userId])
   @@index([absoluteExpiry])
+}
+
+model Event {
+  id              String          @id @default(uuid())
+  organizerId     String
+  organizer       User            @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  title           String
+  description     String
+  location        String
+  startAt         DateTime
+  endAt           DateTime
+  capacity        Int
+  publicationState PublicationState @default(PUBLISHED)
+  createdAt       DateTime        @default(now())
+
+  @@index([organizerId])
+  @@index([publicationState, startAt])
 }

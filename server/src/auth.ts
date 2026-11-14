@@ -8,7 +8,7 @@ export const SESSION_COOKIE = "eventcheck_session";
 const IDLE_MS = 30 * 60 * 1000;
 const ABSOLUTE_MS = 8 * 60 * 60 * 1000;
 
-type AuthenticatedRequest = Request & { user?: { id: string; displayName: string; role: Role }; sessionId?: string };
+export type AuthenticatedRequest = Request & { user?: { id: string; displayName: string; role: Role }; sessionId?: string };
 export function setSessionCookie(response: Response, id: string) {
   const secure = process.env.NODE_ENV === "production";
   response.setHeader("Set-Cookie", `${SESSION_COOKIE}=${id}; Path=/; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`);

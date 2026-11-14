@@ -1,6 +1,6 @@
 import request from "supertest";
 import express from "express";
-import { beforeAll, afterAll, describe, expect, it } from "vitest";
+import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
 import { Role } from "@prisma/client";
 import { app } from "./app.js";
 import { prisma, requireAuth, requireRole, IDLE_MS, ABSOLUTE_MS } from "./auth.js";
@@ -12,6 +12,7 @@ const organizerLogin = "test-organizer@example.test";
 const participantPassword = "test-participant-password";
 const organizerPassword = "test-organizer-password";
 const origin = { Origin: "http://localhost:5173" };
+const routineLogMethods = ["debug", "info", "log", "warn", "error"] as const;
 
 const roleApp = express();
 roleApp.get("/participant", requireAuth, requireRole(Role.PARTICIPANT), (_req, res) => res.json({ ok: true }));
@@ -79,7 +80,49 @@ describe.skipIf(!isolatedDatabase)("F-01 authentication API against isolated Pos
     expect((await request(roleApp).get("/organizer").set("Cookie", organizer.headers["set-cookie"])).status).toBe(200);
   });
 
-  it("TEST-F01-09/10/11: protects hashes, rotates sessions, and enforces CSRF/cookie policy", async () => {
+  it("TEST-F01-09: verifies database hashes, response secrecy, and routine-log secrecy", async () => {
+    const logSpies = routineLogMethods.map((method) => vi.spyOn(console, method).mockImplementation(() => undefined));
+    try {
+      const storedUsers = await prisma.user.findMany({
+        where: { loginIdentifier: { in: [participantLogin, organizerLogin] } },
+        select: { loginIdentifier: true, passwordHash: true },
+      });
+      expect(storedUsers).toHaveLength(2);
+
+      const expectedPasswords = new Map([
+        [participantLogin, participantPassword],
+        [organizerLogin, organizerPassword],
+      ]);
+      const storedHashes = storedUsers.map(({ passwordHash }) => passwordHash);
+      expect(storedHashes.every((hash) => /^scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}$/i.test(hash))).toBe(true);
+      expect(new Set(storedHashes).size).toBe(storedHashes.length);
+      for (const user of storedUsers) expect(user.passwordHash).not.toContain(expectedPasswords.get(user.loginIdentifier) ?? "__missing_password__");
+
+      const login = await request(app).post("/api/v1/auth/login").set(origin).send({ loginIdentifier: participantLogin, password: participantPassword });
+      expect(login.status).toBe(200);
+      const sessionId = login.headers["set-cookie"][0].split(";")[0].split("=")[1];
+      const loginBody = JSON.stringify(login.body);
+      expect(loginBody).not.toContain(participantPassword);
+      expect(loginBody).not.toContain(storedUsers.find((user) => user.loginIdentifier === participantLogin)?.passwordHash ?? "__missing_hash__");
+      expect(loginBody).not.toContain(sessionId);
+
+      const invalid = await request(app).post("/api/v1/auth/login").set(origin).send({ loginIdentifier: participantLogin, password: "wrong-password" });
+      expect(invalid.status).toBe(401);
+      const currentUser = await request(app).get("/api/v1/me").set("Cookie", login.headers["set-cookie"]);
+      expect(currentUser.status).toBe(200);
+      expect(JSON.stringify(currentUser.body)).not.toContain(sessionId);
+      expect((await request(app).post("/api/v1/auth/logout").set(origin).set("Cookie", login.headers["set-cookie"])).status).toBe(204);
+
+      const routineLogs = logSpies.flatMap((spy) => spy.mock.calls.flat()).map(String).join("\n");
+      expect(routineLogs).not.toContain(participantPassword);
+      for (const hash of storedHashes) expect(routineLogs).not.toContain(hash);
+      expect(routineLogs).not.toContain(sessionId);
+    } finally {
+      logSpies.forEach((spy) => spy.mockRestore());
+    }
+  });
+
+  it("TEST-F01-10/11: rotates sessions and enforces CSRF/cookie policy", async () => {
     const first = await request(app).post("/api/v1/auth/login").set(origin).send({ loginIdentifier: participantLogin, password: participantPassword });
     const second = await request(app).post("/api/v1/auth/login").set(origin).set("Cookie", first.headers["set-cookie"]).send({ loginIdentifier: participantLogin, password: participantPassword });
     expect(second.headers["set-cookie"][0]).not.toContain(first.headers["set-cookie"][0].split(";")[0].split("=")[1]);
