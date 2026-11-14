@@ -67,7 +67,7 @@ The accepted conditions are:
 **Owner:** F-01 feature owner; specific reviewer-assigned identity was not provided.  
 **Deadline:** Before production deployment.  
 **Required verification:** Registry-backed `npm audit` and `npm audit --omit=dev`, production-only dependency inspection, Prisma compatibility checks, unit/build checks, and PostgreSQL integration tests.  
-**Team acceptance:** Accepted by the teammate; reviewer identity and acceptance date were not provided. This acceptance applies only to the conditional risk decision, not to production exposure verification, feature completion, or PR merge approval.
+**Team acceptance:** Accepted by the teammate on 2026-11-14 for continued development only; reviewer name/handle was not included in the supplied review record. This acceptance applies only to the conditional risk decision, not to production exposure verification, feature completion, or PR merge approval.
 
 ## Merge and deployment impact
 

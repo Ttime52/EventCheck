@@ -2,13 +2,13 @@
 
 **Issue:** I-04 — Contract: Authentication & Event Publishing
 
-**Contract version:** 0.3
+**Contract version:** 0.4
 
 **Status:** Approved/Accepted for Implementation; completion and merge approval remain pending
 
 **Baseline:** EventCheck SRS, Feature Inventory, Traceability Matrix, Sprint Plan, and System-Level SDS reviewed for Issue I-04.
 
-> This is a versioned design and verification plan. The F-01 design and conditional dependency-risk decision are accepted; implementation completion, F-02 integration, remediation verification, and merge approval remain pending.
+> This is a versioned design and verification plan. The F-01 design and conditional dependency-risk decision are accepted; AC-F01-09 evidence, current-commit verification, F-02 integration, remediation verification, and merge approval remain pending.
 
 ## A. Feature overview
 
@@ -193,11 +193,28 @@ Dependency audit risk remains separate from design acceptance: the full audit re
 
 Dependency risk assessment: [F-01 Dependency Security Risk Assessment](../../security/f-01-dependency-risk-assessment.md). The teammate accepted the conditional risk decision recorded there; production exposure verification, remediation execution, feature completion, and PR merge approval remain pending.
 
+### Teammate review and release-gate record
+
+| Item | Record |
+| --- | --- |
+| Contract review decision | Teammate accepted the F-01 API routes, response envelopes, cookie/session behavior, CSRF origin-validation design, and server-side PostgreSQL session design for continued implementation. |
+| Conditional dependency-risk decision | Accepted for continued development only; production exposure verification, remediation, and re-audit remain mandatory before deployment. |
+| Review date | 2026-11-14 |
+| Reviewer identity | Teammate reviewer; name/handle was not included in the supplied review record. |
+| Completion condition | AC-F01-09 database/log verification, current-commit Playwright evidence, F-02 integration checks, and required dependency verification must be recorded before completion or merge approval. |
+
+### Deferred Sprint 1 integration gates
+
+| Gate | Current status | Release requirement |
+| --- | --- | --- |
+| AC-F01-08 / TEST-F01-08: Participant denied on an actual F-02 Organizer-only route | Pending F-02 implementation/integration | Must pass before the Sprint 1 release is accepted. |
+| AC-F01-10 / TEST-F01-10: F-02-dependent cross-feature CSRF verification | Pending F-02 implementation/integration | Must pass before the Sprint 1 release is accepted. |
+
 ### Future completion evidence (placeholders)
 
 | Evidence | Status / future link |
 | --- | --- |
-| Teammate contract review and decision | Accepted for implementation — design acceptance recorded in version 0.4; reviewer identity/date not provided. Completion and merge approval remain pending. |
+| Teammate contract review and decision | Accepted for implementation; decision and conditions recorded above on 2026-11-14. Reviewer name/handle remains to be added if required by the review record. Completion and merge approval remain pending. |
 | Implementation Issue / branch / PR | GitHub Issue #8; branch `feature/06-auth-role-access`; PR URL pending |
 | Actual test source files and names for TEST-F01-* | Recorded below; F-02-dependent checks remain pending |
 | Test command, counts, failures/skips, tested commit | Latest macOS PostgreSQL integration: 6 passed, 0 failed, 0 skipped, 823 ms; exact tested commit not provided. Historical 4edc403 evidence retained below |
