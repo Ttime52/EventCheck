@@ -14,5 +14,5 @@ if (!valid) {
 }
 const serverDir = fileURLToPath(new URL("..", import.meta.url));
 const vitestEntry = resolve(serverDir, "../node_modules/vitest/vitest.mjs");
-const result = spawnSync(process.execPath, [vitestEntry, "run", "src/auth.integration.test.ts"], { cwd: serverDir, stdio: "inherit", env: process.env });
+const result = spawnSync(process.execPath, [vitestEntry, "run", "src/auth.integration.test.ts", "src/events.integration.test.ts"], { cwd: serverDir, stdio: "inherit", env: process.env });
 process.exit(result.status ?? 1);

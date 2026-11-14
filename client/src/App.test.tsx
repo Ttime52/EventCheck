@@ -87,3 +87,69 @@ describe("F-01 authentication UI (TEST-F01-12)", () => {
     expect(fetchMock).not.toHaveBeenCalledWith("/api/v1/auth/login", expect.anything());
   });
 });
+
+describe("F-02 organizer event publishing UI", () => {
+  const organizer = { id: "organizer-1", displayName: "Test Organizer", role: "ORGANIZER" as const };
+  const event = {
+    id: "event-1",
+    title: "University Workshop",
+    description: "A persisted workshop.",
+    location: "Engineering Building 1",
+    startAt: "2026-11-20T02:00:00.000Z",
+    endAt: "2026-11-20T05:00:00.000Z",
+    capacity: 25,
+    publicationState: "PUBLISHED" as const,
+  };
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  it("TEST-F02-01/02/14: shows the organizer form, publishes, and renders persisted event details", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockImplementationOnce(() => response({ data: { user: organizer } }))
+      .mockImplementationOnce(() => response({ data: { events: [] } }))
+      .mockImplementationOnce(() => response({ data: { event } }, true, 201));
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("form", { name: "Create and publish event" })).toBeInTheDocument());
+    expect(screen.getByText(/No published events yet/)).toBeInTheDocument();
+
+    fireEvent.input(screen.getByLabelText("Title"), { target: { value: "University Workshop" } });
+    fireEvent.input(screen.getByLabelText("Description"), { target: { value: "A persisted workshop." } });
+    fireEvent.input(screen.getByLabelText("Location"), { target: { value: "Engineering Building 1" } });
+    fireEvent.change(screen.getByLabelText("Start date and time — Asia/Bangkok (UTC+7)"), { target: { value: "2026-11-20T09:00" } });
+    fireEvent.change(screen.getByLabelText("End date and time — Asia/Bangkok (UTC+7)"), { target: { value: "2026-11-20T12:00" } });
+    fireEvent.input(screen.getByLabelText("Capacity (positive integer)"), { target: { value: "25" } });
+    fireEvent.click(screen.getByRole("button", { name: "Publish event" }));
+
+    await waitFor(() => expect(screen.getByText("Event published. Event ID: event-1")).toBeInTheDocument());
+    expect(screen.getByText("University Workshop")).toBeInTheDocument();
+    const eventCall = fetchMock.mock.calls.find(([input]) => input === "/api/v1/events");
+    expect(eventCall?.[1]?.method).toBe("POST");
+    expect(JSON.parse(String(eventCall?.[1]?.body))).toMatchObject({ startAt: "2026-11-20T02:00:00.000Z", endAt: "2026-11-20T05:00:00.000Z", capacity: 25 });
+  });
+
+  it("TEST-F02-03/04/05: maps API validation details to the event form", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockImplementationOnce(() => response({ data: { user: organizer } }))
+      .mockImplementationOnce(() => response({ data: { events: [] } }))
+      .mockImplementationOnce(() => response({ error: { code: "VALIDATION_ERROR", message: "Event details are invalid", details: [{ field: "capacity", message: "capacity must be a positive integer" }] } }, false, 422));
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("form", { name: "Create and publish event" })).toBeInTheDocument());
+    fireEvent.input(screen.getByLabelText("Title"), { target: { value: "University Workshop" } });
+    fireEvent.input(screen.getByLabelText("Description"), { target: { value: "A persisted workshop." } });
+    fireEvent.input(screen.getByLabelText("Location"), { target: { value: "Engineering Building 1" } });
+    fireEvent.change(screen.getByLabelText("Start date and time — Asia/Bangkok (UTC+7)"), { target: { value: "2026-11-20T09:00" } });
+    fireEvent.change(screen.getByLabelText("End date and time — Asia/Bangkok (UTC+7)"), { target: { value: "2026-11-20T12:00" } });
+    fireEvent.input(screen.getByLabelText("Capacity (positive integer)"), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Publish event" }));
+
+    await waitFor(() => expect(screen.getByText("capacity must be a positive integer")).toBeInTheDocument());
+    expect(screen.queryByText("University Workshop", { selector: "h3" })).not.toBeInTheDocument();
+  });
+});
