@@ -8,7 +8,7 @@
 
 **Baseline:** EventCheck SRS, Feature Inventory, Traceability Matrix, Sprint Plan, and System-Level SDS reviewed for Issue I-04.
 
-> This is a versioned design and verification plan. The F-01 design is accepted for implementation; implementation completion, F-02 integration, security-risk acceptance, and merge approval remain pending.
+> This is a versioned design and verification plan. The F-01 design and conditional dependency-risk decision are accepted; implementation completion, F-02 integration, remediation verification, and merge approval remain pending.
 
 ## A. Feature overview
 
@@ -106,7 +106,7 @@ The implemented F-01 API uses the /api/v1 prefix, the route names below, JSON en
 | Method and path | Authentication/authorization | Request | Success | Failure and persistence |
 | --- | --- | --- | --- | --- |
 | POST /api/v1/auth/login | Any visitor; HTTPS | JSON { "loginIdentifier": "...", "password": "..." } | 200; `data.user` contains only id, displayName, role; set opaque HttpOnly session cookie | Missing/invalid credentials: generic 401, no session created. Never return credentials, hashes, or session ID in JSON. |
-| GET /api/v1/me | Valid server-side session | No identity fields accepted from client | 200; proposed safe user object containing only id, displayName, role | Missing/invalid/expired/revoked session: 401; no private identity fields returned |
+| GET /api/v1/me | Valid server-side session | No identity fields accepted from client | 200; implemented safe user object containing only id, displayName, role | Missing/invalid/expired/revoked session: 401; no private identity fields returned |
 | POST /api/v1/auth/logout | Valid server-side session; Origin protection for cookie-authenticated request | No user/session ID accepted in body | 204; invalidate server session and clear cookie | Missing/expired/revoked session: safe 401; old cookie replay is rejected. |
 | Any protected F-02 route | Valid session, then route-specific server-side role/ownership check | Client IDs do not establish identity | Response defined by F-02 | 401 unauthenticated; proposed 403 or privacy-preserving 404 for forbidden access; no protected operation reaches persistence |
 
@@ -128,7 +128,7 @@ Physical session table/store implementation and whether the logical expiry time 
 
 ## C. Acceptance Criteria
 
-Each criterion is an observable product outcome. API routes/envelopes noted as candidates remain proposed until team confirmation.
+Each criterion is an observable product outcome. The F-01 API routes, response envelopes, cookie configuration, and CSRF protection mechanism have been reviewed and accepted by the teammate. F-02-dependent authorization and cross-feature CSRF verification remain deferred until Sprint 1 integration.
 
 | AC ID | Linked requirements | Acceptance criterion |
 | --- | --- | --- |
@@ -181,6 +181,7 @@ Important TDD candidates: TEST-F01-06 and TEST-F01-07 for exact idle/absolute ex
 | 0.1 | 2026-11-13 | Draft for teammate review | Initial F-01 feature design, UI/API/data proposals, AC, and planned STS from the approved SRS and System-Level SDS. No implementation or verification claimed. |
 | 0.2 | 2026-11-14 | Draft for teammate review | Recorded post-commit PostgreSQL integration evidence and current AC/TEST verification status. No approval or completion claim. |
 | 0.3 | 2026-11-14 | Approved/Accepted for Implementation | Teammate accepted the F-01 authentication design, including implemented endpoints, server-side PostgreSQL sessions, and password hashing. Completion, security-risk acceptance, and PR merge approval remain pending. |
+| 0.4 | 2026-11-14 | Approved/Accepted for Implementation | Recorded the accepted conditional dependency-risk decision and latest macOS verification results. Completion and PR merge approval remain pending. |
 
 ### Decisions and open items
 
@@ -188,22 +189,24 @@ Approved baseline applied: D-02, Q-09; FR-01 to FR-05 and BR-04. The approved 30
 
 Implemented and recorded choices: `/api/v1/auth/login`, `/api/v1/me`, and `/api/v1/auth/logout`; success bodies use `{ data: { user } }`; failures use `{ error: { code, message } }`; the session cookie is `eventcheck_session`, HttpOnly, Path `/`, SameSite=Lax, and Secure when `NODE_ENV=production`; logout clears the cookie with matching attributes and `Max-Age=0`; state-changing requests require `Origin` to equal `CLIENT_ORIGIN` (default `http://localhost:5173`), otherwise they receive `403 CSRF_REJECTED`. These implementation details were accepted as part of the teammate's F-01 design review. F-02 route-specific authorization and cross-feature CSRF verification remain deferred to Sprint 1 integration.
 
-Dependency audit risk remains separate from design acceptance: the full audit reported 6 vulnerabilities (1 moderate, 3 high, 2 critical), and `npm audit --omit=dev` reported 3 high findings. The affected chain is `@prisma/client@6.19.3` → optional-peer `prisma@6.19.3` → `@prisma/config@6.19.3` → `deepmerge-ts@7.1.5`; runtime exploitability has not been established. No security-risk acceptance is claimed; remediation requires a separate dependency review.
+Dependency audit risk remains separate from design acceptance: the full audit reported 6 vulnerabilities (1 moderate, 3 high, 2 critical), and `npm audit --omit=dev` reported 3 high findings. The affected chain is `@prisma/client@6.19.3` → optional-peer `prisma@6.19.3` → `@prisma/config@6.19.3` → `deepmerge-ts@7.1.5`; runtime exploitability has not been established. The teammate accepted the conditional risk decision documented in the linked assessment; remediation and production exposure verification remain required.
+
+Dependency risk assessment: [F-01 Dependency Security Risk Assessment](../../security/f-01-dependency-risk-assessment.md). The teammate accepted the conditional risk decision recorded there; production exposure verification, remediation execution, feature completion, and PR merge approval remain pending.
 
 ### Future completion evidence (placeholders)
 
 | Evidence | Status / future link |
 | --- | --- |
-| Teammate contract review and decision | Accepted for implementation — design acceptance recorded in version 0.3; reviewer identity/date not provided. Completion and merge approval remain pending. |
+| Teammate contract review and decision | Accepted for implementation — design acceptance recorded in version 0.4; reviewer identity/date not provided. Completion and merge approval remain pending. |
 | Implementation Issue / branch / PR | GitHub Issue #8; branch `feature/06-auth-role-access`; PR URL pending |
 | Actual test source files and names for TEST-F01-* | Recorded below; F-02-dependent checks remain pending |
-| Test command, counts, failures/skips, tested commit | PostgreSQL integration: 6 passed, 0 failed, 0 skipped at commit `4eef1206087bbaf648a8c88b71803e32a1d76b26`; historical 4edc403 evidence retained below |
+| Test command, counts, failures/skips, tested commit | Latest macOS PostgreSQL integration: 6 passed, 0 failed, 0 skipped, 823 ms; exact tested commit not provided. Historical 4edc403 evidence retained below |
 | TDD red/green revisions for applicable rule work | TBD |
 | Build/integration result and accepted Sprint 1 release | TBD |
 
 ### Current verification record
 
-The following record reflects the latest post-commit verification at source revision `4eef1206087bbaf648a8c88b71803e32a1d76b26` (verified with `git rev-parse HEAD`). The isolated PostgreSQL database was `127.0.0.1:5433/eventcheck_test`. Historical PostgreSQL evidence at commit `4edc4034a2ce4b763f60a37e825e024de8706329` remains preserved below.
+The current repository `HEAD` is `07d9420c48c547521f3b71e57c53635e398b09a5` (verified with `git rev-parse HEAD`). The latest macOS PostgreSQL run used the isolated database `127.0.0.1:5433/eventcheck_test` and passed 6 tests in 823 ms; its exact tested commit was not provided, so it is not attributed to a specific revision. Historical PostgreSQL evidence at commit `4edc4034a2ce4b763f60a37e825e024de8706329` remains preserved below.
 
 Implementation evidence: GitHub Issue #8, branch `feature/06-auth-role-access`. No pull-request URL is recorded because none was provided.
 
@@ -221,9 +224,9 @@ Implementation evidence: GitHub Issue #8, branch `feature/06-auth-role-access`. 
 | AC-F01-10 | TEST-F01-10 | PENDING INTEGRATION | Origin/session-rotation assertions passed in the isolated run; F-02 cross-feature CSRF execution remains pending. |
 | AC-F01-11 | TEST-F01-11 | PASS | Post-commit integration run passed local and production-mode cookie creation/clearing assertions, including Secure, HttpOnly, SameSite, Path, and Max-Age behavior. |
 | AC-F01-12 | TEST-F01-12 | PASS | `client/src/App.test.tsx`: 6 tests passed. Local macOS Playwright Chromium run passed all 9 tests, including deterministic expired-session and replay rejection, login/logout, keyboard accessibility, and responsive layouts. |
-| AC-F01-13 | TEST-F01-13 | PENDING | The latest Playwright run was performed with the current working-tree E2E changes; `git rev-parse HEAD` is `ac71e52ceca66f7d189ebbb7ac3c053c2f8cbb25`, but those E2E changes are uncommitted. F-02 integration, teammate acceptance, dependency-risk acceptance, and formal completion evidence remain outstanding. |
+| AC-F01-13 | TEST-F01-13 | PENDING | PostgreSQL and Playwright evidence are recorded, but the latest Playwright result predates the most recent configuration safety change and is not attributed to current `HEAD` `07d9420c48c547521f3b71e57c53635e398b09a5`. F-02 integration, remediation verification, and formal completion evidence remain outstanding. |
 
-Browser verification for TEST-F01-12 was executed locally on macOS with Playwright Chromium: 9 tests total, 9 passed, 0 failed, 0 skipped, duration 9.8 seconds. Passed coverage includes Participant and Organizer login, server-derived identity/role, invalid and missing credentials, logout/session refresh, password visibility, keyboard interaction, focus, responsive unauthenticated/authenticated layouts at 375px, 390px, 768px, and 1440px, and deterministic expired-session/replay rejection. This result was executed with the current E2E changes in the working tree and is not attributed solely to `HEAD` until those changes are committed.
+Browser verification for TEST-F01-12 was executed locally on macOS with Playwright Chromium before the most recent Playwright configuration safety change: 9 tests total, 9 passed, 0 failed, 0 skipped, duration 9.8 seconds. Passed coverage includes Participant and Organizer login, server-derived identity/role, invalid and missing credentials, logout/session refresh, password visibility, keyboard interaction, focus, responsive unauthenticated/authenticated layouts at 375px, 390px, 768px, and 1440px, and deterministic expired-session/replay rejection. This result is not claimed as verification of the latest configuration safety change.
 
 Suggested macOS execution for the isolated E2E database:
 
@@ -249,10 +252,10 @@ The Playwright configuration now passes `E2E_DATABASE_URL` to the backend and fa
 Executed commands for this record:
 
 - Historical pre-commit frontend run: `npm run test --workspace client`: 1 file, 6 tests passed; this result is not attributed to commit `4edc4034a2ce4b763f60a37e825e024de8706329`.
-- `DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration --workspace=server`: 1 file passed; 6 tests passed, 0 failed, 0 skipped, 768 ms, against `127.0.0.1:5433/eventcheck_test` at commit `4eef1206087bbaf648a8c88b71803e32a1d76b26`.
+- `DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration --workspace=server`: 1 file passed; 6 tests passed, 0 failed, 0 skipped, 823 ms, against `127.0.0.1:5433/eventcheck_test`; exact tested commit was not provided.
 - Historical PostgreSQL run: the same command against `127.0.0.1:5433/eventcheck_test` at commit `4edc4034a2ce4b763f60a37e825e024de8706329` passed 1 file, 6 tests, 0 failed, 0 skipped in 698 ms.
 - `npx playwright test --list`: 1 file, 9 browser tests discovered in `e2e/f01-auth.spec.ts`.
-- `npm run test:e2e`: Playwright Chromium, 9 tests total, 9 passed, 0 failed, 0 skipped, duration 9.8 seconds. `git rev-parse HEAD` at documentation time is `ac71e52ceca66f7d189ebbb7ac3c053c2f8cbb25`; the E2E files/configuration used by this run are currently uncommitted.
+- `npm run test:e2e`: Playwright Chromium, 9 tests total, 9 passed, 0 failed, 0 skipped, duration 9.8 seconds, executed before the most recent Playwright configuration safety change; not attributed to current `HEAD`.
 - Historical pre-commit server run: security unit test passed; health test was blocked by `listen EPERM`; this is retained only as historical context and is not used as post-commit integration evidence.
 - Historical pre-commit workspace checks: `npm run typecheck`, `npm run build`, Prisma validation, and `git diff --check` passed; these results are not attributed to the tested commit without supporting logs.
 - `git diff --check` for this documentation correction: passed.
