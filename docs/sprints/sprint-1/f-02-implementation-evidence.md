@@ -1,14 +1,16 @@
 # F-02 Implementation Evidence
 
-This file records verification for Issue #7 without changing the F-02 Engineering Contract. The contract currently remains version 0.1 and marked “Draft for teammate review; not yet accepted for implementation”; its completion placeholders remain unchanged until the contract is reviewed and approved.
+This file records verification for F-02 implementation Issue #9 and PR #17. The F-02 Engineering Contract is version 0.4 and Approved/Accepted for Implementation; contract acceptance does not mark the feature Done, merged, or released.
 
-## Tested revision
+## Tested revisions
 
 - Branch: `feature/07-event-creation-publishing`
-- F-02 baseline commit: `46e4de9` (`feat: event creation and publishing`)
-- Current Event Detail UI additions: uncommitted working-tree changes; not pushed or opened as a PR in this task.
+- PR: [#17](https://github.com/Ttime52/EventCheck/pull/17), base `sprint-1-staging`, closing reference `Closes #9`
+- PR #17 tested commit: `46e4de9663799dc3c519d934f6a10acfd3852fe9` (`feat: event creation and publishing`)
+- Local follow-up base: `ebd18d706f40af3373cc518678693bd8bd5d59c3` (`feat: event detail read-only`)
+- Current targeted browser-test additions: uncommitted working-tree changes; not yet pushed to PR #17.
 
-Because the current Event Detail additions are uncommitted and there is no teammate review/PR acceptance yet, AC-F02-15 is not complete.
+The PR #17 baseline evidence is tied to the exact tested SHA above. The local follow-up verification is reported separately and does not claim that the uncommitted browser additions are already present in PR #17.
 
 ## TDD evidence
 
@@ -23,23 +25,23 @@ After `server/src/events.ts` was implemented, the same command passed with 3 tes
 
 ## AC-to-test evidence
 
-| Acceptance criteria | Evidence | Result |
+| Acceptance criteria | Test IDs / evidence | Result |
 | --- | --- | --- |
-| AC-F02-01 | `client/src/App.test.tsx`, `e2e/f02-event-publishing.spec.ts` | Pass |
-| AC-F02-02 | `server/src/events.integration.test.ts`, F-02 Playwright flow | Pass |
-| AC-F02-03 | `server/src/events.test.ts`, API integration cases for blank/omitted text fields, UI validation mapping | Pass |
-| AC-F02-04 | Unit and API cases for malformed, timezone-free, equal, and reversed instants | Pass |
-| AC-F02-05 | Unit and API cases for omitted, zero, negative, fractional, string, and capacity 1 | Pass |
-| AC-F02-06 | API integration cases for CSRF, anonymous, and Participant requests | Pass |
-| AC-F02-07 | API integration owner-override rejection and server-derived owner persistence | Pass |
-| AC-F02-08 | API integration owner filtering, tampered query, and explicit empty list | Pass |
-| AC-F02-09 | API integration owner, cross-owner, Participant, visitor, safe detail access, and Organizer detail UI | Pass for current implementation; final detail UI E2E remains pending |
-| AC-F02-10 | API integration unsupported PATCH and unchanged database snapshot | Pass |
-| AC-F02-11 | F-03 public discovery integration | Deferred until F-03 integration |
-| AC-F02-12 | API integration controlled transaction failure and unchanged row count | Pass |
-| AC-F02-13 | Fresh Prisma client persistence and owner detail retrieval | Pass |
-| AC-F02-14 | Accessible Organizer form, empty/success/validation/detail states, integration authorization, detail UI unit tests, and Playwright reload flow | Pass for implemented F-02 scope; final detail UI E2E and full keyboard/expired-UI review remain for teammate review |
-| AC-F02-15 | Contract/review/commit evidence | Incomplete: draft contract, no teammate review/PR acceptance for the current additions |
+| AC-F02-01 | TEST-F02-01; `client/src/App.test.tsx`; F-02 Playwright form and keyboard tests | PR baseline pass; targeted keyboard/required-field browser additions await clean-server rerun |
+| AC-F02-02 | TEST-F02-02; `server/src/events.integration.test.ts`; F-02 Playwright publish/reload flow | Pass at PR #17 tested commit |
+| AC-F02-03 | TEST-F02-03; `server/src/events.test.ts`; API integration; invalid-input browser test | Backend/unit pass; targeted browser addition awaits clean-server rerun |
+| AC-F02-04 | TEST-F02-04; unit and API cases for malformed, timezone-free, equal, and reversed instants | Pass at PR #17 tested commit |
+| AC-F02-05 | TEST-F02-05; unit/API cases for omitted, zero, negative, fractional, string, and capacity 1; invalid-capacity browser test | Backend/unit pass; targeted browser addition awaits clean-server rerun |
+| AC-F02-06 | TEST-F02-06; API CSRF/anonymous/Participant cases; Participant and expired-session browser tests | API pass at PR #17; targeted browser additions await clean-server rerun |
+| AC-F02-07 | TEST-F02-07; API owner-override rejection and server-derived owner persistence | Pass at PR #17 tested commit |
+| AC-F02-08 | TEST-F02-08; API owner filtering, tampered query, and explicit empty list | Pass at PR #17 tested commit |
+| AC-F02-09 | TEST-F02-09; API owner/cross-owner/Participant/visitor detail cases; `client/src/App.test.tsx`; Organizer detail browser flow | API/unit pass; current detail browser addition awaits clean-server rerun |
+| AC-F02-10 | TEST-F02-10; API unsupported PATCH and unchanged database snapshot | Pass at PR #17 tested commit |
+| AC-F02-11 | TEST-F02-11; F-03 public discovery boundary | Deferred until F-03 integration and Sprint 1 release verification |
+| AC-F02-12 | TEST-F02-12; API controlled transaction failure and unchanged row count | Pass at PR #17 tested commit |
+| AC-F02-13 | TEST-F02-13; fresh Prisma client persistence and owner detail retrieval | Pass at PR #17 tested commit |
+| AC-F02-14 | TEST-F02-14; accessible Organizer form/list/detail states; `client/src/App.test.tsx`; F-02 Playwright publish, validation, keyboard, role, and session tests | Existing UI/unit and PR baseline pass; new targeted browser cases await clean-server rerun |
+| AC-F02-15 | TEST-F02-15; contract history, PR #17, exact tested SHA, commands, counts, and disclosed skips | Contract accepted for implementation; Done/merge/release approval remains pending |
 
 ## Commands and results
 
@@ -47,15 +49,22 @@ All commands below were run on 2026-11-14 against the isolated PostgreSQL databa
 
 | Command | Result |
 | --- | --- |
-| `npm.cmd run prisma:validate` | Passed |
-| `npm.cmd run prisma:generate` | Passed |
-| `npm.cmd run typecheck` | Passed |
-| `npm.cmd test` | 15 passed, 14 integration tests skipped without `DATABASE_URL` |
-| `DATABASE_URL=postgresql://eventcheck@127.0.0.1:5433/eventcheck_test?schema=public npm.cmd run test:integration --workspace server` | 14 passed (7 F-01 + 7 F-02) |
-| `npm.cmd run build` | Passed for server and client |
-| `E2E_DATABASE_URL=... npm.cmd run test:e2e` | Previous run: 10 passed before the Event Detail UI addition. The updated detail E2E could not start because the user's existing dev server occupied port 3000; unit coverage passed and a clean-server E2E rerun remains required. |
+| PR #17 reported verification at `46e4de9663799dc3c519d934f6a10acfd3852fe9` | Unit tests: 13 passed; PostgreSQL integration: 14 passed; Playwright: 10 passed; Prisma validation/generation: passed; typecheck/build: passed |
+| `npm.cmd run prisma:validate` | Passed in local follow-up verification |
+| `npm.cmd run prisma:generate` | Passed in local follow-up verification |
+| `npm.cmd run typecheck` | Passed in local follow-up verification |
+| `npm.cmd test` | 15 passed, 14 integration tests skipped without `DATABASE_URL` in local follow-up verification |
+| `DATABASE_URL=postgresql://eventcheck@127.0.0.1:5433/eventcheck_test?schema=public npm.cmd run test:integration --workspace server` | 14 passed (7 F-01 + 7 F-02) at the PR #17 tested database revision |
+| `npm.cmd run build` | Passed for server and client in local follow-up verification |
+| `E2E_DATABASE_URL=... npm.cmd run test:e2e` | 10 passed for the PR #17 baseline. The newly added required-field, invalid-input, keyboard/focus, Participant-role, and expired-session F-02 browser cases have not yet been run on a clean server because the user's existing dev server occupies port 3000. |
 
-The E2E command required the approved elevated local execution path because the restricted Windows sandbox caused `tsx` to fail with `uv_os_get_passwd ... ENOMEM` before the application started. The rerun outside that restriction passed.
+The PR #17 E2E command required the approved elevated local execution path because the restricted Windows sandbox caused `tsx` to fail with `uv_os_get_passwd ... ENOMEM` before the application started. The clean rerun outside that restriction passed with 10 baseline tests. The added browser cases require a further clean-server run.
+
+## PR scope and issue reference
+
+- The F-01-related changes in PR #17 are limited to exporting the existing `AuthenticatedRequest` type for F-02 route typing and extending the existing integration runner to execute the F-02 suite alongside F-01. Both are required for F-01/F-02 session-authorization integration and should remain in this PR.
+- No unrelated F-01 product behavior, session policy, or security rule was changed by F-02.
+- The repository issue was verified against GitHub: [Issue #9](https://github.com/Ttime52/EventCheck/issues/9) is titled “Issue 7: [Feature] Event Creation & Publishing”, so `Closes #9` in [PR #17](https://github.com/Ttime52/EventCheck/pull/17) is the correct closing reference.
 
 ## Implemented API surface
 
@@ -64,4 +73,4 @@ The E2E command required the approved elevated local execution path because the 
 - `GET /api/v1/organizer/events/:eventId` — owner-only management detail.
 - `PATCH /api/v1/organizer/events/:eventId` — explicit Sprint 1 unsupported boundary; no mutation.
 
-F-03 public discovery, teammate contract review, risk acceptance, PR review, final detail E2E on a clean server, and final release approval remain outside this evidence run.
+F-03 public discovery, the clean-server run for the newly added browser cases, PR review/merge approval, and final Sprint 1 release approval remain pending. The F-02 contract review is recorded as accepted for implementation in v0.4; this does not mark F-02 Done.

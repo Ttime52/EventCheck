@@ -2,10 +2,12 @@ import { expect, test, type Page } from "@playwright/test";
 
 const organizerLogin = process.env.E2E_ORGANIZER_LOGIN;
 const organizerPassword = process.env.E2E_ORGANIZER_PASSWORD;
+const participantLogin = process.env.E2E_PARTICIPANT_LOGIN;
+const participantPassword = process.env.E2E_PARTICIPANT_PASSWORD;
 
 test.beforeAll(() => {
-  if (!organizerLogin || !organizerPassword) {
-    throw new Error("Missing E2E_ORGANIZER_LOGIN or E2E_ORGANIZER_PASSWORD");
+  if (!organizerLogin || !organizerPassword || !participantLogin || !participantPassword) {
+    throw new Error("Missing E2E organizer or participant credentials");
   }
 });
 
@@ -55,4 +57,96 @@ test("TEST-F02-01/02/14: Organizer publishes an event and sees it after reload",
   await page.reload();
   await expect(page.getByRole("heading", { name: title, level: 3 })).toBeVisible();
   await expect(page.getByText("Engineering Building 1", { exact: true })).toBeVisible();
+});
+
+test("TEST-F02-03/05/14: required fields and invalid capacity show safe feedback", async ({ page }) => {
+  await page.goto("/");
+  await login(page, organizerLogin!, organizerPassword!);
+  const form = page.getByRole("form", { name: "Create and publish event" });
+  await expect(form).toBeVisible();
+
+  const requiredFields = [
+    page.getByLabel("Title", { exact: true }),
+    page.getByLabel("Description", { exact: true }),
+    page.getByLabel("Location", { exact: true }),
+    page.locator("#event-start"),
+    page.locator("#event-end"),
+    page.getByLabel("Capacity (positive integer)", { exact: true }),
+  ];
+  for (const field of requiredFields) await expect(field).toHaveAttribute("required", "");
+
+  await page.getByRole("button", { name: "Publish event" }).click();
+  await expect(page.getByLabel("Title", { exact: true })).toBeFocused();
+  expect(await page.getByLabel("Title", { exact: true }).evaluate((element) => !(element as HTMLInputElement).validity.valid)).toBe(true);
+
+  const title = `Playwright invalid event ${Date.now()}`;
+  await page.getByLabel("Title", { exact: true }).fill(title);
+  await page.getByLabel("Description", { exact: true }).fill("Invalid capacity should not persist.");
+  await page.getByLabel("Location", { exact: true }).fill("Engineering Building 1");
+  await page.locator("#event-start").fill("2026-11-20T09:00");
+  await page.locator("#event-end").fill("2026-11-20T12:00");
+  await page.getByLabel("Capacity (positive integer)", { exact: true }).fill("0");
+  await form.evaluate((element) => { (element as HTMLFormElement).noValidate = true; });
+  await page.getByRole("button", { name: "Publish event" }).click();
+
+  await expect(page.locator("#event-capacity-error")).toHaveText("capacity must be a positive integer");
+  await expect(page.getByRole("heading", { name: title, level: 3 })).not.toBeVisible();
+});
+
+test("TEST-F02-01/14: Organizer event form follows keyboard focus order", async ({ page }) => {
+  await page.goto("/");
+  await login(page, organizerLogin!, organizerPassword!);
+
+  const title = page.getByLabel("Title", { exact: true });
+  const description = page.getByLabel("Description", { exact: true });
+  const location = page.getByLabel("Location", { exact: true });
+  const start = page.locator("#event-start");
+  const end = page.locator("#event-end");
+  const capacity = page.getByLabel("Capacity (positive integer)", { exact: true });
+  const publish = page.getByRole("button", { name: "Publish event" });
+
+  await title.focus();
+  await page.keyboard.press("Tab");
+  await expect(description).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(location).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(start).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(end).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(capacity).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(publish).toBeFocused();
+  await expect(publish.evaluate((element) => getComputedStyle(element).outlineStyle)).not.toBe("none");
+});
+
+test("TEST-F02-06/14: Participant does not receive Organizer event controls", async ({ page }) => {
+  await page.goto("/");
+  await login(page, participantLogin!, participantPassword!);
+
+  await expect(page.getByText("Welcome, Demo Participant")).toBeVisible();
+  await expect(page.getByText("PARTICIPANT", { exact: true })).toBeVisible();
+  await expect(page.getByRole("form", { name: "Create and publish event" })).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Publish event" })).not.toBeVisible();
+  await expect(page.getByText("Your events are coming soon")).toBeVisible();
+});
+
+test("TEST-F02-06/14: expired Organizer event session returns safely to login", async ({ page }) => {
+  await page.goto("/");
+  await login(page, organizerLogin!, organizerPassword!);
+  await expect(page.getByText("Welcome, Demo Organizer")).toBeVisible();
+
+  await page.route("**/api/v1/organizer/events", async (route) => {
+    await route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "SESSION_EXPIRED", message: "Session expired" } }),
+    });
+  });
+  await page.reload();
+
+  await expect(page.getByRole("form", { name: "Login" })).toBeVisible();
+  await expect(page.getByText("Welcome, Demo Organizer")).not.toBeVisible();
+  await expect(page.getByRole("status")).toHaveText("Session expired; sign in again");
 });
