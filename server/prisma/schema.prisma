@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PARTICIPANT
+  ORGANIZER
+}
+
+model User {
+  id              String    @id @default(uuid())
+  loginIdentifier String    @unique
+  displayName     String
+  role            Role
+  passwordHash    String
+  sessions        Session[]
+  createdAt       DateTime  @default(now())
+}
+
+model Session {
+  id             String    @id
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+  lastActivityAt DateTime  @default(now())
+  absoluteExpiry DateTime
+  invalidatedAt  DateTime?
+
+  @@index([userId])
+  @@index([absoluteExpiry])
+}

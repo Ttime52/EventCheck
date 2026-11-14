@@ -2,13 +2,13 @@
 
 **Issue:** I-04 — Contract: Authentication & Event Publishing
 
-**Contract version:** 0.1
+**Contract version:** 0.3
 
-**Status:** Draft for teammate review; not yet accepted for implementation
+**Status:** Approved/Accepted for Implementation; completion and merge approval remain pending
 
 **Baseline:** EventCheck SRS, Feature Inventory, Traceability Matrix, Sprint Plan, and System-Level SDS reviewed for Issue I-04.
 
-> This is a versioned design and verification plan. It records no implementation, test execution, review approval, or completion evidence.
+> This is a versioned design and verification plan. The F-01 design and conditional dependency-risk decision are accepted; implementation completion, F-02 integration, remediation verification, and merge approval remain pending.
 
 ## A. Feature overview
 
@@ -101,16 +101,16 @@ UI state requirements:
 
 ### API specifications
 
-The System-Level SDS calls /api/v1, the listed route names, JSON envelopes, and error codes proposals. Paths below are candidate contract endpoints to confirm with F-03/F-04 before implementation. They are not evidence of an implemented API. The example envelope is also proposed.
+The implemented F-01 API uses the /api/v1 prefix, the route names below, JSON envelopes, and the error codes shown. F-02/F-03/F-04 may add route-specific contracts without changing this authentication boundary.
 
-| Method and candidate path | Authentication/authorization | Request | Success | Failure and persistence |
+| Method and path | Authentication/authorization | Request | Success | Failure and persistence |
 | --- | --- | --- | --- | --- |
-| POST /api/v1/auth/login | Any visitor; HTTPS | JSON { "loginIdentifier": "...", "password": "..." } | 200; proposed data.user = { id, displayName, role }; set opaque HttpOnly session cookie with reviewed flags | Missing/invalid credentials: generic 401, no session created. Malformed JSON: proposed 400. Never return credentials, hashes, or session ID in JSON. |
-| GET /api/v1/me | Valid server-side session | No identity fields accepted from client | 200; proposed safe user object containing only id, displayName, role | Missing/invalid/expired/revoked session: 401; no private identity fields returned |
-| POST /api/v1/auth/logout | Valid server-side session; CSRF protection for cookie-authenticated request | No user/session ID accepted in body | 204; invalidate server session and clear cookie | Missing/expired/revoked session: safe 401; old cookie replay is rejected. Candidate cookie-clearing syntax is a deployment detail. |
+| POST /api/v1/auth/login | Any visitor; HTTPS | JSON { "loginIdentifier": "...", "password": "..." } | 200; `data.user` contains only id, displayName, role; set opaque HttpOnly session cookie | Missing/invalid credentials: generic 401, no session created. Never return credentials, hashes, or session ID in JSON. |
+| GET /api/v1/me | Valid server-side session | No identity fields accepted from client | 200; implemented safe user object containing only id, displayName, role | Missing/invalid/expired/revoked session: 401; no private identity fields returned |
+| POST /api/v1/auth/logout | Valid server-side session; Origin protection for cookie-authenticated request | No user/session ID accepted in body | 204; invalidate server session and clear cookie | Missing/expired/revoked session: safe 401; old cookie replay is rejected. |
 | Any protected F-02 route | Valid session, then route-specific server-side role/ownership check | Client IDs do not establish identity | Response defined by F-02 | 401 unauthenticated; proposed 403 or privacy-preserving 404 for forbidden access; no protected operation reaches persistence |
 
-Proposed common format: success bodies use { "data": ... }; failures use { "error": { "code": "...", "message": "...", "details": [...] } }. Stable codes, exact response envelope, URL prefix, CSRF transport/header, cookie name, and deployment-specific CORS behavior require teammate review before implementation. Errors must not reveal passwords, hashes, session IDs, account existence, or unrelated record existence. State-changing cookie-authenticated requests require a CSRF token or an equivalent reviewed origin-validation mechanism.
+Implemented common format: success bodies use `{ "data": ... }`; failures use `{ "error": { "code": "...", "message": "..." } }`. Login failures use `INVALID_CREDENTIALS`, unauthenticated requests use `UNAUTHENTICATED`, forbidden role requests use `FORBIDDEN`, and rejected state-changing Origins use `CSRF_REJECTED`. Errors do not reveal passwords, hashes, session IDs, account existence, or unrelated record existence. State-changing cookie-authenticated requests require `Origin` to equal the configured `CLIENT_ORIGIN`; deployment-specific CORS policy remains a deployment concern.
 
 ### Data specifications
 
@@ -128,7 +128,7 @@ Physical session table/store implementation and whether the logical expiry time 
 
 ## C. Acceptance Criteria
 
-Each criterion is an observable product outcome. API routes/envelopes noted as candidates remain proposed until team confirmation.
+Each criterion is an observable product outcome. The F-01 API routes, response envelopes, cookie configuration, and CSRF protection mechanism have been reviewed and accepted by the teammate. F-02-dependent authorization and cross-feature CSRF verification remain deferred until Sprint 1 integration.
 
 | AC ID | Linked requirements | Acceptance criterion |
 | --- | --- | --- |
@@ -146,7 +146,9 @@ Each criterion is an observable product outcome. API routes/envelopes noted as c
 | AC-F01-12 | FR-01 to FR-05, NFR-08 | Login, logout, and expired-session UI states provide labelled keyboard-accessible controls, explicit loading/success/error feedback, a generic credential failure, and a safe expired-session return to Login. |
 | AC-F01-13 | NFR-09, NFR-10 | The accepted F-01 contract retains version history and stable IDs; every AC maps to an actual test result and tested commit before the feature is declared Done, with failures/skips disclosed and required checks passing. |
 
-## D. Software Test Specification (planned; not executed)
+## D. Software Test Specification
+
+Section D defines the test specifications, fixtures, steps, and expected assertions. Section E records actual execution results and evidence; entries in Section D are not themselves execution claims.
 
 The implementation team should choose approved harnesses before coding. Unit tests cover credential and expiry policy; API/database integration tests cover the real session/authorization boundary; selected UI/E2E checks cover user-visible states. All checks below are plans and expected assertions, not evidence that executable tests exist.
 
@@ -177,20 +179,84 @@ Important TDD candidates: TEST-F01-06 and TEST-F01-07 for exact idle/absolute ex
 | Version | Date | Status | Change |
 | --- | --- | --- | --- |
 | 0.1 | 2026-11-13 | Draft for teammate review | Initial F-01 feature design, UI/API/data proposals, AC, and planned STS from the approved SRS and System-Level SDS. No implementation or verification claimed. |
+| 0.2 | 2026-11-14 | Draft for teammate review | Recorded post-commit PostgreSQL integration evidence and current AC/TEST verification status. No approval or completion claim. |
+| 0.3 | 2026-11-14 | Approved/Accepted for Implementation | Teammate accepted the F-01 authentication design, including implemented endpoints, server-side PostgreSQL sessions, and password hashing. Completion, security-risk acceptance, and PR merge approval remain pending. |
+| 0.4 | 2026-11-14 | Approved/Accepted for Implementation | Recorded the accepted conditional dependency-risk decision and latest macOS verification results. Completion and PR merge approval remain pending. |
 
 ### Decisions and open items
 
 Approved baseline applied: D-02, Q-09; FR-01 to FR-05 and BR-04. The approved 30-minute idle and 8-hour absolute timeouts are preserved.
 
-Confirm before implementation: route prefix and exact paths; response envelope and stable error codes; cookie name and SameSite/CORS deployment configuration; CSRF mechanism/token transport; physical session store/schema and cleanup policy; local seeded-account access and the maintained password-hashing library. These details are proposals or technical choices in the SDS.
+Implemented and recorded choices: `/api/v1/auth/login`, `/api/v1/me`, and `/api/v1/auth/logout`; success bodies use `{ data: { user } }`; failures use `{ error: { code, message } }`; the session cookie is `eventcheck_session`, HttpOnly, Path `/`, SameSite=Lax, and Secure when `NODE_ENV=production`; logout clears the cookie with matching attributes and `Max-Age=0`; state-changing requests require `Origin` to equal `CLIENT_ORIGIN` (default `http://localhost:5173`), otherwise they receive `403 CSRF_REJECTED`. These implementation details were accepted as part of the teammate's F-01 design review. F-02 route-specific authorization and cross-feature CSRF verification remain deferred to Sprint 1 integration.
+
+Dependency audit risk remains separate from design acceptance: the full audit reported 6 vulnerabilities (1 moderate, 3 high, 2 critical), and `npm audit --omit=dev` reported 3 high findings. The affected chain is `@prisma/client@6.19.3` → optional-peer `prisma@6.19.3` → `@prisma/config@6.19.3` → `deepmerge-ts@7.1.5`; runtime exploitability has not been established. The teammate accepted the conditional risk decision documented in the linked assessment; remediation and production exposure verification remain required.
+
+Dependency risk assessment: [F-01 Dependency Security Risk Assessment](../../security/f-01-dependency-risk-assessment.md). The teammate accepted the conditional risk decision recorded there; production exposure verification, remediation execution, feature completion, and PR merge approval remain pending.
 
 ### Future completion evidence (placeholders)
 
 | Evidence | Status / future link |
 | --- | --- |
-| Teammate contract review and decision | Pending — record reviewer, review date, substantive findings, and accepted contract revision |
-| Implementation Issue / branch / PR | TBD |
-| Actual test source files and names for TEST-F01-* | TBD; planned tests only |
-| Test command, counts, failures/skips, tested commit | TBD; not executed |
+| Teammate contract review and decision | Accepted for implementation — design acceptance recorded in version 0.4; reviewer identity/date not provided. Completion and merge approval remain pending. |
+| Implementation Issue / branch / PR | GitHub Issue #8; branch `feature/06-auth-role-access`; PR URL pending |
+| Actual test source files and names for TEST-F01-* | Recorded below; F-02-dependent checks remain pending |
+| Test command, counts, failures/skips, tested commit | Latest macOS PostgreSQL integration: 6 passed, 0 failed, 0 skipped, 823 ms; exact tested commit not provided. Historical 4edc403 evidence retained below |
 | TDD red/green revisions for applicable rule work | TBD |
 | Build/integration result and accepted Sprint 1 release | TBD |
+
+### Current verification record
+
+The current repository `HEAD` is `07d9420c48c547521f3b71e57c53635e398b09a5` (verified with `git rev-parse HEAD`). The latest macOS PostgreSQL run used the isolated database `127.0.0.1:5433/eventcheck_test` and passed 6 tests in 823 ms; its exact tested commit was not provided, so it is not attributed to a specific revision. Historical PostgreSQL evidence at commit `4edc4034a2ce4b763f60a37e825e024de8706329` remains preserved below.
+
+Implementation evidence: GitHub Issue #8, branch `feature/06-auth-role-access`. No pull-request URL is recorded because none was provided.
+
+| AC ID | TEST ID | Current status | Evidence and limitation |
+| --- | --- | --- | --- |
+| AC-F01-01 | TEST-F01-01 | PASS | `server/src/auth.integration.test.ts`; post-commit isolated PostgreSQL run passed. |
+| AC-F01-02 | TEST-F01-02 | PASS | Same passing integration test covers missing, unknown, and incorrect credentials. |
+| AC-F01-03 | TEST-F01-03 | PASS | Same passing integration test covers server-derived identity and spoofing resistance. |
+| AC-F01-04 | TEST-F01-04 | PASS | Same passing integration test covers logout invalidation and replay rejection. |
+| AC-F01-05 | TEST-F01-05 | PASS | Same passing integration test covers malformed and revoked session rejection. |
+| AC-F01-06 | TEST-F01-06 | PASS | Same passing integration test covers 29:59 validity, 30:00 rejection, and idle refresh behavior. |
+| AC-F01-07 | TEST-F01-07 | PASS | Same passing integration test covers activity before the absolute limit and rejection at the 8-hour boundary. |
+| AC-F01-08 | TEST-F01-08 | PENDING INTEGRATION | Isolated middleware coverage exists; actual F-02 Organizer-only routes are not available. |
+| AC-F01-09 | TEST-F01-09 | PARTIAL | Integration run passed response/hash secrecy assertions; full routine-log and database inspection evidence remains limited. |
+| AC-F01-10 | TEST-F01-10 | PENDING INTEGRATION | Origin/session-rotation assertions passed in the isolated run; F-02 cross-feature CSRF execution remains pending. |
+| AC-F01-11 | TEST-F01-11 | PASS | Post-commit integration run passed local and production-mode cookie creation/clearing assertions, including Secure, HttpOnly, SameSite, Path, and Max-Age behavior. |
+| AC-F01-12 | TEST-F01-12 | PASS | `client/src/App.test.tsx`: 6 tests passed. Local macOS Playwright Chromium run passed all 9 tests, including deterministic expired-session and replay rejection, login/logout, keyboard accessibility, and responsive layouts. |
+| AC-F01-13 | TEST-F01-13 | PENDING | PostgreSQL and Playwright evidence are recorded, but the latest Playwright result predates the most recent configuration safety change and is not attributed to current `HEAD` `07d9420c48c547521f3b71e57c53635e398b09a5`. F-02 integration, remediation verification, and formal completion evidence remain outstanding. |
+
+Browser verification for TEST-F01-12 was executed locally on macOS with Playwright Chromium before the most recent Playwright configuration safety change: 9 tests total, 9 passed, 0 failed, 0 skipped, duration 9.8 seconds. Passed coverage includes Participant and Organizer login, server-derived identity/role, invalid and missing credentials, logout/session refresh, password visibility, keyboard interaction, focus, responsive unauthenticated/authenticated layouts at 375px, 390px, 768px, and 1440px, and deterministic expired-session/replay rejection. This result is not claimed as verification of the latest configuration safety change.
+
+Suggested macOS execution for the isolated E2E database:
+
+```sh
+export E2E_DATABASE_URL="postgresql://eventcheck:change-me@127.0.0.1:5433/eventcheck_test?schema=public"
+export DATABASE_URL="$E2E_DATABASE_URL"
+export SEED_PARTICIPANT_PASSWORD='use-your-local-secret'
+export SEED_ORGANIZER_PASSWORD='use-your-local-secret'
+export E2E_PARTICIPANT_LOGIN='participant@example.test'
+export E2E_PARTICIPANT_PASSWORD="$SEED_PARTICIPANT_PASSWORD"
+export E2E_ORGANIZER_LOGIN='organizer@example.test'
+export E2E_ORGANIZER_PASSWORD="$SEED_ORGANIZER_PASSWORD"
+export NODE_ENV=development
+docker compose up -d postgres
+npm run db:migrate --workspace server
+npm run db:seed --workspace server
+npx playwright install chromium
+npm run test:e2e
+```
+
+The Playwright configuration now passes `E2E_DATABASE_URL` to the backend and fails closed when it is absent. Keep the isolated `eventcheck_test` database reserved for integration/E2E tests and do not use destructive reset commands against the development database `eventcheck`.
+
+Executed commands for this record:
+
+- Historical pre-commit frontend run: `npm run test --workspace client`: 1 file, 6 tests passed; this result is not attributed to commit `4edc4034a2ce4b763f60a37e825e024de8706329`.
+- `DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration --workspace=server`: 1 file passed; 6 tests passed, 0 failed, 0 skipped, 823 ms, against `127.0.0.1:5433/eventcheck_test`; exact tested commit was not provided.
+- Historical PostgreSQL run: the same command against `127.0.0.1:5433/eventcheck_test` at commit `4edc4034a2ce4b763f60a37e825e024de8706329` passed 1 file, 6 tests, 0 failed, 0 skipped in 698 ms.
+- `npx playwright test --list`: 1 file, 9 browser tests discovered in `e2e/f01-auth.spec.ts`.
+- `npm run test:e2e`: Playwright Chromium, 9 tests total, 9 passed, 0 failed, 0 skipped, duration 9.8 seconds, executed before the most recent Playwright configuration safety change; not attributed to current `HEAD`.
+- Historical pre-commit server run: security unit test passed; health test was blocked by `listen EPERM`; this is retained only as historical context and is not used as post-commit integration evidence.
+- Historical pre-commit workspace checks: `npm run typecheck`, `npm run build`, Prisma validation, and `git diff --check` passed; these results are not attributed to the tested commit without supporting logs.
+- `git diff --check` for this documentation correction: passed.
+- Invalid `eventcheck_test_backup` integration configuration: rejected with exit code 2.

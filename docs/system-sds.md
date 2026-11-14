@@ -91,6 +91,8 @@ Logical components are modules in the frontend, backend, or persistence layer. T
 
 The frontend uses role-aware routes and shared loading, empty, validation, success, error, and conflict states. Route guards improve navigation and redirect unauthenticated users to Login, but backend authorization remains authoritative. Public event list/detail routes remain available without login under Q-08.
 
+The proposed shared visual language is documented in [`design-system.md`](design-system.md) as EventCheck Sunset. It guides frontend presentation only and does not alter requirements, permissions, or authentication/security behavior.
+
 | Screen | Purpose | Permitted roles | Key operations | Requirements/features | Sprint |
 | --- | --- | --- | --- | --- | --- |
 | Published Event List | Browse published University Events and availability. | Visitor, Participant, Organizer | List/filter public events. | FR-11, FR-12; F-03 | 1 |
