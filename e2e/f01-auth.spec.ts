@@ -1,9 +1,21 @@
 import { expect, test, type Page } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 
 const participantLogin = process.env.E2E_PARTICIPANT_LOGIN;
 const participantPassword = process.env.E2E_PARTICIPANT_PASSWORD;
 const organizerLogin = process.env.E2E_ORGANIZER_LOGIN;
 const organizerPassword = process.env.E2E_ORGANIZER_PASSWORD;
+const e2eDatabaseUrl = process.env.E2E_DATABASE_URL;
+
+function isIsolatedE2EDatabase(value: string | undefined) {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "postgresql:" && url.hostname === "127.0.0.1" && url.port === "5433" && url.pathname === "/eventcheck_test";
+  } catch {
+    return false;
+  }
+}
 
 test.beforeAll(() => {
   for (const [name, value] of Object.entries({ participantLogin, participantPassword, organizerLogin, organizerPassword })) {
@@ -92,7 +104,28 @@ test.describe("F-01 authentication", () => {
   }
 
   test("expired or revoked sessions return safely to login", async ({ page }) => {
-    test.skip(true, "Requires a deterministic server-side expiry fixture; do not wait for production timeouts in E2E tests");
+    test.skip(!isIsolatedE2EDatabase(e2eDatabaseUrl), "Requires E2E_DATABASE_URL pointing exactly to isolated eventcheck_test");
     await page.goto("/");
+    await login(page, participantLogin!, participantPassword!);
+    await expect(page.getByText("Welcome, Demo Participant")).toBeVisible();
+
+    const [sessionCookie] = await page.context().cookies("http://localhost:5173");
+    expect(sessionCookie?.name).toBe("eventcheck_session");
+    const prisma = new PrismaClient({ datasources: { db: { url: e2eDatabaseUrl! } } });
+    try {
+      await prisma.session.update({ where: { id: sessionCookie.value }, data: { absoluteExpiry: new Date(Date.now() - 1) } });
+    } finally {
+      await prisma.$disconnect();
+    }
+
+    await page.reload();
+    await expect(page.getByRole("form", { name: "Login" })).toBeVisible();
+    await expect(page.getByText("Welcome, Demo Participant")).not.toBeVisible();
+
+    const currentUser = await page.request.get("/api/v1/me");
+    expect(currentUser.status()).toBe(401);
+
+    const replay = await page.request.get("/api/v1/me", { headers: { Cookie: `eventcheck_session=${sessionCookie.value}` } });
+    expect(replay.status()).toBe(401);
   });
 });
