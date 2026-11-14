@@ -38,7 +38,7 @@ describe("F-01 authentication UI (TEST-F01-12)", () => {
 
   it("does not report logout success when the server rejects logout", async () => {
     const fetchMock = vi.mocked(fetch);
-    fetchMock.mockImplementationOnce(() => response({ data: { user } })).mockImplementationOnce(() => response({}, false, 500));
+    fetchMock.mockImplementation((input) => String(input).includes("/auth/logout") ? response({}, false, 500) : String(input).endsWith("/me") ? response({ data: { user } }) : response({ data: { events: [], registrations: [] } }));
     render(<App />);
     await waitFor(() => expect(screen.getByText(/Welcome, Test Participant/)).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Log out" }));
@@ -115,7 +115,10 @@ describe("F-02 organizer event publishing UI", () => {
 
     render(<App />);
     await waitFor(() => expect(screen.getByRole("form", { name: "Create and publish event" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("form", { name: "Create and publish event" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "My Events" }));
     expect(screen.getByText(/No published events yet/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Create Event" }));
 
     fireEvent.input(screen.getByLabelText("Title"), { target: { value: "University Workshop" } });
     fireEvent.input(screen.getByLabelText("Description"), { target: { value: "A persisted workshop." } });
@@ -126,7 +129,8 @@ describe("F-02 organizer event publishing UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Publish event" }));
 
     await waitFor(() => expect(screen.getByText("Event published. Event ID: event-1")).toBeInTheDocument());
-    expect(screen.getByText("University Workshop")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "My Events" }));
+    await waitFor(() => expect(screen.getByText("University Workshop")).toBeInTheDocument());
     const eventCall = fetchMock.mock.calls.find(([input]) => input === "/api/v1/events");
     expect(eventCall?.[1]?.method).toBe("POST");
     expect(JSON.parse(String(eventCall?.[1]?.body))).toMatchObject({ startAt: "2026-11-20T02:00:00.000Z", endAt: "2026-11-20T05:00:00.000Z", capacity: 25 });
@@ -161,6 +165,8 @@ describe("F-02 organizer event publishing UI", () => {
       .mockImplementationOnce(() => response({ data: { event } }));
 
     render(<App />);
+    await waitFor(() => expect(screen.getByRole("form", { name: "Create and publish event" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "My Events" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "View details" })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "View details" }));
 
@@ -181,6 +187,7 @@ describe("F-02 organizer event publishing UI", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/organizer/events/event-1", { credentials: "include" });
 
     fireEvent.click(screen.getByRole("button", { name: "Back to Your events" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Create Event" }));
     await waitFor(() => expect(screen.getByRole("form", { name: "Create and publish event" })).toBeInTheDocument());
   });
 
@@ -192,11 +199,115 @@ describe("F-02 organizer event publishing UI", () => {
       .mockImplementationOnce(() => response({ error: { code: "EVENT_NOT_FOUND", message: "Event not found" } }, false, 404));
 
     render(<App />);
+    await waitFor(() => expect(screen.getByRole("form", { name: "Create and publish event" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "My Events" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "View details" })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "View details" }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Event not found"));
     expect(screen.getByRole("region", { name: "Event details" })).toBeInTheDocument();
     expect(screen.queryByRole("form", { name: "Event details" })).not.toBeInTheDocument();
+  });
+});
+
+describe("F-03 participant discovery UI", () => {
+  const publicEvent = { id: "event-1", title: "University Workshop", description: "Public workshop", location: "Main Hall", startAt: "2026-12-01T02:00:00.000Z", endAt: "2026-12-01T04:00:00.000Z", capacity: 2, remainingPlaces: 2, registrationAvailable: true };
+
+  it("TEST-F03-01/02/03: loads public events with empty and accessible states", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementationOnce(() => response(null, false, 401)).mockImplementationOnce(() => response({ data: { events: [] } }));
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Browse published events" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Browse published events" }));
+    await waitFor(() => expect(screen.getByText("No published events are available.")).toBeInTheDocument());
+  });
+
+  it("TEST-F03-04/06/07: registers as Participant and shows My Registrations", async () => {
+    const participant = { id: "participant-1", displayName: "Participant", role: "PARTICIPANT" as const };
+    const fetchMock = vi.mocked(fetch);
+    let registered = false;
+    fetchMock.mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.endsWith("/me")) return response({ data: { user: participant } });
+      if (url.endsWith("/api/v1/events")) return response({ data: { events: [{ ...publicEvent, remainingPlaces: registered ? 1 : 2 }] } });
+      if (url.includes("/api/v1/events/") && !url.includes("/registrations")) return response({ data: { event: publicEvent } });
+      if (url.includes("/registrations") && init?.method === "POST") { registered = true; return response({ data: { registration: { id: "registration-1" } } }, true, 201); }
+      if (url.includes("/me/registrations/")) return response({ data: { registration: { id: "registration-1", eventId: "event-1", status: "ACTIVE", registeredAt: "2026-12-01T00:00:00.000Z", event: publicEvent } } });
+      return response({ data: { registrations: registered ? [{ id: "registration-1", eventId: "event-1", status: "ACTIVE", registeredAt: "2026-12-01T00:00:00.000Z", event: publicEvent }] : [] } });
+    });
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Discover Events" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "Discover Events" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "View details" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Register" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    await waitFor(() => expect(screen.getByText(/Registration confirmed/)).toBeInTheDocument());
+    expect(screen.getByText("My Registrations")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "View My Registrations" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "My Registrations" })).toHaveAttribute("aria-selected", "true"));
+    fireEvent.click(screen.getByRole("button", { name: "View registration details" }));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Registration details" })).toBeInTheDocument());
+    expect(screen.getByText("registration-1")).toBeInTheDocument();
+  });
+
+  it("does not show Register controls to an Organizer", async () => {
+    const organizer = { id: "organizer-1", displayName: "Organizer", role: "ORGANIZER" as const };
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation((input) => String(input).endsWith("/me") ? response({ data: { user: organizer } }) : response({ data: { events: [publicEvent] } }));
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Discover Events" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "Discover Events" }));
+    await waitFor(() => expect(screen.getByText("University Workshop")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
+  });
+
+  it("refreshes availability after EVENT_FULL and preserves the exact conflict message", async () => {
+    const participant = { id: "participant-1", displayName: "Participant", role: "PARTICIPANT" as const };
+    const fetchMock = vi.mocked(fetch);
+    let postCount = 0;
+    let eventGets = 0;
+    fetchMock.mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.endsWith("/me")) return response({ data: { user: participant } });
+      if (url.endsWith("/api/v1/events")) { eventGets += 1; return response({ data: { events: [{ ...publicEvent, remainingPlaces: postCount ? 0 : 1, registrationAvailable: !postCount }] } }); }
+      if (url.includes("/api/v1/events/") && !url.includes("/registrations")) return response({ data: { event: publicEvent } });
+      if (url.includes("/registrations") && init?.method === "POST") { postCount += 1; return response({ error: { code: postCount === 1 ? "EVENT_FULL" : "REGISTRATION_DUPLICATE" } }, false, 409); }
+      return response({ data: { registrations: [] } });
+    });
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Discover Events" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "Discover Events" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "View details" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Register" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    const publicPanel = screen.getByRole("region", { name: "Discover published events" });
+    await waitFor(() => expect(within(publicPanel).getByRole("status")).toHaveTextContent("This event is full"));
+    expect(eventGets).toBeGreaterThanOrEqual(2);
+  });
+
+  it("refreshes availability after REGISTRATION_DUPLICATE and preserves the exact conflict message", async () => {
+    const participant = { id: "participant-1", displayName: "Participant", role: "PARTICIPANT" as const };
+    const fetchMock = vi.mocked(fetch);
+    let eventGets = 0;
+    fetchMock.mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.endsWith("/me")) return response({ data: { user: participant } });
+      if (url.endsWith("/api/v1/events")) { eventGets += 1; return response({ data: { events: [{ ...publicEvent, remainingPlaces: 1, registrationAvailable: true }] } }); }
+      if (url.includes("/api/v1/events/") && !url.includes("/registrations")) return response({ data: { event: publicEvent } });
+      if (url.includes("/registrations") && init?.method === "POST") return response({ error: { code: "REGISTRATION_DUPLICATE" } }, false, 409);
+      return response({ data: { registrations: [] } });
+    });
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Discover Events" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "Discover Events" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "View details" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Register" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    const publicPanel = screen.getByRole("region", { name: "Discover published events" });
+    await waitFor(() => expect(within(publicPanel).getByRole("status")).toHaveTextContent("already registered"));
+    expect(eventGets).toBeGreaterThanOrEqual(2);
   });
 });

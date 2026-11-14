@@ -35,6 +35,7 @@ test("TEST-F02-01/02/14: Organizer publishes an event and sees it after reload",
 
   const formStatus = page.locator('form[aria-label="Create and publish event"] [role="status"]');
   await expect(formStatus).toHaveText(/Event published\. Event ID: .+/);
+  await page.getByRole("tab", { name: "My Events" }).click();
   await expect(page.getByRole("heading", { name: title, level: 3 })).toBeVisible();
 
   const eventCard = page.locator(".event-card").filter({ hasText: title });
@@ -53,9 +54,12 @@ test("TEST-F02-01/02/14: Organizer publishes an event and sees it after reload",
   await expect(detailForm.getByLabel("Publication state", { exact: true })).toHaveValue("PUBLISHED");
   await expect(detailForm.getByLabel("Event ID", { exact: true })).toHaveAttribute("readonly", "");
   await page.getByRole("button", { name: "Back to Your events" }).click();
+  await expect(page.getByRole("heading", { name: "My Events" })).toBeVisible();
+  await page.getByRole("tab", { name: "Create Event" }).click();
   await expect(page.getByRole("form", { name: "Create and publish event" })).toBeVisible();
 
   await page.reload();
+  await page.getByRole("tab", { name: "My Events" }).click();
   await expect(page.getByRole("heading", { name: title, level: 3 })).toBeVisible();
   await expect(eventCard.getByText("Engineering Building 1", { exact: true })).toBeVisible();
 });

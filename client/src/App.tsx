@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 type User = {
   id: string;
@@ -16,6 +16,9 @@ type PublishedEvent = {
   capacity: number;
   publicationState: "PUBLISHED";
 };
+
+type PublicEvent = Omit<PublishedEvent, "publicationState"> & { remainingPlaces: number; registrationAvailable: boolean };
+type Registration = { id: string; eventId: string; status: "ACTIVE" | "CANCELLED"; registeredAt: string; event: Pick<PublicEvent, "id" | "title" | "description" | "location" | "startAt" | "endAt"> };
 
 const isUser = (value: unknown): value is User => {
   if (!value || typeof value !== "object") return false;
@@ -72,6 +75,128 @@ function validationDetails(body: unknown) {
 function errorMessage(body: unknown, fallback: string) {
   const message = (body as { error?: { message?: unknown } } | null)?.error?.message;
   return typeof message === "string" ? message : fallback;
+}
+
+const isPublicEvent = (value: unknown): value is PublicEvent => {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.id === "string" && typeof item.title === "string" && typeof item.description === "string" && typeof item.location === "string" && typeof item.startAt === "string" && typeof item.endAt === "string" && typeof item.capacity === "number" && typeof item.remainingPlaces === "number" && typeof item.registrationAvailable === "boolean";
+};
+
+function PublicEventsPanel({ user, onSessionExpired }: { user: User | null; onSessionExpired: () => void }) {
+  const [events, setEvents] = useState<PublicEvent[]>([]);
+  const [selected, setSelected] = useState<PublicEvent | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const detailHeadingRef = useRef<HTMLHeadingElement>(null);
+  const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [registrationsLoading, setRegistrationsLoading] = useState(user?.role === "PARTICIPANT");
+  const [selectedRegistration, setSelectedRegistration] = useState<Registration | null>(null);
+  const [registrationDetailLoading, setRegistrationDetailLoading] = useState(false);
+  const [registrationDetailError, setRegistrationDetailError] = useState("");
+  const [failedRegistrationId, setFailedRegistrationId] = useState<string | null>(null);
+  const registrationRequestRef = useRef(0);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"discover" | "registrations">("discover");
+  const [confirmationId, setConfirmationId] = useState<string | null>(null);
+  const tabHeadingRef = useRef<HTMLHeadingElement>(null);
+
+  async function loadEvents() {
+    setLoading(true); setMessage("");
+    try {
+      const response = await fetch("/api/v1/events", { credentials: "include" });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !Array.isArray(body?.data?.events)) throw new Error(errorMessage(body, "Unable to load published events"));
+      setEvents(body.data.events.filter(isPublicEvent));
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to load published events"); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { void loadEvents(); if (user?.role === "PARTICIPANT") void loadRegistrations(); }, []);
+
+  async function loadRegistrations() {
+    setRegistrationsLoading(true);
+    try {
+      const response = await fetch("/api/v1/me/registrations", { credentials: "include" });
+      const body = await response.json().catch(() => null);
+      if (response.status === 401) return onSessionExpired();
+      if (!response.ok || !Array.isArray(body?.data?.registrations)) throw new Error(errorMessage(body, "Unable to load registrations"));
+      setRegistrations(body.data.registrations);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to load registrations"); }
+    finally { setRegistrationsLoading(false); }
+  }
+
+  async function register(event: PublicEvent) {
+    if (!user) { setMessage("Sign in as a Participant to register."); return; }
+    if (user.role !== "PARTICIPANT") { setMessage("Organizer accounts cannot register as Participants."); return; }
+    setBusyId(event.id); setMessage("");
+    try {
+      const response = await fetch(`/api/v1/events/${encodeURIComponent(event.id)}/registrations`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      const body = await response.json().catch(() => null);
+      if (response.status === 401) return onSessionExpired();
+      if (response.status === 409 && body?.error?.code === "REGISTRATION_DUPLICATE") { await refreshAvailability(event.id); setMessage("You are already registered for this event."); }
+      else if (response.status === 409 && body?.error?.code === "EVENT_FULL") { await refreshAvailability(event.id); setMessage("This event is full."); }
+      else if (!response.ok) setMessage(errorMessage(body, "Unable to register for this event"));
+      else { await loadEvents(); if (selected?.id === event.id) await viewDetail(event.id); await loadRegistrations(); setConfirmationId(body?.data?.registration?.id ?? "available"); setMessage("Registration confirmed."); }
+    } catch { setMessage("Unable to register for this event. Try again."); }
+    finally { setBusyId(null); }
+  }
+
+  async function refreshAvailability(eventId: string) {
+    await loadEvents();
+    if (selected?.id === eventId) await viewDetail(eventId);
+  }
+
+  async function viewDetail(eventId: string) {
+    setDetailLoading(true);
+    setSelected(null);
+    try {
+      const response = await fetch(`/api/v1/events/${encodeURIComponent(eventId)}`, { credentials: "include" });
+      const body = await response.json().catch(() => null);
+      if (response.status === 401) return onSessionExpired();
+      if (!response.ok || !isPublicEvent(body?.data?.event)) throw new Error(errorMessage(body, "Unable to load event details"));
+      setSelected(body.data.event);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to load event details"); }
+    finally { setDetailLoading(false); }
+  }
+
+  useEffect(() => {
+    if (selected) detailHeadingRef.current?.focus();
+  }, [selected]);
+
+  function switchTab(tab: "discover" | "registrations") {
+    setActiveTab(tab);
+    setSelected(null);
+    window.setTimeout(() => tabHeadingRef.current?.focus(), 0);
+  }
+
+  async function viewRegistration(registrationId: string) {
+    const requestId = registrationRequestRef.current + 1;
+    registrationRequestRef.current = requestId;
+    setRegistrationDetailLoading(true); setRegistrationDetailError(""); setFailedRegistrationId(null); setMessage(""); setSelectedRegistration(null);
+    try {
+      const response = await fetch(`/api/v1/me/registrations/${encodeURIComponent(registrationId)}`, { credentials: "include" });
+      const body = await response.json().catch(() => null);
+      if (response.status === 401) return onSessionExpired();
+      if (!response.ok || !body?.data?.registration) throw new Error(errorMessage(body, "Unable to load registration details"));
+      if (requestId === registrationRequestRef.current) setSelectedRegistration(body.data.registration);
+    } catch (error) { if (requestId === registrationRequestRef.current) { setFailedRegistrationId(registrationId); setRegistrationDetailError(error instanceof Error ? error.message : "Unable to load registration details"); } }
+    finally { if (requestId === registrationRequestRef.current) setRegistrationDetailLoading(false); }
+  }
+
+  return <section className="public-events-panel" aria-labelledby="public-events-heading">
+    <div className="section-heading"><p className="eyebrow">University Events</p><h2 id="public-events-heading">Discover published events</h2><p className="section-intro">Browse public event details and availability. Dates are shown in Asia/Bangkok (UTC+7).</p></div>
+    {user?.role === "PARTICIPANT" && <div className="tab-list" role="tablist" aria-label="Participant dashboard sections"><button type="button" role="tab" aria-selected={activeTab === "discover"} className={`dashboard-tab${activeTab === "discover" ? " is-active" : ""}`} onClick={() => switchTab("discover")}>Discover Events</button><button type="button" role="tab" aria-selected={activeTab === "registrations"} className={`dashboard-tab${activeTab === "registrations" ? " is-active" : ""}`} onClick={() => switchTab("registrations")}>My Registrations</button></div>}
+    {message && <div className="status-text" role="status" aria-live="polite"><span>{message}</span>{confirmationId && <button type="button" className="button button-secondary confirmation-action" onClick={() => switchTab("registrations")}>View My Registrations</button>}</div>}
+    {(!user || user.role !== "PARTICIPANT" || activeTab === "discover") && (detailLoading ? <p className="empty-state" role="status">Loading event details...</p> : selected ? <div className="public-detail-card" role="region" aria-label="Public event details"><button type="button" className="back-button" onClick={() => setSelected(null)}>Back to events</button><h3 ref={detailHeadingRef} tabIndex={-1}>{selected.title}</h3><p>{selected.description}</p><dl className="event-meta"><div><dt>Location</dt><dd>{selected.location}</dd></div><div><dt>When</dt><dd>{formatBangkokDate(selected.startAt)} – {formatBangkokDate(selected.endAt)}</dd></div><div><dt>Capacity</dt><dd>{selected.capacity} ({selected.remainingPlaces} remaining)</dd></div><div><dt>Availability</dt><dd>{selected.registrationAvailable ? "Available" : "Full"}</dd></div></dl><div className="event-card-actions">{user?.role === "PARTICIPANT" && (registrations.some((registration) => registration.eventId === selected.id) ? <button type="button" className="button button-secondary view-event-button" disabled>Registered</button> : selected.registrationAvailable && <button type="button" className="button button-primary view-event-button" onClick={() => void register(selected)} disabled={busyId === selected.id}>{busyId === selected.id ? "Registering..." : "Register"}</button>)}{!user && <span className="sign-in-hint">Sign in as a Participant to register</span>}</div></div> : loading ? <p className="empty-state" role="status">Loading published events...</p> : events.length === 0 ? <p className="empty-state">No published events are available.</p> : <ul className="event-list">
+      {events.map((event) => <li className="event-card" key={event.id}><div className="event-card-heading"><h3>{event.title}</h3><span className="published-badge">{event.registrationAvailable ? `${event.remainingPlaces} places` : "Full"}</span></div><p>{event.description}</p><dl className="event-meta"><div><dt>Location</dt><dd>{event.location}</dd></div><div><dt>When</dt><dd>{formatBangkokDate(event.startAt)} – {formatBangkokDate(event.endAt)}</dd></div><div><dt>Capacity</dt><dd>{event.capacity} ({event.remainingPlaces} remaining)</dd></div></dl><div className="event-card-actions"><button type="button" className="button button-secondary view-event-button" onClick={() => void viewDetail(event.id)}>View details</button>{!user && <span className="sign-in-hint">Sign in as a Participant to register</span>}</div></li>)}
+    </ul>)}
+    {activeTab === "registrations" && <>{registrationDetailLoading && <p className="detail-status" role="status">Loading registration details...</p>}
+    {registrationDetailError && <div className="registration-detail-card" role="alert"><p>{registrationDetailError}</p>{failedRegistrationId && <button type="button" className="button button-secondary" onClick={() => void viewRegistration(failedRegistrationId)}>Retry</button>}</div>}
+    {selectedRegistration && <section className="registration-detail-card" aria-labelledby="registration-detail-heading"><button type="button" className="back-button" onClick={() => setSelectedRegistration(null)}>Back to My Registrations</button><h3 id="registration-detail-heading">Registration details</h3><dl className="event-meta"><div><dt>Registration ID</dt><dd className="event-id">{selectedRegistration.id}</dd></div><div><dt>Status</dt><dd>{selectedRegistration.status}</dd></div><div><dt>Registered</dt><dd>{formatBangkokDate(selectedRegistration.registeredAt)}</dd></div><div><dt>Event</dt><dd>{selectedRegistration.event.title}</dd></div><div><dt>Description</dt><dd>{selectedRegistration.event.description}</dd></div><div><dt>Location</dt><dd>{selectedRegistration.event.location}</dd></div><div><dt>When</dt><dd>{formatBangkokDate(selectedRegistration.event.startAt)} – {formatBangkokDate(selectedRegistration.event.endAt)}</dd></div></dl></section>}</>}
+    {user?.role === "PARTICIPANT" && activeTab === "registrations" && <section className="registrations-card" aria-labelledby="my-registrations-heading"><div className="section-heading compact-heading"><p className="eyebrow">Participant records</p><h2 id="my-registrations-heading" ref={tabHeadingRef} tabIndex={-1}>My Registrations</h2></div>{registrationsLoading ? <p className="empty-state" role="status">Loading your registrations...</p> : registrations.length === 0 ? <p className="empty-state">You have no registrations yet.</p> : <ul className="event-list">{registrations.map((registration) => <li className="event-card" key={registration.id}><h3>{registration.event.title}</h3><p>{registration.event.location} · {formatBangkokDate(registration.event.startAt)}</p><p>Status: {registration.status} · Registered {formatBangkokDate(registration.registeredAt)}</p><button type="button" className="button button-secondary view-event-button" onClick={() => void viewRegistration(registration.id)} disabled={registrationDetailLoading}>{registrationDetailLoading ? "Loading details..." : "View registration details"}</button></li>)}</ul>}</section>}
+  </section>;
 }
 
 type EventDetailViewProps = {
@@ -148,6 +273,8 @@ export function App() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [eventDetailLoading, setEventDetailLoading] = useState(false);
   const [eventDetailMessage, setEventDetailMessage] = useState("");
+  const [showPublicEvents, setShowPublicEvents] = useState(false);
+  const [organizerTab, setOrganizerTab] = useState<"create" | "events" | "discover">("create");
 
   useEffect(() => {
     let active = true;
@@ -174,6 +301,7 @@ export function App() {
       setEventErrors({});
       setSelectedEvent(null);
       setSelectedEventId(null);
+      setOrganizerTab("create");
       setEventDetailLoading(false);
       setEventDetailMessage("");
       return;
@@ -370,6 +498,7 @@ export function App() {
             </button>
           </div>
         </header>
+        <div className="dashboard-container">
         <section className="welcome-panel">
           <div>
             <p className="eyebrow">Your event space</p>
@@ -378,19 +507,22 @@ export function App() {
             <p role="status" aria-live="polite" className="status-text">{message}</p>
           </div>
         </section>
-        {user.role === "ORGANIZER" ? selectedEventId ? (
+        {user.role === "ORGANIZER" && <div className="dashboard-tabs" role="tablist" aria-label="Organizer dashboard sections"><button type="button" role="tab" aria-selected={organizerTab === "create"} className={`dashboard-tab${organizerTab === "create" ? " is-active" : ""}`} onClick={() => { setOrganizerTab("create"); setSelectedEventId(null); }}>Create Event</button><button type="button" role="tab" aria-selected={organizerTab === "events"} className={`dashboard-tab${organizerTab === "events" ? " is-active" : ""}`} onClick={() => { setOrganizerTab("events"); setSelectedEventId(null); }}>My Events</button><button type="button" role="tab" aria-selected={organizerTab === "discover"} className={`dashboard-tab${organizerTab === "discover" ? " is-active" : ""}`} onClick={() => { setOrganizerTab("discover"); setSelectedEventId(null); }}>Discover Events</button></div>}
+        {user.role === "ORGANIZER" && organizerTab === "discover" && <PublicEventsPanel user={user} onSessionExpired={() => { setUser(null); setMessage("Session expired; sign in again"); }} />}
+        {user.role === "PARTICIPANT" && <PublicEventsPanel user={user} onSessionExpired={() => { setUser(null); setMessage("Session expired; sign in again"); }} />}
+        {user.role === "ORGANIZER" && organizerTab !== "discover" ? selectedEventId ? (
           <EventDetailView event={selectedEvent} loading={eventDetailLoading} message={eventDetailMessage} onBack={backToEvents} />
         ) : (
           <section className="event-management" aria-labelledby="event-management-heading">
             <div className="section-heading">
               <div>
                 <p className="eyebrow">Organizer workspace</p>
-                <h2 id="event-management-heading">Create and publish an event</h2>
-                <p className="section-intro">Publish a University Event with a positive capacity. Times are entered in Asia/Bangkok (UTC+7).</p>
+                <h2 id="event-management-heading">{organizerTab === "create" ? "Create and publish an event" : "My Events"}</h2>
+                {organizerTab === "create" && <p className="section-intro">Publish a University Event with a positive capacity. Times are entered in Asia/Bangkok (UTC+7).</p>}
               </div>
             </div>
-            <div className="event-layout">
-              <form className="event-form" aria-label="Create and publish event" onSubmit={publishEvent}>
+            <div className={`event-layout${organizerTab === "events" ? " single-pane" : ""}`}>
+              {organizerTab === "create" && <form className="event-form" aria-label="Create and publish event" onSubmit={publishEvent}>
                 <label htmlFor="event-title">
                   Title
                   <input id="event-title" name="title" required disabled={eventSubmitting} aria-invalid={Boolean(eventErrors.title)} aria-describedby={eventErrors.title ? "event-title-error" : undefined} />
@@ -427,8 +559,8 @@ export function App() {
                   {eventSubmitting ? "Publishing..." : "Publish event"}
                 </button>
                 <p role="status" aria-live="polite" className="status-text">{eventsMessage}</p>
-              </form>
-              <section className="owned-events" aria-labelledby="owned-events-heading">
+              </form>}
+              {organizerTab === "events" && <section className="owned-events" aria-labelledby="owned-events-heading">
                 <div className="section-heading compact-heading">
                   <div>
                     <p className="eyebrow">Persisted records</p>
@@ -466,7 +598,7 @@ export function App() {
                     ))}
                   </ul>
                 )}
-              </section>
+              </section>}
             </div>
           </section>
         ) : (
@@ -478,6 +610,7 @@ export function App() {
             </div>
           </section>
         )}
+        </div>
       </main>
     );
   }
@@ -514,6 +647,8 @@ export function App() {
         </form>
         <p role="status" aria-live="polite" className="status-text">{message}</p>
         <p className="privacy-note">Your account is protected with secure server-side sessions.</p>
+        <button type="button" className="browse-public-button" onClick={() => setShowPublicEvents((visible) => !visible)}>{showPublicEvents ? "Hide published events" : "Browse published events"}</button>
+        {showPublicEvents && <PublicEventsPanel user={null} onSessionExpired={() => setMessage("Session expired; sign in again")} />}
       </section>
     </main>
   );
