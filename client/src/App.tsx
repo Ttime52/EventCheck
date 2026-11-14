@@ -74,6 +74,64 @@ function errorMessage(body: unknown, fallback: string) {
   return typeof message === "string" ? message : fallback;
 }
 
+type EventDetailViewProps = {
+  event: PublishedEvent | null;
+  loading: boolean;
+  message: string;
+  onBack: () => void;
+};
+
+function EventDetailView({ event, loading, message, onBack }: EventDetailViewProps) {
+  return (
+    <section className="event-detail-page" aria-labelledby="event-detail-page-heading">
+      <button type="button" className="back-button" onClick={onBack}>Back to Your events</button>
+      <div className="section-heading">
+        <p className="eyebrow">Owned event</p>
+        <h2 id="event-detail-page-heading">Event details</h2>
+        <p className="section-intro">Published event details are read-only in Sprint 1.</p>
+      </div>
+      {loading ? <p className="detail-status" role="status">Loading event details...</p> : event ? (
+        <form className="event-detail-form" aria-label="Event details" onSubmit={(formEvent) => formEvent.preventDefault()}>
+          <label htmlFor="detail-title">
+            Title
+            <input id="detail-title" value={event.title} readOnly />
+          </label>
+          <label htmlFor="detail-description">
+            Description
+            <textarea id="detail-description" value={event.description} readOnly />
+          </label>
+          <label htmlFor="detail-location">
+            Location
+            <input id="detail-location" value={event.location} readOnly />
+          </label>
+          <div className="event-date-grid">
+            <label htmlFor="detail-start">
+              Start date and time — Asia/Bangkok (UTC+7)
+              <input id="detail-start" value={formatBangkokDate(event.startAt)} readOnly />
+            </label>
+            <label htmlFor="detail-end">
+              End date and time — Asia/Bangkok (UTC+7)
+              <input id="detail-end" value={formatBangkokDate(event.endAt)} readOnly />
+            </label>
+          </div>
+          <label htmlFor="detail-capacity">
+            Capacity
+            <input id="detail-capacity" value={event.capacity} readOnly />
+          </label>
+          <label htmlFor="detail-state">
+            Publication state
+            <input id="detail-state" value={event.publicationState} readOnly />
+          </label>
+          <label htmlFor="detail-id">
+            Event ID
+            <input id="detail-id" value={event.id} readOnly />
+          </label>
+        </form>
+      ) : <p className="detail-status" role="alert">{message || "Unable to load event details"}</p>}
+    </section>
+  );
+}
+
 export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loginIdentifier, setLoginIdentifier] = useState("");
@@ -86,6 +144,10 @@ export function App() {
   const [eventSubmitting, setEventSubmitting] = useState(false);
   const [eventsMessage, setEventsMessage] = useState("");
   const [eventErrors, setEventErrors] = useState<Record<string, string>>({});
+  const [selectedEvent, setSelectedEvent] = useState<PublishedEvent | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [eventDetailLoading, setEventDetailLoading] = useState(false);
+  const [eventDetailMessage, setEventDetailMessage] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -110,6 +172,10 @@ export function App() {
       setEvents([]);
       setEventsMessage("");
       setEventErrors({});
+      setSelectedEvent(null);
+      setSelectedEventId(null);
+      setEventDetailLoading(false);
+      setEventDetailMessage("");
       return;
     }
 
@@ -139,6 +205,39 @@ export function App() {
       });
     return () => { active = false; };
   }, [user]);
+
+  async function viewEventDetail(eventId: string) {
+    setSelectedEventId(eventId);
+    setSelectedEvent(null);
+    setEventDetailMessage("");
+    setEventDetailLoading(true);
+
+    try {
+      const response = await fetch(`/api/v1/organizer/events/${encodeURIComponent(eventId)}`, { credentials: "include" });
+      const body = await response.json().catch(() => null);
+      if (response.status === 401) {
+        setUser(null);
+        setMessage("Session expired; sign in again");
+        return;
+      }
+      if (!response.ok || !isPublishedEvent(body?.data?.event)) {
+        setEventDetailMessage(errorMessage(body, "Unable to load event details"));
+        return;
+      }
+      setSelectedEvent(body.data.event);
+    } catch {
+      setEventDetailMessage("Unable to load event details. Try again.");
+    } finally {
+      setEventDetailLoading(false);
+    }
+  }
+
+  function backToEvents() {
+    setSelectedEvent(null);
+    setSelectedEventId(null);
+    setEventDetailLoading(false);
+    setEventDetailMessage("");
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -244,6 +343,10 @@ export function App() {
       }
       setUser(null);
       setEvents([]);
+      setSelectedEvent(null);
+      setSelectedEventId(null);
+      setEventDetailLoading(false);
+      setEventDetailMessage("");
       setMessage("Signed out");
     } catch {
       setMessage("Unable to sign out. Try again.");
@@ -275,7 +378,9 @@ export function App() {
             <p role="status" aria-live="polite" className="status-text">{message}</p>
           </div>
         </section>
-        {user.role === "ORGANIZER" ? (
+        {user.role === "ORGANIZER" ? selectedEventId ? (
+          <EventDetailView event={selectedEvent} loading={eventDetailLoading} message={eventDetailMessage} onBack={backToEvents} />
+        ) : (
           <section className="event-management" aria-labelledby="event-management-heading">
             <div className="section-heading">
               <div>
@@ -347,6 +452,16 @@ export function App() {
                           <div><dt>Capacity</dt><dd>{event.capacity}</dd></div>
                           <div><dt>Event ID</dt><dd className="event-id">{event.id}</dd></div>
                         </dl>
+                        <div className="event-card-actions">
+                          <button
+                            type="button"
+                            className="button button-secondary view-event-button"
+                            onClick={() => void viewEventDetail(event.id)}
+                            disabled={eventDetailLoading}
+                          >
+                            {selectedEventId === event.id && eventDetailLoading ? "Loading details..." : "View details"}
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>

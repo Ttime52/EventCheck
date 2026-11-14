@@ -36,6 +36,22 @@ test("TEST-F02-01/02/14: Organizer publishes an event and sees it after reload",
   await expect(page.getByRole("heading", { name: title, level: 3 })).toBeVisible();
   await expect(page.getByText("Published", { exact: true })).toBeVisible();
 
+  const eventCard = page.locator(".event-card").filter({ hasText: title });
+  await eventCard.getByRole("button", { name: "View details" }).click();
+  const detail = page.getByRole("region", { name: "Event details" });
+  await expect(detail).toBeVisible();
+  const detailForm = detail.getByRole("form", { name: "Event details" });
+  await expect(detailForm.getByLabel("Title", { exact: true })).toHaveValue(title);
+  await expect(detailForm.getByLabel("Description", { exact: true })).toHaveValue("A Playwright persistence check.");
+  await expect(detailForm.getByLabel("Location", { exact: true })).toHaveValue("Engineering Building 1");
+  await expect(detailForm.getByLabel(/Start date and time/)).toHaveValue("20 Nov 2026, 09:00");
+  await expect(detailForm.getByLabel(/End date and time/)).toHaveValue("20 Nov 2026, 12:00");
+  await expect(detailForm.getByLabel("Capacity", { exact: true })).toHaveValue("25");
+  await expect(detailForm.getByLabel("Publication state", { exact: true })).toHaveValue("PUBLISHED");
+  await expect(detailForm.getByLabel("Event ID", { exact: true })).toHaveAttribute("readonly", "");
+  await page.getByRole("button", { name: "Back to Your events" }).click();
+  await expect(page.getByRole("form", { name: "Create and publish event" })).toBeVisible();
+
   await page.reload();
   await expect(page.getByRole("heading", { name: title, level: 3 })).toBeVisible();
   await expect(page.getByText("Engineering Building 1", { exact: true })).toBeVisible();

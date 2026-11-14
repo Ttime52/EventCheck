@@ -5,10 +5,10 @@ This file records verification for Issue #7 without changing the F-02 Engineerin
 ## Tested revision
 
 - Branch: `feature/07-event-creation-publishing`
-- Baseline `HEAD`: `2c7f790`
-- F-02 changes: uncommitted working-tree changes, intentionally not committed, pushed, or opened as a PR in this task.
+- F-02 baseline commit: `46e4de9` (`feat: event creation and publishing`)
+- Current Event Detail UI additions: uncommitted working-tree changes; not pushed or opened as a PR in this task.
 
-Because there is no F-02 commit or teammate review yet, AC-F02-15 is not complete.
+Because the current Event Detail additions are uncommitted and there is no teammate review/PR acceptance yet, AC-F02-15 is not complete.
 
 ## TDD evidence
 
@@ -33,13 +33,13 @@ After `server/src/events.ts` was implemented, the same command passed with 3 tes
 | AC-F02-06 | API integration cases for CSRF, anonymous, and Participant requests | Pass |
 | AC-F02-07 | API integration owner-override rejection and server-derived owner persistence | Pass |
 | AC-F02-08 | API integration owner filtering, tampered query, and explicit empty list | Pass |
-| AC-F02-09 | API integration owner, cross-owner, Participant, visitor, and safe detail access | Pass |
+| AC-F02-09 | API integration owner, cross-owner, Participant, visitor, safe detail access, and Organizer detail UI | Pass for current implementation; final detail UI E2E remains pending |
 | AC-F02-10 | API integration unsupported PATCH and unchanged database snapshot | Pass |
 | AC-F02-11 | F-03 public discovery integration | Deferred until F-03 integration |
 | AC-F02-12 | API integration controlled transaction failure and unchanged row count | Pass |
 | AC-F02-13 | Fresh Prisma client persistence and owner detail retrieval | Pass |
-| AC-F02-14 | Accessible Organizer form, empty/success/validation states, integration authorization, Playwright reload flow | Pass for implemented F-02 scope; full keyboard/expired-UI review remains for teammate review |
-| AC-F02-15 | Contract/review/commit evidence | Incomplete: draft contract, no teammate review, no F-02 commit/PR |
+| AC-F02-14 | Accessible Organizer form, empty/success/validation/detail states, integration authorization, detail UI unit tests, and Playwright reload flow | Pass for implemented F-02 scope; final detail UI E2E and full keyboard/expired-UI review remain for teammate review |
+| AC-F02-15 | Contract/review/commit evidence | Incomplete: draft contract, no teammate review/PR acceptance for the current additions |
 
 ## Commands and results
 
@@ -50,10 +50,10 @@ All commands below were run on 2026-11-14 against the isolated PostgreSQL databa
 | `npm.cmd run prisma:validate` | Passed |
 | `npm.cmd run prisma:generate` | Passed |
 | `npm.cmd run typecheck` | Passed |
-| `npm.cmd test` | 13 passed, 14 integration tests skipped without `DATABASE_URL` |
+| `npm.cmd test` | 15 passed, 14 integration tests skipped without `DATABASE_URL` |
 | `DATABASE_URL=postgresql://eventcheck@127.0.0.1:5433/eventcheck_test?schema=public npm.cmd run test:integration --workspace server` | 14 passed (7 F-01 + 7 F-02) |
 | `npm.cmd run build` | Passed for server and client |
-| `E2E_DATABASE_URL=... npm.cmd run test:e2e` | 10 passed (all F-01 tests plus F-02 Organizer publish/reload) |
+| `E2E_DATABASE_URL=... npm.cmd run test:e2e` | Previous run: 10 passed before the Event Detail UI addition. The updated detail E2E could not start because the user's existing dev server occupied port 3000; unit coverage passed and a clean-server E2E rerun remains required. |
 
 The E2E command required the approved elevated local execution path because the restricted Windows sandbox caused `tsx` to fail with `uv_os_get_passwd ... ENOMEM` before the application started. The rerun outside that restriction passed.
 
@@ -64,4 +64,4 @@ The E2E command required the approved elevated local execution path because the 
 - `GET /api/v1/organizer/events/:eventId` — owner-only management detail.
 - `PATCH /api/v1/organizer/events/:eventId` — explicit Sprint 1 unsupported boundary; no mutation.
 
-F-03 public discovery, teammate contract review, risk acceptance, PR review, and final release approval remain outside this evidence run.
+F-03 public discovery, teammate contract review, risk acceptance, PR review, final detail E2E on a clean server, and final release approval remain outside this evidence run.
