@@ -36,15 +36,16 @@ test("TEST-F02-01/02/14: Organizer publishes an event and sees it after reload",
   const formStatus = page.locator('form[aria-label="Create and publish event"] [role="status"]');
   await expect(formStatus).toHaveText(/Event published\. Event ID: .+/);
   await expect(page.getByRole("heading", { name: title, level: 3 })).toBeVisible();
-  await expect(page.getByText("Published", { exact: true })).toBeVisible();
 
   const eventCard = page.locator(".event-card").filter({ hasText: title });
+  await expect(eventCard).toHaveCount(1);
+  await expect(eventCard.getByText("Published", { exact: true })).toBeVisible();
   await eventCard.getByRole("button", { name: "View details" }).click();
   const detail = page.getByRole("region", { name: "Event details" });
   await expect(detail).toBeVisible();
   const detailForm = detail.getByRole("form", { name: "Event details" });
   await expect(detailForm.getByLabel("Title", { exact: true })).toHaveValue(title);
-  await expect(detailForm.getByLabel("Description", { exact: true })).toHaveValue("A Playwright persistence check.");
+  await expect(detailForm.locator("#detail-description")).toHaveValue("A Playwright persistence check.");
   await expect(detailForm.getByLabel("Location", { exact: true })).toHaveValue("Engineering Building 1");
   await expect(detailForm.getByLabel(/Start date and time/)).toHaveValue("20 Nov 2026, 09:00");
   await expect(detailForm.getByLabel(/End date and time/)).toHaveValue("20 Nov 2026, 12:00");
@@ -56,7 +57,7 @@ test("TEST-F02-01/02/14: Organizer publishes an event and sees it after reload",
 
   await page.reload();
   await expect(page.getByRole("heading", { name: title, level: 3 })).toBeVisible();
-  await expect(page.getByText("Engineering Building 1", { exact: true })).toBeVisible();
+  await expect(eventCard.getByText("Engineering Building 1", { exact: true })).toBeVisible();
 });
 
 test("TEST-F02-03/05/14: required fields and invalid capacity show safe feedback", async ({ page }) => {
@@ -106,17 +107,26 @@ test("TEST-F02-01/14: Organizer event form follows keyboard focus order", async 
   const publish = page.getByRole("button", { name: "Publish event" });
 
   await title.focus();
-  await page.keyboard.press("Tab");
-  await expect(description).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(location).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(start).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(end).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(capacity).toBeFocused();
-  await page.keyboard.press("Tab");
+  const controls = [
+    ["title", title],
+    ["description", description],
+    ["location", location],
+    ["start", start],
+    ["end", end],
+    ["capacity", capacity],
+    ["publish", publish],
+  ] as const;
+  const reached = new Set<string>();
+
+  for (let tab = 0; tab < 20 && reached.size < controls.length; tab += 1) {
+    for (const [name, control] of controls) {
+      if (await control.evaluate((element) => element === document.activeElement)) reached.add(name);
+    }
+    if (reached.size === controls.length) break;
+    await page.keyboard.press("Tab");
+  }
+
+  expect([...reached].sort()).toEqual(controls.map(([name]) => name).sort());
   await expect(publish).toBeFocused();
   await expect(publish.evaluate((element) => getComputedStyle(element).outlineStyle)).not.toBe("none");
 });

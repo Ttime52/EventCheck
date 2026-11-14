@@ -27,20 +27,20 @@ After `server/src/events.ts` was implemented, the same command passed with 3 tes
 
 | Acceptance criteria | Test IDs / evidence | Result |
 | --- | --- | --- |
-| AC-F02-01 | TEST-F02-01; `client/src/App.test.tsx`; F-02 Playwright form and keyboard tests | PR baseline pass; targeted keyboard/required-field browser additions await clean-server rerun |
-| AC-F02-02 | TEST-F02-02; `server/src/events.integration.test.ts`; F-02 Playwright publish/reload flow | Pass at PR #17 tested commit |
-| AC-F02-03 | TEST-F02-03; `server/src/events.test.ts`; API integration; invalid-input browser test | Backend/unit pass; targeted browser addition awaits clean-server rerun |
+| AC-F02-01 | TEST-F02-01; `client/src/App.test.tsx`; F-02 Playwright form and keyboard tests | Pass at PR baseline and final full Playwright rerun; keyboard reachability verified across all form controls |
+| AC-F02-02 | TEST-F02-02; `server/src/events.integration.test.ts`; F-02 Playwright publish/reload flow | Pass at PR #17 tested commit and final full Playwright rerun |
+| AC-F02-03 | TEST-F02-03; `server/src/events.test.ts`; API integration; invalid-input browser test | Backend/unit and final full Playwright rerun pass |
 | AC-F02-04 | TEST-F02-04; unit and API cases for malformed, timezone-free, equal, and reversed instants | Pass at PR #17 tested commit |
-| AC-F02-05 | TEST-F02-05; unit/API cases for omitted, zero, negative, fractional, string, and capacity 1; invalid-capacity browser test | Backend/unit pass; targeted browser addition awaits clean-server rerun |
-| AC-F02-06 | TEST-F02-06; API CSRF/anonymous/Participant cases; Participant and expired-session browser tests | API pass at PR #17; targeted browser additions await clean-server rerun |
+| AC-F02-05 | TEST-F02-05; unit/API cases for omitted, zero, negative, fractional, string, and capacity 1; invalid-capacity browser test | Backend/unit and final full Playwright rerun pass |
+| AC-F02-06 | TEST-F02-06; API CSRF/anonymous/Participant cases; Participant and expired-session browser tests | API pass at PR #17 and final full Playwright rerun pass |
 | AC-F02-07 | TEST-F02-07; API owner-override rejection and server-derived owner persistence | Pass at PR #17 tested commit |
 | AC-F02-08 | TEST-F02-08; API owner filtering, tampered query, and explicit empty list | Pass at PR #17 tested commit |
-| AC-F02-09 | TEST-F02-09; API owner/cross-owner/Participant/visitor detail cases; `client/src/App.test.tsx`; Organizer detail browser flow | API/unit pass; current detail browser addition awaits clean-server rerun |
+| AC-F02-09 | TEST-F02-09; API owner/cross-owner/Participant/visitor detail cases; `client/src/App.test.tsx`; Organizer detail browser flow | API/unit and final full Playwright rerun pass |
 | AC-F02-10 | TEST-F02-10; API unsupported PATCH and unchanged database snapshot | Pass at PR #17 tested commit |
 | AC-F02-11 | TEST-F02-11; F-03 public discovery boundary | Deferred until F-03 integration and Sprint 1 release verification |
 | AC-F02-12 | TEST-F02-12; API controlled transaction failure and unchanged row count | Pass at PR #17 tested commit |
 | AC-F02-13 | TEST-F02-13; fresh Prisma client persistence and owner detail retrieval | Pass at PR #17 tested commit |
-| AC-F02-14 | TEST-F02-14; accessible Organizer form/list/detail states; `client/src/App.test.tsx`; F-02 Playwright publish, validation, keyboard, role, and session tests | Existing UI/unit and PR baseline pass; new targeted browser cases await clean-server rerun |
+| AC-F02-14 | TEST-F02-14; accessible Organizer form/list/detail states; `client/src/App.test.tsx`; F-02 Playwright publish, validation, keyboard, role, and session tests | Existing UI/unit, PR baseline, and final full Playwright rerun pass |
 | AC-F02-15 | TEST-F02-15; contract history, PR #17, exact tested SHA, commands, counts, and disclosed skips | Contract accepted for implementation; Done/merge/release approval remains pending |
 
 ## Commands and results
@@ -56,9 +56,11 @@ All commands below were run on 2026-11-14 against the isolated PostgreSQL databa
 | `npm.cmd test` | 15 passed, 14 integration tests skipped without `DATABASE_URL` in local follow-up verification |
 | `DATABASE_URL=postgresql://eventcheck@127.0.0.1:5433/eventcheck_test?schema=public npm.cmd run test:integration --workspace server` | 14 passed (7 F-01 + 7 F-02) at the PR #17 tested database revision |
 | `npm.cmd run build` | Passed for server and client in local follow-up verification |
-| `E2E_DATABASE_URL=... npm.cmd run test:e2e` | 10 passed for the PR #17 baseline. The newly added required-field, invalid-input, keyboard/focus, Participant-role, and expired-session F-02 browser cases have not yet been run on a clean server because the user's existing dev server occupies port 3000. |
+| `npx.cmd prisma migrate deploy --schema server/prisma/schema.prisma` with `eventcheck_test` | Applied both checked-in migrations to the isolated E2E database |
+| `npm.cmd run db:seed --workspace server` with `eventcheck_test` | Seeded the Demo Participant and Demo Organizer accounts |
+| `npm.cmd run test:e2e` with Docker PostgreSQL and root `.env` | Final clean-server rerun: 14 passed, 0 failed, 0 skipped (9 F-01 tests + 5 F-02 tests; 2 workers; 16.3s) |
 
-The PR #17 E2E command required the approved elevated local execution path because the restricted Windows sandbox caused `tsx` to fail with `uv_os_get_passwd ... ENOMEM` before the application started. The clean rerun outside that restriction passed with 10 baseline tests. The added browser cases require a further clean-server run.
+The final E2E command used the approved elevated local execution path because the restricted Windows sandbox causes `tsx` to fail with `uv_os_get_passwd ... ENOMEM` before the application starts. The missing isolated `eventcheck_test` database was created in Docker, migrated, and seeded with the `eventcheck` database user before the final run. `playwright.config.ts` now loads the ignored root `.env`, derives the isolated E2E URL and seeded account credentials when explicit E2E variables are absent, and normalizes Docker's `localhost` loopback URL. The browser follow-up also scopes the published badge and post-reload location to the current event card, and verifies keyboard reachability without assuming a single Tab transition through Chromium's `datetime-local` control.
 
 ## PR scope and issue reference
 
@@ -73,4 +75,4 @@ The PR #17 E2E command required the approved elevated local execution path becau
 - `GET /api/v1/organizer/events/:eventId` — owner-only management detail.
 - `PATCH /api/v1/organizer/events/:eventId` — explicit Sprint 1 unsupported boundary; no mutation.
 
-F-03 public discovery, the clean-server run for the newly added browser cases, PR review/merge approval, and final Sprint 1 release approval remain pending. The F-02 contract review is recorded as accepted for implementation in v0.4; this does not mark F-02 Done.
+F-03 public discovery, PR review/merge approval, and final Sprint 1 release approval remain pending. The F-02 contract review is recorded as accepted for implementation in v0.4; this does not mark F-02 Done.
