@@ -1,6 +1,40 @@
+import { existsSync } from "node:fs";
+import { loadEnvFile } from "node:process";
 import { defineConfig, devices } from "@playwright/test";
 
-const e2eDatabaseUrl = process.env.E2E_DATABASE_URL;
+if (existsSync(".env")) loadEnvFile(".env");
+
+function deriveE2EDatabaseUrl(value: string | undefined) {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    url.hostname = "127.0.0.1";
+    url.port = "5433";
+    url.pathname = url.pathname.replace(/\/eventcheck\/?$/, "/eventcheck_test");
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeE2EDatabaseUrl(value: string | undefined) {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    if (url.hostname === "localhost") url.hostname = "127.0.0.1";
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+const e2eDatabaseUrl = normalizeE2EDatabaseUrl(process.env.E2E_DATABASE_URL) ?? deriveE2EDatabaseUrl(process.env.DATABASE_URL);
+process.env.E2E_DATABASE_URL = e2eDatabaseUrl;
+process.env.E2E_ORGANIZER_LOGIN ??= "organizer@example.test";
+process.env.E2E_PARTICIPANT_LOGIN ??= "participant@example.test";
+process.env.E2E_ORGANIZER_PASSWORD ??= process.env.SEED_ORGANIZER_PASSWORD;
+process.env.E2E_PARTICIPANT_PASSWORD ??= process.env.SEED_PARTICIPANT_PASSWORD;
+
 function isIsolatedE2EDatabase(value: string | undefined) {
   if (!value) return false;
   try {

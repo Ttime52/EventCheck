@@ -2,13 +2,13 @@
 
 **Issue:** I-04 — Contract: Authentication & Event Publishing
 
-**Contract version:** 0.3
+**Contract version:** 0.4
 
 **Status:** Approved/Accepted for Implementation; completion and merge approval remain pending
 
 **Baseline:** EventCheck SRS, Feature Inventory, Traceability Matrix, Sprint Plan, and System-Level SDS reviewed for Issue I-04.
 
-> This is a versioned design and verification plan. The F-01 design and conditional dependency-risk decision are accepted; implementation completion, F-02 integration, remediation verification, and merge approval remain pending.
+> This is a versioned design and verification plan. The F-01 design and conditional dependency-risk decision are accepted; F-02 integration, remediation verification, and merge approval remain pending.
 
 ## A. Feature overview
 
@@ -181,7 +181,7 @@ Important TDD candidates: TEST-F01-06 and TEST-F01-07 for exact idle/absolute ex
 | 0.1 | 2026-11-13 | Draft for teammate review | Initial F-01 feature design, UI/API/data proposals, AC, and planned STS from the approved SRS and System-Level SDS. No implementation or verification claimed. |
 | 0.2 | 2026-11-14 | Draft for teammate review | Recorded post-commit PostgreSQL integration evidence and current AC/TEST verification status. No approval or completion claim. |
 | 0.3 | 2026-11-14 | Approved/Accepted for Implementation | Teammate accepted the F-01 authentication design, including implemented endpoints, server-side PostgreSQL sessions, and password hashing. Completion, security-risk acceptance, and PR merge approval remain pending. |
-| 0.4 | 2026-11-14 | Approved/Accepted for Implementation | Recorded the accepted conditional dependency-risk decision and latest macOS verification results. Completion and PR merge approval remain pending. |
+| 0.4 | 2026-11-14 | Approved/Accepted for Implementation | Recorded the accepted conditional dependency-risk decision, teammate review record, AC-F01-09 security verification, and current-commit verification results. F-02 integration and PR merge approval remain pending. |
 
 ### Decisions and open items
 
@@ -193,20 +193,37 @@ Dependency audit risk remains separate from design acceptance: the full audit re
 
 Dependency risk assessment: [F-01 Dependency Security Risk Assessment](../../security/f-01-dependency-risk-assessment.md). The teammate accepted the conditional risk decision recorded there; production exposure verification, remediation execution, feature completion, and PR merge approval remain pending.
 
+### Teammate review and release-gate record
+
+| Item | Record |
+| --- | --- |
+| Contract review decision | Teammate accepted the F-01 API routes, response envelopes, cookie/session behavior, CSRF origin-validation design, and server-side PostgreSQL session design for continued implementation. |
+| Conditional dependency-risk decision | Accepted for continued development only; production exposure verification, remediation, and re-audit remain mandatory before deployment. |
+| Review date | 2026-11-14 |
+| Reviewer identity | Teammate reviewer; name/handle was not included in the supplied review record. |
+| Completion condition | AC-F01-09 database/log verification, current-commit Playwright evidence, F-02 integration checks, and required dependency verification must be recorded before completion or merge approval. |
+
+### Deferred Sprint 1 integration gates
+
+| Gate | Current status | Release requirement |
+| --- | --- | --- |
+| AC-F01-08 / TEST-F01-08: Participant denied on an actual F-02 Organizer-only route | Pending F-02 implementation/integration | Must pass before the Sprint 1 release is accepted. |
+| AC-F01-10 / TEST-F01-10: F-02-dependent cross-feature CSRF verification | Pending F-02 implementation/integration | Must pass before the Sprint 1 release is accepted. |
+
 ### Future completion evidence (placeholders)
 
 | Evidence | Status / future link |
 | --- | --- |
-| Teammate contract review and decision | Accepted for implementation — design acceptance recorded in version 0.4; reviewer identity/date not provided. Completion and merge approval remain pending. |
+| Teammate contract review and decision | Accepted for implementation; decision and conditions recorded above on 2026-11-14. Reviewer name/handle remains to be added if required by the review record. Completion and merge approval remain pending. |
 | Implementation Issue / branch / PR | GitHub Issue #8; branch `feature/06-auth-role-access`; PR URL pending |
 | Actual test source files and names for TEST-F01-* | Recorded below; F-02-dependent checks remain pending |
-| Test command, counts, failures/skips, tested commit | Latest macOS PostgreSQL integration: 6 passed, 0 failed, 0 skipped, 823 ms; exact tested commit not provided. Historical 4edc403 evidence retained below |
+| Test command, counts, failures/skips, tested commit | PostgreSQL integration: 7 passed, 0 failed, 0 skipped, 859 ms at commit `a93691bb86b2a4e0329d4427a10c66c8e83103c6`; Playwright: 9 passed, 0 failed, 0 skipped, 7.9 seconds at the same commit. Historical 4edc403 evidence retained below |
 | TDD red/green revisions for applicable rule work | TBD |
 | Build/integration result and accepted Sprint 1 release | TBD |
 
 ### Current verification record
 
-The current repository `HEAD` is `07d9420c48c547521f3b71e57c53635e398b09a5` (verified with `git rev-parse HEAD`). The latest macOS PostgreSQL run used the isolated database `127.0.0.1:5433/eventcheck_test` and passed 6 tests in 823 ms; its exact tested commit was not provided, so it is not attributed to a specific revision. Historical PostgreSQL evidence at commit `4edc4034a2ce4b763f60a37e825e024de8706329` remains preserved below.
+The verification target revision was `a93691bb86b2a4e0329d4427a10c66c8e83103c6` (verified with `git rev-parse HEAD` before this evidence-only documentation update). The final verification used the isolated PostgreSQL database `127.0.0.1:5433/eventcheck_test`: PostgreSQL integration passed 7 tests in 859 ms and Playwright passed 9 tests in 7.9 seconds, with 0 failures and 0 skips. Historical PostgreSQL evidence at commit `4edc4034a2ce4b763f60a37e825e024de8706329` remains preserved below.
 
 Implementation evidence: GitHub Issue #8, branch `feature/06-auth-role-access`. No pull-request URL is recorded because none was provided.
 
@@ -220,13 +237,13 @@ Implementation evidence: GitHub Issue #8, branch `feature/06-auth-role-access`. 
 | AC-F01-06 | TEST-F01-06 | PASS | Same passing integration test covers 29:59 validity, 30:00 rejection, and idle refresh behavior. |
 | AC-F01-07 | TEST-F01-07 | PASS | Same passing integration test covers activity before the absolute limit and rejection at the 8-hour boundary. |
 | AC-F01-08 | TEST-F01-08 | PENDING INTEGRATION | Isolated middleware coverage exists; actual F-02 Organizer-only routes are not available. |
-| AC-F01-09 | TEST-F01-09 | PARTIAL | Integration run passed response/hash secrecy assertions; full routine-log and database inspection evidence remains limited. |
+| AC-F01-09 | TEST-F01-09 | PASS | `server/src/auth.integration.test.ts` now inspects the isolated database for `scrypt` hashes with unique salts, checks response bodies for password/hash/session-ID leakage, captures all routine console log levels during success/failure/current-user/logout flows, and verifies no password, hash, or session ID is logged. The current PostgreSQL run passed. |
 | AC-F01-10 | TEST-F01-10 | PENDING INTEGRATION | Origin/session-rotation assertions passed in the isolated run; F-02 cross-feature CSRF execution remains pending. |
 | AC-F01-11 | TEST-F01-11 | PASS | Post-commit integration run passed local and production-mode cookie creation/clearing assertions, including Secure, HttpOnly, SameSite, Path, and Max-Age behavior. |
-| AC-F01-12 | TEST-F01-12 | PASS | `client/src/App.test.tsx`: 6 tests passed. Local macOS Playwright Chromium run passed all 9 tests, including deterministic expired-session and replay rejection, login/logout, keyboard accessibility, and responsive layouts. |
-| AC-F01-13 | TEST-F01-13 | PENDING | PostgreSQL and Playwright evidence are recorded, but the latest Playwright result predates the most recent configuration safety change and is not attributed to current `HEAD` `07d9420c48c547521f3b71e57c53635e398b09a5`. F-02 integration, remediation verification, and formal completion evidence remain outstanding. |
+| AC-F01-12 | TEST-F01-12 | PASS | `client/src/App.test.tsx`: 6 tests passed. Local Playwright Chromium run passed all 9 tests, including deterministic expired-session and replay rejection, login/logout, keyboard accessibility, and responsive layouts. |
+| AC-F01-13 | TEST-F01-13 | PENDING | PostgreSQL and Playwright evidence are recorded against verification target `a93691bb86b2a4e0329d4427a10c66c8e83103c6`, including 7/7 integration and 9/9 browser tests. F-02 integration, remediation verification, and formal completion evidence remain outstanding. |
 
-Browser verification for TEST-F01-12 was executed locally on macOS with Playwright Chromium before the most recent Playwright configuration safety change: 9 tests total, 9 passed, 0 failed, 0 skipped, duration 9.8 seconds. Passed coverage includes Participant and Organizer login, server-derived identity/role, invalid and missing credentials, logout/session refresh, password visibility, keyboard interaction, focus, responsive unauthenticated/authenticated layouts at 375px, 390px, 768px, and 1440px, and deterministic expired-session/replay rejection. This result is not claimed as verification of the latest configuration safety change.
+Browser verification for TEST-F01-12 was executed with Playwright Chromium against the latest configuration at commit `a93691bb86b2a4e0329d4427a10c66c8e83103c6`: 9 tests total, 9 passed, 0 failed, 0 skipped, duration 7.9 seconds. Passed coverage includes Participant and Organizer login, server-derived identity/role, invalid and missing credentials, logout/session refresh, password visibility, keyboard interaction, focus, responsive unauthenticated/authenticated layouts at 375px, 390px, 768px, and 1440px, and deterministic expired-session/replay rejection.
 
 Suggested macOS execution for the isolated E2E database:
 
@@ -252,10 +269,10 @@ The Playwright configuration now passes `E2E_DATABASE_URL` to the backend and fa
 Executed commands for this record:
 
 - Historical pre-commit frontend run: `npm run test --workspace client`: 1 file, 6 tests passed; this result is not attributed to commit `4edc4034a2ce4b763f60a37e825e024de8706329`.
-- `DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration --workspace=server`: 1 file passed; 6 tests passed, 0 failed, 0 skipped, 823 ms, against `127.0.0.1:5433/eventcheck_test`; exact tested commit was not provided.
+- `DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration --workspace=server`: 1 file passed; 7 tests passed, 0 failed, 0 skipped, 859 ms, against `127.0.0.1:5433/eventcheck_test` at commit `a93691bb86b2a4e0329d4427a10c66c8e83103c6`.
 - Historical PostgreSQL run: the same command against `127.0.0.1:5433/eventcheck_test` at commit `4edc4034a2ce4b763f60a37e825e024de8706329` passed 1 file, 6 tests, 0 failed, 0 skipped in 698 ms.
 - `npx playwright test --list`: 1 file, 9 browser tests discovered in `e2e/f01-auth.spec.ts`.
-- `npm run test:e2e`: Playwright Chromium, 9 tests total, 9 passed, 0 failed, 0 skipped, duration 9.8 seconds, executed before the most recent Playwright configuration safety change; not attributed to current `HEAD`.
+- `npm run test:e2e`: Playwright Chromium, 9 tests total, 9 passed, 0 failed, 0 skipped, duration 7.9 seconds, at commit `a93691bb86b2a4e0329d4427a10c66c8e83103c6` with `E2E_DATABASE_URL` pointing to `127.0.0.1:5433/eventcheck_test`.
 - Historical pre-commit server run: security unit test passed; health test was blocked by `listen EPERM`; this is retained only as historical context and is not used as post-commit integration evidence.
 - Historical pre-commit workspace checks: `npm run typecheck`, `npm run build`, Prisma validation, and `git diff --check` passed; these results are not attributed to the tested commit without supporting logs.
 - `git diff --check` for this documentation correction: passed.

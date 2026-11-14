@@ -84,7 +84,7 @@ DATABASE_URL="postgresql://eventcheck:change-me@127.0.0.1:5433/eventcheck_test?s
   npm run test:integration --workspace server
 ```
 
-F-02-dependent authorization journeys remain pending until F-02 is implemented.
+F-02-dependent authorization journeys remain pending until F-02 is implemented. They are Sprint 1 release gates and must be executed and recorded before the integrated Sprint 1 release is accepted.
 
 ## Structure
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
@@ -85,5 +85,118 @@ describe("F-01 authentication UI (TEST-F01-12)", () => {
     expect(screen.getByRole("button", { name: "Show password" })).toHaveAttribute("aria-pressed", "false");
     await waitFor(() => expect(screen.getByRole("status")).toBeInTheDocument());
     expect(fetchMock).not.toHaveBeenCalledWith("/api/v1/auth/login", expect.anything());
+  });
+});
+
+describe("F-02 organizer event publishing UI", () => {
+  const organizer = { id: "organizer-1", displayName: "Test Organizer", role: "ORGANIZER" as const };
+  const event = {
+    id: "event-1",
+    title: "University Workshop",
+    description: "A persisted workshop.",
+    location: "Engineering Building 1",
+    startAt: "2026-11-20T02:00:00.000Z",
+    endAt: "2026-11-20T05:00:00.000Z",
+    capacity: 25,
+    publicationState: "PUBLISHED" as const,
+  };
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  it("TEST-F02-01/02/14: shows the organizer form, publishes, and renders persisted event details", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockImplementationOnce(() => response({ data: { user: organizer } }))
+      .mockImplementationOnce(() => response({ data: { events: [] } }))
+      .mockImplementationOnce(() => response({ data: { event } }, true, 201));
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("form", { name: "Create and publish event" })).toBeInTheDocument());
+    expect(screen.getByText(/No published events yet/)).toBeInTheDocument();
+
+    fireEvent.input(screen.getByLabelText("Title"), { target: { value: "University Workshop" } });
+    fireEvent.input(screen.getByLabelText("Description"), { target: { value: "A persisted workshop." } });
+    fireEvent.input(screen.getByLabelText("Location"), { target: { value: "Engineering Building 1" } });
+    fireEvent.change(screen.getByLabelText("Start date and time — Asia/Bangkok (UTC+7)"), { target: { value: "2026-11-20T09:00" } });
+    fireEvent.change(screen.getByLabelText("End date and time — Asia/Bangkok (UTC+7)"), { target: { value: "2026-11-20T12:00" } });
+    fireEvent.input(screen.getByLabelText("Capacity (positive integer)"), { target: { value: "25" } });
+    fireEvent.click(screen.getByRole("button", { name: "Publish event" }));
+
+    await waitFor(() => expect(screen.getByText("Event published. Event ID: event-1")).toBeInTheDocument());
+    expect(screen.getByText("University Workshop")).toBeInTheDocument();
+    const eventCall = fetchMock.mock.calls.find(([input]) => input === "/api/v1/events");
+    expect(eventCall?.[1]?.method).toBe("POST");
+    expect(JSON.parse(String(eventCall?.[1]?.body))).toMatchObject({ startAt: "2026-11-20T02:00:00.000Z", endAt: "2026-11-20T05:00:00.000Z", capacity: 25 });
+  });
+
+  it("TEST-F02-03/04/05: maps API validation details to the event form", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockImplementationOnce(() => response({ data: { user: organizer } }))
+      .mockImplementationOnce(() => response({ data: { events: [] } }))
+      .mockImplementationOnce(() => response({ error: { code: "VALIDATION_ERROR", message: "Event details are invalid", details: [{ field: "capacity", message: "capacity must be a positive integer" }] } }, false, 422));
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("form", { name: "Create and publish event" })).toBeInTheDocument());
+    fireEvent.input(screen.getByLabelText("Title"), { target: { value: "University Workshop" } });
+    fireEvent.input(screen.getByLabelText("Description"), { target: { value: "A persisted workshop." } });
+    fireEvent.input(screen.getByLabelText("Location"), { target: { value: "Engineering Building 1" } });
+    fireEvent.change(screen.getByLabelText("Start date and time — Asia/Bangkok (UTC+7)"), { target: { value: "2026-11-20T09:00" } });
+    fireEvent.change(screen.getByLabelText("End date and time — Asia/Bangkok (UTC+7)"), { target: { value: "2026-11-20T12:00" } });
+    fireEvent.input(screen.getByLabelText("Capacity (positive integer)"), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Publish event" }));
+
+    await waitFor(() => expect(screen.getByText("capacity must be a positive integer")).toBeInTheDocument());
+    expect(screen.queryByText("University Workshop", { selector: "h3" })).not.toBeInTheDocument();
+  });
+
+  it("TEST-F02-09/14: loads the selected owned event detail from the API", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockImplementationOnce(() => response({ data: { user: organizer } }))
+      .mockImplementationOnce(() => response({ data: { events: [event] } }))
+      .mockImplementationOnce(() => response({ data: { event } }));
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "View details" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+
+    const detail = await screen.findByRole("region", { name: "Event details" });
+    const detailForm = await within(detail).findByRole("form", { name: "Event details" });
+    expect(within(detailForm).getByLabelText("Title")).toHaveValue("University Workshop");
+    expect(within(detailForm).getByLabelText("Description")).toHaveValue("A persisted workshop.");
+    expect(within(detailForm).getByLabelText("Location")).toHaveValue("Engineering Building 1");
+    expect(within(detailForm).getByLabelText(/Start date and time/)).toHaveValue("20 Nov 2026, 09:00");
+    expect(within(detailForm).getByLabelText(/End date and time/)).toHaveValue("20 Nov 2026, 12:00");
+    expect(within(detailForm).getByLabelText("Capacity")).toHaveValue("25");
+    expect(within(detailForm).getByLabelText("Publication state")).toHaveValue("PUBLISHED");
+    expect(within(detailForm).getByLabelText("Event ID")).toHaveValue("event-1");
+    for (const field of within(detailForm).getAllByRole("textbox")) {
+      expect(field).toHaveAttribute("readonly");
+    }
+    expect(screen.queryByRole("button", { name: /Save|Edit/ })).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/organizer/events/event-1", { credentials: "include" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to Your events" }));
+    await waitFor(() => expect(screen.getByRole("form", { name: "Create and publish event" })).toBeInTheDocument());
+  });
+
+  it("TEST-F02-09/14: shows a safe message when the selected event is unavailable", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockImplementationOnce(() => response({ data: { user: organizer } }))
+      .mockImplementationOnce(() => response({ data: { events: [event] } }))
+      .mockImplementationOnce(() => response({ error: { code: "EVENT_NOT_FOUND", message: "Event not found" } }, false, 404));
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "View details" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Event not found"));
+    expect(screen.getByRole("region", { name: "Event details" })).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Event details" })).not.toBeInTheDocument();
   });
 });
