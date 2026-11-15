@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 type User = {
   id: string;
@@ -19,6 +19,7 @@ type PublishedEvent = {
 
 type PublicEvent = Omit<PublishedEvent, "publicationState"> & { remainingPlaces: number; registrationAvailable: boolean };
 type Registration = { id: string; eventId: string; status: "ACTIVE" | "CANCELLED"; registeredAt: string; event: Pick<PublicEvent, "id" | "title" | "description" | "location" | "startAt" | "endAt"> };
+type OrganizerRegistration = { id: string; participantId: string; participantDisplayName: string; status: "ACTIVE" | "CANCELLED"; registeredAt: string };
 
 const isUser = (value: unknown): value is User => {
   if (!value || typeof value !== "object") return false;
@@ -81,6 +82,12 @@ const isPublicEvent = (value: unknown): value is PublicEvent => {
   if (!value || typeof value !== "object") return false;
   const item = value as Record<string, unknown>;
   return typeof item.id === "string" && typeof item.title === "string" && typeof item.description === "string" && typeof item.location === "string" && typeof item.startAt === "string" && typeof item.endAt === "string" && typeof item.capacity === "number" && typeof item.remainingPlaces === "number" && typeof item.registrationAvailable === "boolean";
+};
+
+const isOrganizerRegistration = (value: unknown): value is OrganizerRegistration => {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.id === "string" && typeof item.participantId === "string" && typeof item.participantDisplayName === "string" && (item.status === "ACTIVE" || item.status === "CANCELLED") && typeof item.registeredAt === "string";
 };
 
 function PublicEventsPanel({ user, onSessionExpired }: { user: User | null; onSessionExpired: () => void }) {
@@ -204,18 +211,23 @@ type EventDetailViewProps = {
   loading: boolean;
   message: string;
   onBack: () => void;
+  onViewRegistrations: () => void;
 };
 
-function EventDetailView({ event, loading, message, onBack }: EventDetailViewProps) {
+function EventDetailView({ event, loading, message, onBack, onViewRegistrations }: EventDetailViewProps) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { headingRef.current?.focus(); }, []);
+
   return (
     <section className="event-detail-page" aria-labelledby="event-detail-page-heading">
       <button type="button" className="back-button" onClick={onBack}>Back to Your events</button>
       <div className="section-heading">
         <p className="eyebrow">Owned event</p>
-        <h2 id="event-detail-page-heading">Event details</h2>
+        <h2 id="event-detail-page-heading" ref={headingRef} tabIndex={-1}>Event details</h2>
         <p className="section-intro">Published event details are read-only in Sprint 1.</p>
       </div>
       {loading ? <p className="detail-status" role="status">Loading event details...</p> : event ? (
+        <>
         <form className="event-detail-form" aria-label="Event details" onSubmit={(formEvent) => formEvent.preventDefault()}>
           <label htmlFor="detail-title">
             Title
@@ -252,7 +264,95 @@ function EventDetailView({ event, loading, message, onBack }: EventDetailViewPro
             <input id="detail-id" value={event.id} readOnly />
           </label>
         </form>
+        <div className="event-card-actions">
+          <button type="button" className="button button-secondary" onClick={onViewRegistrations}>View registrations</button>
+        </div>
+        </>
       ) : <p className="detail-status" role="alert">{message || "Unable to load event details"}</p>}
+    </section>
+  );
+}
+
+type OrganizerRegistrationsViewProps = {
+  event: PublishedEvent;
+  onBack: () => void;
+  onSessionExpired: () => void;
+};
+
+function OrganizerRegistrationsView({ event, onBack, onSessionExpired }: OrganizerRegistrationsViewProps) {
+  const [registrations, setRegistrations] = useState<OrganizerRegistration[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => { headingRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setMessage("");
+    fetch(`/api/v1/organizer/events/${encodeURIComponent(event.id)}/registrations`, { credentials: "include" })
+      .then(async (response) => ({ response, body: await response.json().catch(() => null) }))
+      .then(({ response, body }) => {
+        if (!active) return;
+        if (response.status === 401) {
+          onSessionExpired();
+          return;
+        }
+        if (!response.ok || !Array.isArray(body?.data?.registrations) || !body.data.registrations.every(isOrganizerRegistration)) {
+          setMessage(errorMessage(body, "Unable to load registrations for this event"));
+          return;
+        }
+        setRegistrations(body.data.registrations);
+      })
+      .catch(() => {
+        if (active) setMessage("Unable to load registrations for this event. Try again.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [event.id, attempt, onSessionExpired]);
+
+  const registrationCount = registrations.length;
+  const registrationCountLabel = `${registrationCount} ${registrationCount === 1 ? "registration" : "registrations"}`;
+
+  return (
+    <section className="event-detail-page organizer-registrations-page" aria-labelledby="organizer-registrations-heading">
+      <button type="button" className="back-button" onClick={onBack}>Back to Event details</button>
+      <div className="section-heading">
+        <p className="eyebrow">Event registrations</p>
+        <h2 id="organizer-registrations-heading" ref={headingRef} tabIndex={-1}>Registrations for {event.title}</h2>
+        <p className="section-intro">Registration times are shown in Asia/Bangkok (UTC+7).</p>
+      </div>
+      {loading ? <p className="detail-status" role="status">Loading registrations...</p> : message ? (
+        <div className="registration-detail-card" role="alert">
+          <p>{message}</p>
+          <button type="button" className="button button-secondary" onClick={() => setAttempt(value => value + 1)}>Retry</button>
+        </div>
+      ) : (
+        <>
+          <p className="detail-status" role="status" aria-live="polite">{registrationCountLabel}</p>
+          {registrationCount === 0 ? <p className="empty-state">No registrations for this event yet.</p> : (
+            <ul className="event-list" aria-label="Event registration list">
+              {registrations.map(registration => (
+                <li className="event-card" key={registration.id}>
+                  <div className="event-card-heading">
+                    <h3>{registration.participantDisplayName}</h3>
+                    <span className="published-badge">{registration.status}</span>
+                  </div>
+                  <dl className="event-meta">
+                    <div><dt>Registration ID</dt><dd className="event-id">{registration.id}</dd></div>
+                    <div><dt>Participant ID</dt><dd className="event-id">{registration.participantId}</dd></div>
+                    <div><dt>Registered (Asia/Bangkok, UTC+7)</dt><dd>{formatBangkokDate(registration.registeredAt)}</dd></div>
+                  </dl>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
     </section>
   );
 }
@@ -275,6 +375,11 @@ export function App() {
   const [eventDetailMessage, setEventDetailMessage] = useState("");
   const [showPublicEvents, setShowPublicEvents] = useState(false);
   const [organizerTab, setOrganizerTab] = useState<"create" | "events" | "discover">("create");
+  const [selectedEventSection, setSelectedEventSection] = useState<"details" | "registrations">("details");
+  const handleSessionExpired = useCallback(() => {
+    setUser(null);
+    setMessage("Session expired; sign in again");
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -301,6 +406,7 @@ export function App() {
       setEventErrors({});
       setSelectedEvent(null);
       setSelectedEventId(null);
+      setSelectedEventSection("details");
       setOrganizerTab("create");
       setEventDetailLoading(false);
       setEventDetailMessage("");
@@ -336,6 +442,7 @@ export function App() {
 
   async function viewEventDetail(eventId: string) {
     setSelectedEventId(eventId);
+    setSelectedEventSection("details");
     setSelectedEvent(null);
     setEventDetailMessage("");
     setEventDetailLoading(true);
@@ -363,6 +470,7 @@ export function App() {
   function backToEvents() {
     setSelectedEvent(null);
     setSelectedEventId(null);
+    setSelectedEventSection("details");
     setEventDetailLoading(false);
     setEventDetailMessage("");
   }
@@ -507,11 +615,15 @@ export function App() {
             <p role="status" aria-live="polite" className="status-text">{message}</p>
           </div>
         </section>
-        {user.role === "ORGANIZER" && <div className="dashboard-tabs" role="tablist" aria-label="Organizer dashboard sections"><button type="button" role="tab" aria-selected={organizerTab === "create"} className={`dashboard-tab${organizerTab === "create" ? " is-active" : ""}`} onClick={() => { setOrganizerTab("create"); setSelectedEventId(null); }}>Create Event</button><button type="button" role="tab" aria-selected={organizerTab === "events"} className={`dashboard-tab${organizerTab === "events" ? " is-active" : ""}`} onClick={() => { setOrganizerTab("events"); setSelectedEventId(null); }}>My Events</button><button type="button" role="tab" aria-selected={organizerTab === "discover"} className={`dashboard-tab${organizerTab === "discover" ? " is-active" : ""}`} onClick={() => { setOrganizerTab("discover"); setSelectedEventId(null); }}>Discover Events</button></div>}
-        {user.role === "ORGANIZER" && organizerTab === "discover" && <PublicEventsPanel user={user} onSessionExpired={() => { setUser(null); setMessage("Session expired; sign in again"); }} />}
-        {user.role === "PARTICIPANT" && <PublicEventsPanel user={user} onSessionExpired={() => { setUser(null); setMessage("Session expired; sign in again"); }} />}
+        {user.role === "ORGANIZER" && <div className="dashboard-tabs" role="tablist" aria-label="Organizer dashboard sections"><button type="button" role="tab" aria-selected={organizerTab === "create"} className={`dashboard-tab${organizerTab === "create" ? " is-active" : ""}`} onClick={() => { setOrganizerTab("create"); setSelectedEventId(null); setSelectedEventSection("details"); }}>Create Event</button><button type="button" role="tab" aria-selected={organizerTab === "events"} className={`dashboard-tab${organizerTab === "events" ? " is-active" : ""}`} onClick={() => { setOrganizerTab("events"); setSelectedEventId(null); setSelectedEventSection("details"); }}>My Events</button><button type="button" role="tab" aria-selected={organizerTab === "discover"} className={`dashboard-tab${organizerTab === "discover" ? " is-active" : ""}`} onClick={() => { setOrganizerTab("discover"); setSelectedEventId(null); setSelectedEventSection("details"); }}>Discover Events</button></div>}
+        {user.role === "ORGANIZER" && organizerTab === "discover" && <PublicEventsPanel user={user} onSessionExpired={handleSessionExpired} />}
+        {user.role === "PARTICIPANT" && <PublicEventsPanel user={user} onSessionExpired={handleSessionExpired} />}
         {user.role === "ORGANIZER" && organizerTab !== "discover" ? selectedEventId ? (
-          <EventDetailView event={selectedEvent} loading={eventDetailLoading} message={eventDetailMessage} onBack={backToEvents} />
+          selectedEventSection === "registrations" && selectedEvent ? (
+            <OrganizerRegistrationsView event={selectedEvent} onBack={() => setSelectedEventSection("details")} onSessionExpired={handleSessionExpired} />
+          ) : (
+            <EventDetailView event={selectedEvent} loading={eventDetailLoading} message={eventDetailMessage} onBack={backToEvents} onViewRegistrations={() => setSelectedEventSection("registrations")} />
+          )
         ) : (
           <section className="event-management" aria-labelledby="event-management-heading">
             <div className="section-heading">
