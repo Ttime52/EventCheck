@@ -92,7 +92,7 @@ async function startBuiltApi() {
         return {
           baseUrl,
           stop: async () => {
-            if (child.exitCode !== null) return;
+            if (child.exitCode !== null || child.signalCode !== null) return;
             await new Promise<void>(resolveExit => {
               const timer = setTimeout(() => { child.kill("SIGKILL"); resolveExit(); }, 5_000);
               timer.unref();
@@ -109,15 +109,15 @@ async function startBuiltApi() {
   throw new Error("Built API did not become healthy within 15 seconds");
 }
 
-async function loginToBuiltApi(baseUrl: string) {
+async function loginToBuiltApi(baseUrl: string, loginIdentifier = ownerALogin) {
   const response = await fetch(`${baseUrl}/api/v1/auth/login`, {
     method: "POST",
     headers: { Origin: "http://localhost:5173", "Content-Type": "application/json" },
-    body: JSON.stringify({ loginIdentifier: ownerALogin, password }),
+    body: JSON.stringify({ loginIdentifier, password }),
   });
   expect(response.status).toBe(200);
   const cookie = response.headers.get("set-cookie")?.split(";", 1)[0];
-  if (!cookie) throw new Error("Organizer login did not set a session cookie");
+  if (!cookie) throw new Error("Built API login did not set a session cookie");
   return cookie;
 }
 
@@ -269,23 +269,46 @@ describe.skipIf(!isolatedDatabase)("F-04 Organizer registration management again
     expect(expired.body.data).toBeUndefined();
   });
 
-  it("TEST-F04-09: retrieves committed registrations after restarting the built API process", async () => {
+  it("TEST-F03-13/TEST-F04-09: retrieves Participant and Organizer registrations after restarting the built API process", async () => {
+    const restartEventId = await createEvent(ownerAId, `F03 API restart ${randomUUID()}`);
     const firstApi = await startBuiltApi();
     let secondApi: Awaited<ReturnType<typeof startBuiltApi>> | undefined;
     try {
+      const firstParticipantCookie = await loginToBuiltApi(firstApi.baseUrl, participantALogin);
+      const created = await fetch(`${firstApi.baseUrl}/api/v1/events/${restartEventId}/registrations`, {
+        method: "POST",
+        headers: { Cookie: firstParticipantCookie, Origin: "http://localhost:5173", "Content-Type": "application/json" },
+        body: "{}",
+      });
+      expect(created.status).toBe(201);
+      const createdBody = await created.json() as { data: { registration: { id: string; eventId: string; participantId: string; status: string } } };
+      expect(createdBody.data.registration).toMatchObject({ eventId: restartEventId, participantId: participantAId, status: "ACTIVE" });
+      const participantRegistration = await prisma.registration.findUniqueOrThrow({ where: { id: createdBody.data.registration.id } });
       const firstCookie = await loginToBuiltApi(firstApi.baseUrl);
-      const firstResponse = await fetch(`${firstApi.baseUrl}/api/v1/organizer/events/${ownEventId}/registrations`, { headers: { Cookie: firstCookie } });
+      const firstResponse = await fetch(`${firstApi.baseUrl}/api/v1/organizer/events/${restartEventId}/registrations`, { headers: { Cookie: firstCookie } });
       expect(firstResponse.status).toBe(200);
       const firstBody = await firstResponse.json() as { data: { registrations: Array<{ id: string }> } };
       const firstIds = firstBody.data.registrations.map(registration => registration.id).sort();
+      expect(firstIds).toContain(participantRegistration.id);
 
       await firstApi.stop();
       secondApi = await startBuiltApi();
       const freshCookie = await loginToBuiltApi(secondApi.baseUrl);
-      const secondResponse = await fetch(`${secondApi.baseUrl}/api/v1/organizer/events/${ownEventId}/registrations`, { headers: { Cookie: freshCookie } });
+      const secondResponse = await fetch(`${secondApi.baseUrl}/api/v1/organizer/events/${restartEventId}/registrations`, { headers: { Cookie: freshCookie } });
       expect(secondResponse.status).toBe(200);
       const secondBody = await secondResponse.json() as { data: { registrations: Array<{ id: string }> } };
       expect(secondBody.data.registrations.map(registration => registration.id).sort()).toEqual(firstIds);
+      const participantCookie = await loginToBuiltApi(secondApi.baseUrl, participantALogin);
+      const participantList = await fetch(`${secondApi.baseUrl}/api/v1/me/registrations`, { headers: { Cookie: participantCookie } });
+      expect(participantList.status).toBe(200);
+      const participantListBody = await participantList.json() as { data: { registrations: Array<{ id: string; event: { id: string }; status: string }> } };
+      expect(participantListBody.data.registrations).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: participantRegistration.id, event: expect.objectContaining({ id: restartEventId }), status: "ACTIVE" }),
+      ]));
+      const participantDetail = await fetch(`${secondApi.baseUrl}/api/v1/me/registrations/${participantRegistration.id}`, { headers: { Cookie: participantCookie } });
+      expect(participantDetail.status).toBe(200);
+      const participantDetailBody = await participantDetail.json() as { data: { registration: { id: string; event: { id: string }; status: string; registeredAt: string } } };
+      expect(participantDetailBody.data.registration).toMatchObject({ id: participantRegistration.id, event: { id: restartEventId }, status: "ACTIVE", registeredAt: participantRegistration.registeredAt.toISOString() });
     } finally {
       await secondApi?.stop();
       await firstApi.stop();

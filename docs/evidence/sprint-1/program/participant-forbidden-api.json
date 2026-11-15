@@ -1,0 +1,9 @@
+{
+  "httpStatus": 403,
+  "response": {
+    "error": {
+      "code": "FORBIDDEN",
+      "message": "Access denied"
+    }
+  }
+}

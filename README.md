@@ -1,105 +1,124 @@
-# EventCheck
+﻿# EventCheck
 
-Initial shared engineering baseline for the EventCheck Sprint 1 application.
+EventCheck is a Sprint 1 university event registration application. Organizers publish events and view registrations for their own events. Participants discover published events, register, and retrieve saved registrations. The server enforces roles, Event ownership, capacity, and duplicate registration rules in PostgreSQL.
 
-## Prerequisites
+## Requirements and stack
 
-- Node.js 20 or later
-- Docker Desktop (or Docker Engine with Compose) for the local database
+- Node.js 20.6 or later and npm (the commands below use Node's `--env-file` option)
+- Docker Desktop or Docker Engine with Compose
+- React, TypeScript, and Vite frontend; Express, TypeScript, Prisma, and PostgreSQL backend
+- Vitest, Supertest, and Playwright for automated verification
 
-## Setup
+The frontend normally runs at `http://localhost:5173` and proxies `/api` to the backend at `http://localhost:3000`. The roles are `ORGANIZER` and `PARTICIPANT`. Session identity, permissions, capacity, and ownership are enforced by the backend.
+
+## Install and configure
+
+From the repository root:
 
 ```sh
-npm install
+npm ci
 cp .env.example .env
-npm run prisma:generate
 ```
 
-The default `.env.example` values connect Prisma to the PostgreSQL container
-defined in `compose.yaml` on host port 5433. Copy the file to `.env`; `.env` is
-ignored and must not contain committed credentials. The current branch contains
-the F-01 User/Session schema; F-02 owns Event, F-03 owns Registration, and F-04
-reuses those records when those features are implemented.
+On Windows PowerShell, use `Copy-Item .env.example .env` instead of `cp`. Edit the ignored `.env` for your machine. Set `DATABASE_URL` and the `POSTGRES_*` values for the local container. Set `SEED_ORGANIZER_PASSWORD` and `SEED_PARTICIPANT_PASSWORD` to local synthetic passwords before seeding. The example file contains sample values only. Do not commit `.env` or put credentials in screenshots.
 
-## Local PostgreSQL
+A local development URL has this form, with your own local values:
 
-Start the database and wait for its health check:
+```text
+DATABASE_URL="postgresql://<local-user>:<local-password>@127.0.0.1:5433/eventcheck?schema=public"
+```
+
+## PostgreSQL, migrations, and seed data
 
 ```sh
 docker compose up -d postgres
 docker compose ps
+node --env-file=.env node_modules/prisma/build/index.js migrate deploy --schema server/prisma/schema.prisma
+node --env-file=.env node_modules/prisma/build/index.js generate --schema server/prisma/schema.prisma
+node --env-file=.env node_modules/tsx/dist/cli.mjs server/prisma/seed.ts
 ```
 
-The `eventcheck-postgres-data` named volume preserves data across container
-restarts. Stop the container without deleting data with:
+Wait for the PostgreSQL health check before migrating. The checked-in migrations create the F-01 User/Session, F-02 Event, and F-03 Registration schema and referential restrictions. F-04 reuses the same schema. Seeding upserts `organizer@example.test` and `participant@example.test` with the local `SEED_*_PASSWORD` values. Seeding refuses to run with `NODE_ENV=production`.
+
+`docker compose stop postgres` preserves the named data volume. `docker compose down -v` deletes local data; use it only for an intentional development reset.
+
+## Run the application
+
+Start the backend in one terminal:
 
 ```sh
-docker compose stop postgres
+npm run build --workspace server
+node --env-file=.env server/dist/index.js
 ```
 
-Remove the container and its persisted local data only when intentionally
-resetting the development database:
+Start the frontend in another:
 
 ```sh
-docker compose down -v
+npm run dev --workspace client
 ```
 
-After starting PostgreSQL, Prisma commands can use the `DATABASE_URL` from
-`.env`:
+Rebuild and restart the backend after editing its source. The root `npm run dev` starts both workspace development scripts if the required environment variables have already been exported into that shell.
+
+## Checks and isolated database tests
 
 ```sh
-npm run prisma:validate
-npm run prisma:generate
-npm run db:migrate
-npm run db:seed
-```
-
-## Development and checks
-
-```sh
-npm run dev
 npm run typecheck
-npm test
 npm run build
+npm test
 npm run prisma:validate
-npm run db:migrate
 ```
 
-The frontend runs on port 5173 and proxies `/api` requests to the backend on
-port 3000. F-01 authentication is implemented with seeded local accounts,
-server-side PostgreSQL sessions, role checks, and cookie-based login/logout.
-F-02 event publishing and F-03/F-04 registration behavior remain pending.
-
-To seed local accounts, set `SEED_PARTICIPANT_PASSWORD` and
-`SEED_ORGANIZER_PASSWORD` in the ignored `.env`, then run `npm run db:seed`.
-Synthetic seeding refuses to run when `NODE_ENV=production`.
-
-Run unit and frontend tests with `npm test`. Database-backed F-01 integration
-verification requires the Docker PostgreSQL service and a separate test
-database URL. Create `eventcheck_test`, apply the versioned migration, and run
-the suite with:
+`npm test` runs server unit and frontend component tests. Database integration tests skip when `DATABASE_URL` is unset. Their runner accepts only the isolated `127.0.0.1:5433/eventcheck_test?schema=public` database and rejects other URLs. Create that separate local database once. For the example Compose user:
 
 ```sh
-DATABASE_URL="postgresql://eventcheck:change-me@127.0.0.1:5433/eventcheck_test?schema=public" \
-  npm run test:integration --workspace server
+docker compose exec -T postgres psql -U eventcheck -d postgres -c 'CREATE DATABASE eventcheck_test;'
 ```
 
-F-02-dependent authorization journeys remain pending until F-02 is implemented. They are Sprint 1 release gates and must be executed and recorded before the integrated Sprint 1 release is accepted.
+If it already exists, skip creation. Add a separate test URL to the ignored `.env`, replacing the placeholders with your local test credentials:
 
-## Structure
+```text
+E2E_DATABASE_URL="postgresql://<local-user>:<local-password>@127.0.0.1:5433/eventcheck_test?schema=public"
+```
 
-- `client/` — React, TypeScript, and Vite frontend
-- `server/` — Express, TypeScript, and Prisma backend
-- `docs/` — approved requirements, design, contracts, and sprint planning
+In PowerShell, set `DATABASE_URL` to that exact test URL before applying migrations and running integration tests:
 
-Feature branches should add their owned Prisma models and migrations without
-duplicating another feature's schema. This F-01 branch contains authentication
-and shared baseline work; F-02 event-publishing integration remains pending.
-Do not commit credentials, local `.env` files, dependencies, or build output.
+```powershell
+$env:DATABASE_URL = "postgresql://<local-user>:<local-password>@127.0.0.1:5433/eventcheck_test?schema=public"
+npm exec -- prisma migrate deploy --schema server/prisma/schema.prisma
+npm run test:integration --workspace server
+Remove-Item Env:DATABASE_URL
+```
 
-## Lab 5 deployment target
+In a POSIX shell, prefix each migration or integration command with `DATABASE_URL='postgresql://<local-user>:<local-password>@127.0.0.1:5433/eventcheck_test?schema=public'`. The test fixtures use synthetic records and clean up their own rows. Keep the development and test databases separate.
 
-The future Lab 5 deployment will package the frontend and backend together in
-one application image for Cloud Run. PostgreSQL will remain a separate managed
-Cloud SQL service. This baseline does not add the production image, CI/CD
-workflow, GCP resources, or deployment configuration.
+Playwright loads the ignored `.env` automatically. It uses `E2E_DATABASE_URL`, starts isolated API and Vite processes on ports 3101 and 5178, and uses the synthetic seeded accounts. Apply the checked-in migrations to `eventcheck_test` and seed it with matching local passwords before running:
+
+```sh
+npm run test:e2e
+```
+
+The optional `E2E_ORGANIZER_LOGIN`, `E2E_PARTICIPANT_LOGIN`, `E2E_ORGANIZER_PASSWORD`, and `E2E_PARTICIPANT_PASSWORD` override the default seeded account identifiers and `SEED_*_PASSWORD` values. `E2E_CAPTURE_EVIDENCE=1` additionally captures synthetic UI, API, and database observations for the Sprint 1 journey.
+
+## Sprint 1 capabilities and limits
+
+- F-01: seeded login/logout, current-user retrieval, server-side sessions, and role restrictions.
+- F-02: Organizer event publication, validation, persistence, and owned-event reads.
+- F-03: public discovery, Participant registration/retrieval, duplicate and capacity rejection, and transactional concurrency protection.
+- F-04: owner-only Organizer registration lists, safe empty/error states, and permitted participant fields.
+
+Cancellation, check-in, attendance reporting, capacity editing, and Cloud Run deployment are later work. Sprint 1 release still requires teammate review, final integration checks, and the Product Definition of Done.
+
+## Troubleshooting
+
+- **Express `404 Cannot GET` for a new API route:** stop the older process on port 3000, rebuild the server, and restart it. A registered protected route returns JSON 401 without a session.
+- **Vite selects 5174:** another frontend is using 5173. Stop the old process; the default backend `CLIENT_ORIGIN` is 5173.
+- **Login or API requests fail:** check PostgreSQL health, the backend terminal, `DATABASE_URL`, `CLIENT_ORIGIN`, and matching seed passwords.
+- **Prisma reports missing tables:** apply the checked-in migrations to the selected database and regenerate Prisma Client.
+- **Integration/E2E rejects a URL:** confirm the exact `127.0.0.1:5433/eventcheck_test?schema=public` target; the guard rejects other databases.
+
+## Repository layout
+
+- `client/` — frontend and component tests
+- `server/` — API, Prisma schema/migrations, unit and PostgreSQL integration tests
+- `e2e/` — Playwright browser tests
+- `docs/` — requirements, designs, contracts, traceability, and verification evidence

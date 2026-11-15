@@ -1,0 +1,9 @@
+{
+  "httpStatus": 404,
+  "response": {
+    "error": {
+      "code": "EVENT_NOT_FOUND",
+      "message": "Event not found"
+    }
+  }
+}

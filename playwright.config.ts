@@ -47,8 +47,5 @@ export default defineConfig({
     video: "retain-on-failure",
     ...devices["Desktop Chrome"],
   },
-  webServer: [
-    { command: "node server/dist/index.js", env: { DATABASE_URL: e2eDatabaseUrl, CLIENT_ORIGIN: e2eBaseURL, SERVER_PORT: e2eApiPort }, url: `http://127.0.0.1:${e2eApiPort}/health`, reuseExistingServer: false, timeout: 30_000, gracefulShutdown: { signal: "SIGTERM", timeout: 5_000 } },
-    { command: `node node_modules/vite/bin/vite.js client --host 127.0.0.1 --port ${e2eWebPort}`, env: { VITE_API_PROXY_TARGET: `http://127.0.0.1:${e2eApiPort}` }, url: e2eBaseURL, reuseExistingServer: false, timeout: 30_000, gracefulShutdown: { signal: "SIGTERM", timeout: 5_000 } },
-  ],
+  globalSetup: "./e2e/global-setup.ts",
 });
