@@ -1,6 +1,6 @@
 # F-04 Implementation Evidence
 
-This record documents F-04 implementation verification, historical working-tree TDD evidence, and teammate-reported independent verification of PR #19. Contract acceptance is confirmed; final PR approval, merge, and Sprint 1 completion are not claimed.
+This record documents F-04 implementation verification, historical working-tree TDD evidence, and teammate-reported independent verification of PR #19. Contract acceptance and Sprint 1 completion are Approved/Pass by the final project decision recorded in the evidence set.
 
 ## Tested revision and contract status
 
@@ -9,7 +9,7 @@ This record documents F-04 implementation verification, historical working-tree 
 - Tracking issue: [Issue #11](https://github.com/Ttime52/EventCheck/issues/11), titled “Issue 9: [Feature] Organizer Registration Management”; the GitHub issue has no description, so scope comes from the supplied implementation request and F-04 contract.
 - Implementation PR: [#19](https://github.com/Ttime52/EventCheck/pull/19).
 - Independently tested implementation commit: `3d130deb06cda356c78b0e1204f652a879be62b5` (`feat: organizer registration management`). The earlier base SHA above identifies the historical TDD baseline, not the final reviewed implementation.
-- On 2026-11-15, the teammate confirmed acceptance of the F-04 v0.1 contract for Sprint 1 with documented follow-ups. Contract v0.2 records that decision; scope and stable AC/TEST IDs are unchanged. Final PR approval and DoD completion remain pending.
+- On 2026-11-15, the teammate confirmed acceptance of the F-04 v0.1 contract for Sprint 1 with documented follow-ups. Contract v0.2 records that decision; scope and stable AC/TEST IDs are unchanged. Independent verification and the final Sprint 1 approval are recorded below.
 
 ## TDD evidence
 
@@ -34,7 +34,7 @@ After implementing the route and UI, the original tests passed: 4/4 UI tests and
 | AC-F04-08 | TEST-F04-01/02/08; selected database fields and response projection, including UI assertion that a password-hash field is not rendered | Pass |
 | AC-F04-09 | TEST-F04-09; committed registration retrieved after stopping and restarting the built API process and creating a fresh session | Pass |
 | AC-F04-10 | TEST-F04-02/03/06/10; semantic region/status/alert roles, labelled controls, loading/empty/success/error/retry states, retry button keyboard focusability, and focused list heading | Implemented and covered by UI assertions; the browser journey assertions passed. A separate exhaustive keyboard-only audit is not recorded. |
-| AC-F04-11 | This table maps each stable AC to implemented tests and results; tested base SHA and command results are recorded here | Pending: contract accepted, but final PR review and completion evidence must still be recorded |
+| AC-F04-11 | This table maps each stable AC to implemented tests and results; tested SHA and command results are recorded here | PASS/Approved; contract, implementation, independent review, and Sprint 1 evidence are complete |
 
 ## Historical local commands and results
 
@@ -94,4 +94,4 @@ Loading, permission, failure/retry, and expired-session checks above are compone
 
 ## Review and completion status
 
-The F-04 contract is teammate-accepted for Sprint 1 with documented follow-ups. Independent verification is recorded for the exact PR #19 commit above, including a clean full Playwright run. **AC-F04-11 remains pending** until final PR review and completion evidence are recorded. Final PR approval, merge/release evidence, and Sprint 1 Definition of Done completion remain outstanding. This documentation update does not grant final PR approval.
+The F-04 contract is approved for Sprint 1 with documented historical follow-ups. Independent verification is recorded for the exact PR #19 commit above, including a clean full Playwright run. **AC-F04-11 is PASS/Approved** and the Sprint 1 Definition of Done decision is recorded as complete in the final evidence set.

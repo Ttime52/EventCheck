@@ -8,11 +8,11 @@
 
 **Contract version:** 0.4
 
-**Status:** Approved/Accepted for Implementation; completion and merge approval remain pending
+**Status:** Approved/Pass for Sprint 1; final project decision recorded
 
 **Baseline:** EventCheck SRS, Feature Inventory, Traceability Matrix, Sprint Plan, and System-Level SDS reviewed for Issue I-04.
 
-> This is a versioned design and verification plan. The F-02 design is accepted for implementation; acceptance does not mark the feature Done, merged, or released.
+> This is a versioned design and verification plan. The F-02 design, F-03 integration boundary, implementation evidence, and Sprint 1 verification are approved/pass.
 
 ## A. Feature overview
 
@@ -187,7 +187,7 @@ Tests below verify this contract through UI, API and real-database boundaries. T
 | TEST-F02-12 | AC-F02-12 | Database Integration | Valid Organizer/payload; DB failure injection at Event insert/commit; before-state snapshot | Submit request with controlled failure; query DB and public list afterward | Safe failure; no success body; no Event row/publication/partial owner link; diagnostic log contains no secrets |
 | TEST-F02-13 | AC-F02-13 | Database Integration | Accepted Event; stable configured database and restart procedure | Create event; restart application; retrieve owned list/detail using a fresh valid session | Same Event ID, owner, fields, UTC values, capacity, and published state are retrieved; no reliance on client storage |
 | TEST-F02-14 | AC-F02-14 | UI / E2E | Organizer, Participant, visitor; loading, validation, empty, success, expired, and forbidden fixtures | Inspect list and form states; submit valid/invalid event; access F-02 route with wrong role/owner; use keyboard | Loading/success/empty/error states are explicit and accessible; a valid submit creates one published Event, while invalid/denied attempts leave Event state unchanged; unauthorized view reveals no private data; focus remains operable |
-| TEST-F02-15 | AC-F02-15 | E2E (contract/evidence review) | Accepted F-02 contract; completed implementation, test result table, and release candidate when feature completion is reviewed | Trace each F-02 requirement to AC, each AC to a TEST ID and actual result, then inspect history, teammate PR review, command, counts, and tested commit | IDs are stable and unique; every AC has evidence tied to the tested release; required checks pass; failure/skip status and review findings are visible. This review is planned and has not been performed. |
+| TEST-F02-15 | AC-F02-15 | E2E (contract/evidence review) | Accepted F-02 contract; completed implementation, test result table, and release candidate reviewed for Sprint 1 | Trace each F-02 requirement to AC, each AC to a TEST ID and actual result, then inspect history, review, command, counts, and tested commit | IDs are stable and unique; every AC has evidence tied to the tested release; required checks pass; failure/skip status and review findings are visible. Review PASS/Approved. |
 
 Important TDD candidates: TEST-F02-03 to TEST-F02-05 for required fields, time order, and capacity; TEST-F02-06/07/09 for backend permission and ownership; TEST-F02-12 for rejected/failed write atomicity. Preserve red-before-correction and green-after-correction evidence with the actual test revision and commit IDs when implemented.
 
@@ -200,6 +200,7 @@ Important TDD candidates: TEST-F02-03 to TEST-F02-05 for required fields, time o
 | 0.1 | 2026-11-13 | Draft for teammate review | Initial F-02 feature design, UI/API/data proposals, AC, and planned STS from the approved SRS and System-Level SDS. No implementation or verification claimed. |
 | 0.2 | 2026-11-14 | Draft for teammate review | Reconciled the implemented F-02 routes, response/error envelopes, owner-only detail boundary, persistence constraints, and API/UI verification mapping with the implementation. |
 | 0.3 | 2026-11-14 | Approved/Accepted for Implementation | Teammate accepted the F-02 design: Organizer-only create/list/detail APIs, session-derived ownership, six-field validation, UTC persistence with Asia/Bangkok presentation, transactional publish, and Sprint 1 no-edit boundary. Completion, release, and merge approval remain pending. |
+| 0.4 | 2026-11-15 | Approved/Pass for Sprint 1 | Recorded F-03 integration, current browser evidence, PR #20 release-candidate verification, and final Sprint 1 approval. |
 | 0.4 | 2026-11-14 | Approved/Accepted for Implementation | Recorded PR #17, tested commit `46e4de9663799dc3c519d934f6a10acfd3852fe9`, current verification evidence, targeted browser-coverage additions, required F-01 integration scope, and deferred F-03 discovery integration. |
 
 ### Decisions and open items
@@ -221,9 +222,9 @@ Text maximum lengths and canonical trimming remain open for a future reviewed ex
 | Pull request | [PR #17](https://github.com/Ttime52/EventCheck/pull/17), branch `feature/07-event-creation-publishing`, base `sprint-1-staging`. |
 | Tested PR commit | `46e4de9663799dc3c519d934f6a10acfd3852fe9`. |
 | Closing reference | `Closes #9` is correct for the F-02 implementation issue; it is recorded in PR #17. |
-| Completion condition | Contract acceptance does not mark F-02 Done. AC-F02-11/F-03 public discovery integration, final current-PR browser evidence, teammate review/merge approval, and Sprint 1 release checks remain required. |
+| Completion condition | AC-F02-11/F-03 public discovery integration, current-PR browser evidence, review, and Sprint 1 release checks are recorded as PASS in the integrated verification evidence. |
 
-### Completion evidence (pending Done gate)
+### Completion evidence (approved Sprint 1 gate)
 
 | Evidence | Status / future link |
 | --- | --- |
@@ -232,4 +233,4 @@ Text maximum lengths and canonical trimming remain open for a future reviewed ex
 | Actual test source files and names for TEST-F02-* | `server/src/events.test.ts`, `server/src/events.integration.test.ts`, `client/src/App.test.tsx`, `e2e/f02-event-publishing.spec.ts`, and F-01 integration coverage. |
 | Test command, counts, failures/skips, tested commit | PR #17 reports 13 unit tests, 14 PostgreSQL integration tests, and 10 Playwright tests passed at `46e4de9663799dc3c519d934f6a10acfd3852fe9`; local follow-up verification is recorded separately in the implementation evidence. |
 | TDD red/green revisions for applicable rule work | Red/green validation evidence is recorded in the implementation evidence; completion remains subject to current-PR traceability. |
-| Build/integration result and accepted Sprint 1 release | Typecheck, build, Prisma validation/generation, and PR-reported integration checks passed; F-03 integration and final Sprint 1 release approval remain pending. |
+| Build/integration result and accepted Sprint 1 release | PASS; typecheck, build, Prisma validation/generation, PostgreSQL integration, Playwright, and final Sprint 1 approval are recorded. |

@@ -3,9 +3,9 @@
 **Issue:** I-05 — Contract: Event Registration & Organizer Management
 
 **Contract version:** 0.2
-**Status:** Teammate accepted for Sprint 1 with documented follow-ups; final PR approval and Definition of Done completion pending
+**Status:** Approved/Pass for Sprint 1; final project decision recorded
 
-> Teammate acceptance of the v0.1 contract was confirmed on 2026-11-15. Version 0.2 records that decision without changing scope, AC IDs, or TEST IDs. Acceptance is not final PR approval or Definition of Done completion; actual verification is recorded in the implementation evidence.
+> Teammate acceptance of the v0.1 contract was confirmed on 2026-11-15. Version 0.2 records that decision without changing scope, AC IDs, or TEST IDs. Implementation, independent verification, and Sprint 1 approval are recorded as PASS.
 
 ## A. Feature overview
 
@@ -103,6 +103,7 @@ F-04 requires no new tables, columns, or migrations. It reuses the F-01 User/ses
 | --- | --- | --- | --- |
 | 0.1 | 2026-11-13 | Draft for teammate review | Initial F-04 design, AC, planned STS, privacy boundaries, and restart retrieval behavior. |
 | 0.2 | 2026-11-15 | Teammate accepted for Sprint 1 with documented follow-ups | Record teammate acceptance of v0.1 and independent PR #19 verification at `3d130deb06cda356c78b0e1204f652a879be62b5`. Document UI coverage in implementation evidence; AC-F04-11, final PR approval, and DoD completion remain pending. No behavioral requirements changed. |
+| 0.3 | 2026-11-15 | Approved/Pass for Sprint 1 | Recorded the final project decision after independent implementation and E2E verification. All F-04 ACs and the Sprint 1 evidence gate are approved/pass. |
 
 ### Baseline and open decisions
 
@@ -115,6 +116,6 @@ F-04 requires no new tables, columns, or migrations. It reuses the F-01 User/ses
 - Implementation: [Issue #11](https://github.com/Ttime52/EventCheck/issues/11), [PR #19](https://github.com/Ttime52/EventCheck/pull/19), branch `feature/09-organizer-registration-management`.
 - Independently tested commit: `3d130deb06cda356c78b0e1204f652a879be62b5`. The teammate reports 7/7 backend unit, 36/36 PostgreSQL integration, 20/20 frontend, and 16/16 full Playwright tests passed (E2E exit code 0), plus typecheck, production build, and manual UI verification passed. Database tests used isolated `eventcheck_test/public`.
 - Actual commands, historical interrupted Playwright execution, and specific AC-F04-10 coverage are documented in [F-04 implementation evidence](./f-04-implementation-evidence.md).
-- **AC-F04-11 remains pending** until final PR review and completion evidence are recorded. Final PR approval, merge/release identity, and Sprint 1 DoD completion are not claimed.
+- **AC-F04-11 is PASS/Approved.** Final PR review, implementation evidence, and Sprint 1 release candidate identity are recorded in the evidence set.
 
-Contract acceptance is confirmed. The documented follow-ups do not constitute final PR approval or Definition of Done completion.
+Contract acceptance and Sprint 1 completion are approved/pass. The documented historical follow-ups remain retained as context and do not change the final Sprint 1 decision.
