@@ -1,6 +1,6 @@
 # F-02 Implementation Evidence
 
-This file records verification for F-02 implementation Issue #9 and PR #17. The F-02 Engineering Contract is version 0.4 and Approved/Accepted for Implementation; contract acceptance does not mark the feature Done, merged, or released.
+This file records verification for F-02 implementation Issue #9 and PR #17. The F-02 Engineering Contract is version 0.4 and Approved/Pass for Sprint 1; the final project decision is recorded in the Sprint 1 evidence set.
 
 ## Tested revisions
 
@@ -37,11 +37,11 @@ After `server/src/events.ts` was implemented, the same command passed with 3 tes
 | AC-F02-08 | TEST-F02-08; API owner filtering, tampered query, and explicit empty list | Pass at PR #17 tested commit |
 | AC-F02-09 | TEST-F02-09; API owner/cross-owner/Participant/visitor detail cases; `client/src/App.test.tsx`; Organizer detail browser flow | API/unit and final full Playwright rerun pass |
 | AC-F02-10 | TEST-F02-10; API unsupported PATCH and unchanged database snapshot | Pass at PR #17 tested commit |
-| AC-F02-11 | TEST-F02-11; F-03 public discovery boundary | Deferred until F-03 integration and Sprint 1 release verification |
+| AC-F02-11 | TEST-F02-11; F-03 public discovery boundary | Pass; verified by the integrated F-03 discovery and Sprint 1 E2E journey |
 | AC-F02-12 | TEST-F02-12; API controlled transaction failure and unchanged row count | Pass at PR #17 tested commit |
 | AC-F02-13 | TEST-F02-13; fresh Prisma client persistence and owner detail retrieval | Pass at PR #17 tested commit |
 | AC-F02-14 | TEST-F02-14; accessible Organizer form/list/detail states; `client/src/App.test.tsx`; F-02 Playwright publish, validation, keyboard, role, and session tests | Existing UI/unit, PR baseline, and final full Playwright rerun pass |
-| AC-F02-15 | TEST-F02-15; contract history, PR #17, exact tested SHA, commands, counts, and disclosed skips | Contract accepted for implementation; Done/merge/release approval remains pending |
+| AC-F02-15 | TEST-F02-15; contract history, PR #17, exact tested SHA, commands, counts, and disclosed skips | Pass; contract, implementation, review, and Sprint 1 release evidence approved |
 
 ## Commands and results
 
@@ -75,4 +75,4 @@ The final E2E command used the approved elevated local execution path because th
 - `GET /api/v1/organizer/events/:eventId` — owner-only management detail.
 - `PATCH /api/v1/organizer/events/:eventId` — explicit Sprint 1 unsupported boundary; no mutation.
 
-F-03 public discovery, PR review/merge approval, and final Sprint 1 release approval remain pending. The F-02 contract review is recorded as accepted for implementation in v0.4; this does not mark F-02 Done.
+F-03 public discovery, PR review, and final Sprint 1 release approval are recorded as PASS in the integrated Sprint 1 evidence. The F-02 contract review and implementation evidence are approved for Sprint 1.

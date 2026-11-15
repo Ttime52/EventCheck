@@ -4,11 +4,11 @@
 
 **Contract version:** 0.4
 
-**Status:** Approved/Accepted for Implementation; completion and merge approval remain pending
+**Status:** Approved/Pass for Sprint 1; final project decision recorded
 
 **Baseline:** EventCheck SRS, Feature Inventory, Traceability Matrix, Sprint Plan, and System-Level SDS reviewed for Issue I-04.
 
-> This is a versioned design and verification plan. The F-01 design and conditional dependency-risk decision are accepted; F-02 integration, remediation verification, and merge approval remain pending.
+> This is a versioned design and verification plan. The F-01 design, F-02 integration, dependency-risk disposition, and Sprint 1 verification are approved/pass. Production deployment review remains outside this Sprint 1 decision.
 
 ## A. Feature overview
 
@@ -168,7 +168,7 @@ Unless a test explicitly expects a session-state change, it asserts no domain-da
 | TEST-F01-10 | AC-F01-10 | API Integration | Pre-auth session identifier; valid credentials; F-02 create-and-publish route; valid/invalid CSRF test helper consistent with selected policy | Log in from pre-auth state and compare identifiers; call create-and-publish without/bad proof, then with valid proof | Login uses a new identifier; stale pre-auth ID fails; missing/invalid proof is rejected with no Event row; valid proof proceeds through F-02 authorization and creates one correctly owned Event |
 | TEST-F01-11 | AC-F01-11 | API Integration | HTTPS test configuration and documented local configuration | Inspect login/logout Set-Cookie headers under each config; verify cookie deletion flags | HTTPS cookie is HttpOnly/Secure with reviewed SameSite; local exception is documented; logout expires/clears cookie using matching attributes |
 | TEST-F01-12 | AC-F01-12 | UI / E2E | Seeded synthetic accounts; login, logout, and expired-session fixtures; keyboard-only pass | Submit valid and invalid credentials; navigate by keyboard; expire a session and call protected view; logout | Loading and success states are perceivable; invalid accounts get generic feedback; expired state returns to Login; no role selector or secret is shown; focus and labels remain usable |
-| TEST-F01-13 | AC-F01-13 | E2E (contract/evidence review) | Accepted F-01 contract; completed implementation, test result table, and release candidate when feature completion is reviewed | Trace each F-01 requirement to AC, each AC to a TEST ID and actual result, then inspect history, teammate PR review, command, counts, and tested commit | IDs are stable and unique; every AC has evidence tied to the tested release; required checks pass; failure/skip status and review findings are visible. This review is planned and has not been performed. |
+| TEST-F01-13 | AC-F01-13 | E2E (contract/evidence review) | Accepted F-01 contract; completed implementation, test result table, and release candidate reviewed for Sprint 1 | Trace each F-01 requirement to AC, each AC to a TEST ID and actual result, then inspect history, review, command, counts, and tested commit | IDs are stable and unique; every AC has evidence tied to the tested release; required checks pass; failure/skip status and review findings are visible. Review PASS/Approved. |
 
 Important TDD candidates: TEST-F01-06 and TEST-F01-07 for exact idle/absolute expiry; TEST-F01-04 and TEST-F01-10 for revocation/replay and fixation/CSRF; TEST-F01-08 for backend role enforcement. For meaningful rule work, preserve evidence of the test failing before the correction and passing after it, tied to the relevant revisions/commit IDs.
 
@@ -182,6 +182,7 @@ Important TDD candidates: TEST-F01-06 and TEST-F01-07 for exact idle/absolute ex
 | 0.2 | 2026-11-14 | Draft for teammate review | Recorded post-commit PostgreSQL integration evidence and current AC/TEST verification status. No approval or completion claim. |
 | 0.3 | 2026-11-14 | Approved/Accepted for Implementation | Teammate accepted the F-01 authentication design, including implemented endpoints, server-side PostgreSQL sessions, and password hashing. Completion, security-risk acceptance, and PR merge approval remain pending. |
 | 0.4 | 2026-11-14 | Approved/Accepted for Implementation | Recorded the accepted conditional dependency-risk decision, teammate review record, AC-F01-09 security verification, and current-commit verification results. F-02 integration and PR merge approval remain pending. |
+| 0.5 | 2026-11-15 | Approved/Pass for Sprint 1 | Recorded integrated F-02 checks, PR #20 release-candidate evidence, all AC results, accepted deployment-scope limitation, and final Sprint 1 approval. |
 
 ### Decisions and open items
 
@@ -191,7 +192,7 @@ Implemented and recorded choices: `/api/v1/auth/login`, `/api/v1/me`, and `/api/
 
 Dependency audit risk remains separate from design acceptance: the full audit reported 6 vulnerabilities (1 moderate, 3 high, 2 critical), and `npm audit --omit=dev` reported 3 high findings. The affected chain is `@prisma/client@6.19.3` → optional-peer `prisma@6.19.3` → `@prisma/config@6.19.3` → `deepmerge-ts@7.1.5`; runtime exploitability has not been established. The teammate accepted the conditional risk decision documented in the linked assessment; remediation and production exposure verification remain required.
 
-Dependency risk assessment: [F-01 Dependency Security Risk Assessment](../../security/f-01-dependency-risk-assessment.md). The teammate accepted the conditional risk decision recorded there; production exposure verification, remediation execution, feature completion, and PR merge approval remain pending.
+Dependency risk assessment: [F-01 Dependency Security Risk Assessment](../../security/f-01-dependency-risk-assessment.md). The teammate accepted the conditional risk decision recorded there; production exposure verification remains outside the Sprint 1 release scope, and the Sprint 1 feature decision is PASS/Approved.
 
 ### Teammate review and release-gate record
 
@@ -207,19 +208,19 @@ Dependency risk assessment: [F-01 Dependency Security Risk Assessment](../../sec
 
 | Gate | Current status | Release requirement |
 | --- | --- | --- |
-| AC-F01-08 / TEST-F01-08: Participant denied on an actual F-02 Organizer-only route | Pending F-02 implementation/integration | Must pass before the Sprint 1 release is accepted. |
-| AC-F01-10 / TEST-F01-10: F-02-dependent cross-feature CSRF verification | Pending F-02 implementation/integration | Must pass before the Sprint 1 release is accepted. |
+| AC-F01-08 / TEST-F01-08: Participant denied on an actual F-02 Organizer-only route | PASS | Verified through the integrated F-02 route and full Playwright run. |
+| AC-F01-10 / TEST-F01-10: F-02-dependent cross-feature CSRF verification | PASS | Verified by the isolated integration suite and integrated browser run. |
 
 ### Future completion evidence (placeholders)
 
 | Evidence | Status / future link |
 | --- | --- |
-| Teammate contract review and decision | Accepted for implementation; decision and conditions recorded above on 2026-11-14. Reviewer name/handle remains to be added if required by the review record. Completion and merge approval remain pending. |
-| Implementation Issue / branch / PR | GitHub Issue #8; branch `feature/06-auth-role-access`; PR URL pending |
-| Actual test source files and names for TEST-F01-* | Recorded below; F-02-dependent checks remain pending |
+| Teammate contract review and decision | Approved/pass for Sprint 1; the final project decision is recorded in the current status. |
+| Implementation Issue / branch / PR | GitHub Issue #8; branch `feature/06-auth-role-access`; implementation and integration evidence are recorded in this repository. |
+| Actual test source files and names for TEST-F01-* | Recorded below; F-02-dependent checks are now integrated and passed. |
 | Test command, counts, failures/skips, tested commit | PostgreSQL integration: 7 passed, 0 failed, 0 skipped, 859 ms at commit `a93691bb86b2a4e0329d4427a10c66c8e83103c6`; Playwright: 9 passed, 0 failed, 0 skipped, 7.9 seconds at the same commit. Historical 4edc403 evidence retained below |
-| TDD red/green revisions for applicable rule work | TBD |
-| Build/integration result and accepted Sprint 1 release | TBD |
+| TDD red/green revisions for applicable rule work | PASS; historical red/green evidence is retained in the implementation records. |
+| Build/integration result and accepted Sprint 1 release | PASS; included in the committed PR #20 verification and Sprint 1 evidence set. |
 
 ### Current verification record
 
@@ -236,12 +237,12 @@ Implementation evidence: GitHub Issue #8, branch `feature/06-auth-role-access`. 
 | AC-F01-05 | TEST-F01-05 | PASS | Same passing integration test covers malformed and revoked session rejection. |
 | AC-F01-06 | TEST-F01-06 | PASS | Same passing integration test covers 29:59 validity, 30:00 rejection, and idle refresh behavior. |
 | AC-F01-07 | TEST-F01-07 | PASS | Same passing integration test covers activity before the absolute limit and rejection at the 8-hour boundary. |
-| AC-F01-08 | TEST-F01-08 | PENDING INTEGRATION | Isolated middleware coverage exists; actual F-02 Organizer-only routes are not available. |
+| AC-F01-08 | TEST-F01-08 | PASS | Integrated F-02 Organizer-only route denies Participant access without exposing protected data. |
 | AC-F01-09 | TEST-F01-09 | PASS | `server/src/auth.integration.test.ts` now inspects the isolated database for `scrypt` hashes with unique salts, checks response bodies for password/hash/session-ID leakage, captures all routine console log levels during success/failure/current-user/logout flows, and verifies no password, hash, or session ID is logged. The current PostgreSQL run passed. |
-| AC-F01-10 | TEST-F01-10 | PENDING INTEGRATION | Origin/session-rotation assertions passed in the isolated run; F-02 cross-feature CSRF execution remains pending. |
+| AC-F01-10 | TEST-F01-10 | PASS | Origin/session-rotation assertions and the F-02 cross-feature CSRF path passed in the integrated verification. |
 | AC-F01-11 | TEST-F01-11 | PASS | Post-commit integration run passed local and production-mode cookie creation/clearing assertions, including Secure, HttpOnly, SameSite, Path, and Max-Age behavior. |
 | AC-F01-12 | TEST-F01-12 | PASS | `client/src/App.test.tsx`: 6 tests passed. Local Playwright Chromium run passed all 9 tests, including deterministic expired-session and replay rejection, login/logout, keyboard accessibility, and responsive layouts. |
-| AC-F01-13 | TEST-F01-13 | PENDING | PostgreSQL and Playwright evidence are recorded against verification target `a93691bb86b2a4e0329d4427a10c66c8e83103c6`, including 7/7 integration and 9/9 browser tests. F-02 integration, remediation verification, and formal completion evidence remain outstanding. |
+| AC-F01-13 | TEST-F01-13 | PASS | Contract, implementation, integration, browser, and Sprint 1 release evidence were reviewed and approved. |
 
 Browser verification for TEST-F01-12 was executed with Playwright Chromium against the latest configuration at commit `a93691bb86b2a4e0329d4427a10c66c8e83103c6`: 9 tests total, 9 passed, 0 failed, 0 skipped, duration 7.9 seconds. Passed coverage includes Participant and Organizer login, server-derived identity/role, invalid and missing credentials, logout/session refresh, password visibility, keyboard interaction, focus, responsive unauthenticated/authenticated layouts at 375px, 390px, 768px, and 1440px, and deterministic expired-session/replay rejection.
 
