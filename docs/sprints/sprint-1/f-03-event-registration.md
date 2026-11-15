@@ -3,7 +3,7 @@
 **Contract work item:** I-05 — Event Registration & Organizer Management
 **GitHub implementation issue:** #10 — Participant Event Registration
 
-**Contract version:** 0.6
+**Contract version:** 0.7
 **Status:** Draft for teammate review; implementation and verification evidence are available, but formal teammate acceptance, completion, and merge approval remain pending
 
 > This is a versioned design and verification plan. Implementation and test evidence are reviewed separately; this contract does not by itself constitute completion or approval evidence.
@@ -167,6 +167,7 @@ Record latency, request counts, errors, environment, tested commit, and database
 | 0.4 | 2026-11-15 | Draft for teammate review | Recorded commit-based verification for `3d9d16bdd7ab79c1561f55485689a3147bff777f` and documented the observed ON DELETE CASCADE behavior and pending history-retention decision. |
 | 0.5 | 2026-11-15 | Draft for teammate review | Recorded the team-confirmed ON DELETE RESTRICT policy, additive migration, explicit cleanup ordering, and post-decision PostgreSQL verification. |
 | 0.6 | 2026-11-15 | Draft for teammate review | Added API-level post-insert rollback evidence, an automated real API restart with Participant retrieval, and the completed cross-owner Organizer browser journey. Recorded clean full-suite exit codes against the current uncommitted working tree; final teammate review remains pending. |
+| 0.7 | 2026-11-15 | Draft for teammate review | Distinguished the historical Issue #12 pre-commit working-tree checks from teammate-reported independent verification of PR #20 at committed HEAD `da3fa630be862955c973cc9e0c8cddcc5e1dcd6e`. Recorded 37/37 PostgreSQL integration and 16/16 full Playwright E2E passes with exit code 0, including AC-F03-12/13/16. Final documentation review and PR approval remain pending. |
 
 ### Baseline and open decisions
 
@@ -175,7 +176,7 @@ Record latency, request counts, errors, environment, tested commit, and database
 - Proposed/open: exact custom SQL migration and rollback/deployment ordering, CSRF transport details, testing tools, and NFR-05/NFR-07 numerical targets. Pagination is out of scope for Sprint 1. The five F-03 endpoint paths/methods and reviewed request/response/error policy are teammate-confirmed; physical implementation details remain outside this contract approval.
 - Deletion policy **TEAM CONFIRMED: ON DELETE RESTRICT** for `Registration.eventId` and `Registration.participantId`. The policy protects ACTIVE and CANCELLED Registration history for future cancellation, attendance, and reporting features. Referenced Event/User deletion is rejected while a Registration exists; cleanup must delete only the run-scoped Registration fixtures first, then the associated Event/User rows. No application Event/User deletion API currently exists. The additive migration `20261115120000_registration_restrict_delete` replaces the two previously applied CASCADE foreign keys without changing Registration data, indexes, or the partial unique index.
 
-### Current verification evidence
+### Verification evidence: historical and committed PR HEAD
 
 The earlier results below were executed against commit `3d9d16bdd7ab79c1561f55485689a3147bff777f`, which matched both `HEAD` and `origin/feature/08-participant-event-registration` before the deletion-policy update. The ON DELETE RESTRICT implementation was subsequently committed and verified at implementation commit `1c3cfbe67acb5d8990f35126063f026409fef912`; the documentation update itself is not claimed as tested or pushed.
 
@@ -200,9 +201,9 @@ Post-commit regression checks for implementation commit `1c3cfbe67acb5d8990f3512
 
 The restart check used a run-scoped Event and Registration on `eventcheck_test` only. It verified a real API process restart, not merely a fresh PrismaClient connection.
 
-Current Issue #12 verification uses base commit `4d8e93dee3cd99eea2eddef18b91d4002ac15c4b` on `feature/10-e2e-sprint-1` **plus uncommitted test, runner, and evidence changes**. It is not a claim that these changes were committed or merged. The Playwright runner now starts the built API and Vite as direct child processes and closes them in global teardown; an earlier F-04 run that finished its assertions but required interruption remains recorded in the historical F-04 evidence.
+The earlier Issue #12 local verification used base commit `4d8e93dee3cd99eea2eddef18b91d4002ac15c4b` on `feature/10-e2e-sprint-1` **plus then-uncommitted test, runner, and evidence changes**. The table immediately below records that pre-commit working-tree run; its command logs do not establish a committed-SHA verification. The Playwright runner starts the built API and Vite as direct child processes and closes them in global teardown. An earlier F-04 run that finished its assertions but required interruption remains recorded in the historical F-04 evidence.
 
-| Check | Command | Current result and evidence |
+| Check | Command | Historical pre-commit working-tree result and evidence |
 | --- | --- | --- |
 | TypeScript and production build | `npm.cmd run typecheck`; `npm.cmd run build` | Both exit `0`; `docs/evidence/sprint-1/commands/typecheck.txt` and `build.txt`. |
 | Backend unit and frontend component tests | `npm.cmd test` | Exit `0`: 7 backend unit tests and 20 frontend tests passed; database suites skipped in this command because `DATABASE_URL` was unset. See `unit-client.txt`. |
@@ -211,22 +212,24 @@ Current Issue #12 verification uses base commit `4d8e93dee3cd99eea2eddef18b91d40
 
 The added post-insert trigger is scoped to a fresh synthetic Event and removed in `finally`. The API response is asserted to be safe `500` with no `201` data, and the database and public remaining-place count are unchanged. The restart test creates the Registration through the first built API, stops that process, starts another with the same isolated database, logs in as the Participant again, and reads both personal list and detail. The browser journey compares the owner's response with the persisted Registration and then logs in a different Organizer to test the same URL. Synthetic Event, Registration, and second-Organizer fixtures are cleaned up.
 
+**Independent PR #20 verification, reported by the teammate:** tested the committed PR HEAD `da3fa630be862955c973cc9e0c8cddcc5e1dcd6e` against the isolated `eventcheck_test/public` database. PostgreSQL integration passed **37/37, exit code 0**; the full Playwright E2E suite passed **16/16, exit code 0**. This is a separate verification from the pre-commit command logs above. The teammate confirmed that TEST-F03-12's API-level rollback, TEST-F03-13's real API restart persistence, and TEST-F03-16's cross-feature browser journey passed and reported no blocking code defects. The documentation changes in v0.7 are subsequent to that tested commit and are pending teammate review; this statement does not constitute final PR approval.
+
 ### Acceptance evidence status
 
 | AC group | Current status | Reason |
 | --- | --- | --- |
-| AC-F03-01 to AC-F03-11 | Verified within the supported Sprint 1 scope by historical 28/29-test runs and the current 37-test integration, 20-test frontend, and 16-test browser runs | The current schema represents only `PUBLISHED`, so unpublished-event coverage remains a documented limitation; broader browser negative-case coverage is also limited. |
-| AC-F03-12 | Verified in current isolated run | Both transaction-helper and real HTTP post-insert failure tests passed; `500` response, zero Registration rows, and unchanged public remaining places were asserted. |
-| AC-F03-13 | Verified in current isolated run | Automated built-API stop/restart, fresh Participant login, personal list/detail retrieval, and owning Organizer retrieval passed against the same committed row. The earlier manual restart remains historical evidence. |
-| AC-F03-14 | Pending | Final contract/review completion evidence remains pending, although implementation commit `1c3cfbe67acb5d8990f35126063f026409fef912` and its verification results are now recorded. |
+| AC-F03-01 to AC-F03-11 | Verified within the supported Sprint 1 scope by historical 28/29-test runs, the pre-commit 37-test integration/20-test frontend/16-test browser runs, and independent 37-test integration/16-test browser runs at PR #20 HEAD | The current schema represents only `PUBLISHED`, so unpublished-event coverage remains a documented limitation; broader browser negative-case coverage is also limited. The 20-test frontend result is pre-commit evidence only. |
+| AC-F03-12 | Independently verified at PR #20 HEAD; final approval pending | Both transaction-helper and real HTTP post-insert failure tests passed in the pre-commit run; the teammate independently passed the 37-test integration suite at `da3fa630` and confirmed the API-level rollback test. |
+| AC-F03-13 | Independently verified at PR #20 HEAD; final approval pending | Automated built-API stop/restart and personal list/detail retrieval passed in the pre-commit run; the teammate independently passed the 37-test integration suite at `da3fa630` and confirmed restart persistence. The earlier manual restart remains historical evidence. |
+| AC-F03-14 | Pending | Historical implementation commit `1c3cfbe67acb5d8990f35126063f026409fef912` and independent PR #20 HEAD results are recorded; final contract/documentation review and completion evidence remain pending. |
 | AC-F03-15 | Planning verified only | Performance method is documented; no quantitative benchmark is claimed. |
-| AC-F03-16 | Verified in current isolated run | The completed Organizer → Participant → Organizer browser journey matched UI, API, and PostgreSQL associations; a second Organizer's same-path request received `404`. Full suite exited `0`. |
+| AC-F03-16 | Independently verified at PR #20 HEAD; final approval pending | The pre-commit browser journey matched UI, API, and PostgreSQL associations and the second Organizer received `404`; the teammate independently passed the full 16-test E2E suite at `da3fa630` and confirmed this journey. |
 
 ### Future completion evidence placeholders
 
-- Teammate review: **TBD** — review decision and findings.
-- Implementation Issue/PR: **TBD** — link, branch, and merged commit.
-- Actual test source/results: Historical results are recorded for commit `3d9d16bdd7ab79c1561f55485689a3147bff777f`; post-RESTRICT results are recorded for implementation commit `1c3cfbe67acb5d8990f35126063f026409fef912`. Current Issue #12 test sources and command outputs are mapped above and in `verification-results.md`.
-- Tested commit/release evidence: Implementation commit `1c3cfbe67acb5d8990f35126063f026409fef912` was tested directly. The current checks used base `4d8e93dee3cd99eea2eddef18b91d4002ac15c4b` plus uncommitted changes; PR/review, release, and merge evidence remain **TBD**.
+- Teammate review: PR #20 implementation review reported no blocking code defects; final review of this documentation update, contract decision, and PR approval remain **TBD**.
+- Implementation Issue/PR: Issue #12 / PR #20 on `feature/10-e2e-sprint-1`; final approval and merged commit remain **TBD**.
+- Actual test source/results: Historical results are recorded for commit `3d9d16bdd7ab79c1561f55485689a3147bff777f`; post-RESTRICT results are recorded for implementation commit `1c3cfbe67acb5d8990f35126063f026409fef912`. Issue #12 pre-commit test sources and command outputs are mapped above and in `verification-results.md`; the independent committed-HEAD results are recorded separately.
+- Tested commit/release evidence: Historical F-03 implementation commit `1c3cfbe67acb5d8990f35126063f026409fef912` was tested directly. The Issue #12 local command logs belong to base `4d8e93dee3cd99eea2eddef18b91d4002ac15c4b` plus then-uncommitted changes. The teammate independently verified PR #20 commit `da3fa630be862955c973cc9e0c8cddcc5e1dcd6e` with 37/37 integration and 16/16 E2E passes, both exit code 0. Final documentation review, PR approval, release, and merge evidence remain **TBD**.
 
-The contract remains Draft for teammate review. Unpublished-event coverage, quantitative performance execution, and final completion/review evidence remain pending. The ON DELETE policy is team-confirmed as RESTRICT, and its implementation commit passed the recorded post-commit verification. The current F-03 evidence changes remain uncommitted; PR/review and merge evidence are not claimed.
+The contract remains Draft for teammate review. Unpublished-event coverage, quantitative performance execution, and final completion/review evidence remain pending. The ON DELETE policy is team-confirmed as RESTRICT, and its implementation commit passed the recorded post-commit verification. PR #20 has independent verification at committed HEAD; the v0.7 documentation update awaits review, and final PR approval or merge is not claimed.

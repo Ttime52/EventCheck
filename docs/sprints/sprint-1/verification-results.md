@@ -1,10 +1,18 @@
 # Sprint 1 AC-to-test verification results
 
-**Tested Git base:** `4d8e93dee3cd99eea2eddef18b91d4002ac15c4b` on `feature/10-e2e-sprint-1`. The README, Playwright process runner, F-03 integration/browser tests, contract, and evidence files are uncommitted working-tree changes; the tested state is **base SHA plus these changes**. This table does not claim a release commit.
+**Historical local test state:** base `4d8e93dee3cd99eea2eddef18b91d4002ac15c4b` on `feature/10-e2e-sprint-1` plus the then-uncommitted README, Playwright runner, F-03 tests, contract, and evidence changes. The AC table below and the captured local command logs describe that pre-commit working-tree run; `4d8e93d*` is not the committed PR HEAD.
 
-**Execution:** `npm.cmd run typecheck` and `npm.cmd run build` exited `0`. `npm.cmd test` exited `0`: 7 server unit and 20 client tests passed; database suites were skipped because no `DATABASE_URL` was supplied. The guarded `npm.cmd run test:integration --workspace server` exited `0` with 37/37 PostgreSQL tests on `eventcheck_test/public`. `E2E_CAPTURE_EVIDENCE=1 npm.cmd run test:e2e` exited `0` with 16/16 browser tests. The earlier interrupted Playwright run remains in the historical F-04 evidence. No lint script is configured. Captured output and exit codes are in `docs/evidence/sprint-1/commands/`.
+**Historical local execution:** `npm.cmd run typecheck` and `npm.cmd run build` exited `0`. `npm.cmd test` exited `0`: 7 server unit and 20 client tests passed; database suites were skipped because no `DATABASE_URL` was supplied. The guarded `npm.cmd run test:integration --workspace server` exited `0` with 37/37 PostgreSQL tests on `eventcheck_test/public`. `E2E_CAPTURE_EVIDENCE=1 npm.cmd run test:e2e` exited `0` with 16/16 browser tests. The earlier interrupted Playwright run remains in the historical F-04 evidence. No lint script is configured. Captured pre-commit output and exit codes are in `docs/evidence/sprint-1/commands/`.
 
-Levels and results below refer to the matching test names and commands above. A planned TEST ID without a literal named executable test is identified as review/planning evidence or a gap.
+**Independent committed-HEAD verification reported by the teammate:** PR #20 commit `da3fa630be862955c973cc9e0c8cddcc5e1dcd6e` was tested against the isolated `eventcheck_test/public` database. The teammate reported **37/37 PostgreSQL integration tests passed, exit code 0**, and **16/16 full Playwright E2E tests passed, exit code 0**. Exact commands and separate raw logs for this independent run were not supplied; the local logs above must not be presented as its output. The implementation review found no blocking code defects. Final documentation review and PR approval remain pending.
+
+| F-03 criterion | Independent PR #20 HEAD result | Matching executable evidence |
+| --- | --- | --- |
+| AC-F03-12 | Passed within the 37/37 integration run | `server/src/registration.integration.test.ts` — API-level post-insert rollback and no false success |
+| AC-F03-13 | Passed within the 37/37 integration run | `server/src/organizer-registrations.integration.test.ts` — real built-API restart and Participant list/detail retrieval |
+| AC-F03-16 | Passed within the 16/16 E2E run | `e2e/f04-organizer-registrations.spec.ts` — Organizer/Participant journey and second-Organizer denial |
+
+Levels, results, and the `4d8e93d*` markers in the detailed AC table below refer to the historical local run. The independent PR HEAD results for AC-F03-12/13/16 are recorded separately above. A planned TEST ID without a literal named executable test is identified as review/planning evidence or a gap.
 
 | Feature | AC ID | Planned TEST ID | Actual source and test name | Level | Execution result | Tested commit / state | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -64,6 +72,6 @@ Levels and results below refer to the matching test names and commands above. A 
 | F04 | AC-F04-10 | TEST-F04-10 | `client/src/App.test.tsx:332` — TEST-F04-02/10: follows owned event navigation and renders approved registration fields in Bangkok time<br>`client/src/App.test.tsx:365` — TEST-F04-03/10: announces loading and displays the empty registration state<br>+4 additional named cases in source | Browser + UI | UI pass; E2E pass | `4d8e93d*` | Named test(s) executed; detailed assertions in cited source. |
 | F04 | AC-F04-11 | TEST-F04-11 | docs/sprints/sprint-1/f-04-implementation-evidence.md — contract evidence review | Manual review | Pending final PR review and release evidence | `4d8e93d*` | Review/planning item or cross-feature journey; not counted as a standalone named test. |
 
-* `4d8e93d*` abbreviates the full tested base SHA above and includes the uncommitted Issue #12 working-tree changes. All automated pass claims are limited to the actual command outcomes stated in the Execution paragraph.
+* `4d8e93d*` abbreviates the historical local base SHA plus then-uncommitted Issue #12 changes. It does not label the teammate's independent run at PR #20 commit `da3fa630be862955c973cc9e0c8cddcc5e1dcd6e`; those results are stated separately above.
 
 **Unmapped ACs without either named automation or explicit review/planning evidence:** none.
