@@ -3,7 +3,7 @@
 **Contract work item:** I-05 — Event Registration & Organizer Management
 **GitHub implementation issue:** #10 — Participant Event Registration
 
-**Contract version:** 0.3
+**Contract version:** 0.5
 **Status:** Draft for teammate review; implementation and verification evidence are available, but formal teammate acceptance, completion, and merge approval remain pending
 
 > This is a versioned design and verification plan. Implementation and test evidence are reviewed separately; this contract does not by itself constitute completion or approval evidence.
@@ -164,26 +164,38 @@ Record latency, request counts, errors, environment, tested commit, and database
 | 0.1 | 2026-11-13 | Draft for teammate review | Initial F-03 design, AC, planned STS, concurrency scenarios, and proposed performance method. |
 | 0.2 | 2026-11-15 | Draft for teammate review | Recorded the selected Prisma interactive transaction, PostgreSQL Event-row locking, active-registration partial unique index, session-derived Participant identity, no mutable counter, future cancellation compatibility, and duplicate-first precedence when an already-registered Participant targets a full Event. Pending teammate acceptance. |
 | 0.3 | 2026-11-15 | Draft for teammate review | Added current uncommitted verification evidence, including isolated PostgreSQL integration/browser results as reported and a real API restart persistence check. F-04-dependent, unpublished-state, performance, and final completion evidence remain pending. |
+| 0.4 | 2026-11-15 | Draft for teammate review | Recorded commit-based verification for `3d9d16bdd7ab79c1561f55485689a3147bff777f` and documented the observed ON DELETE CASCADE behavior and pending history-retention decision. |
+| 0.5 | 2026-11-15 | Draft for teammate review | Recorded the team-confirmed ON DELETE RESTRICT policy, additive migration, explicit cleanup ordering, and post-decision PostgreSQL verification. |
 
 ### Baseline and open decisions
 
 - Approved baseline: D-02, D-04, D-08, Q-08, Q-09, Q-11, and the team-approved React/TypeScript/Vite, Node.js/Express/TypeScript, PostgreSQL, and Prisma stack.
 - Selected technical approach pending teammate acceptance: Prisma interactive `$transaction`; PostgreSQL `SELECT ... FOR UPDATE` on the target Event row; active-registration counting after the lock; a partial unique index on `(participantId, eventId)` filtered to `status = 'ACTIVE'`; session-derived Participant identity through the existing F-01 middleware; and no separate mutable registration counter in Sprint 1.
 - Proposed/open: exact custom SQL migration and rollback/deployment ordering, CSRF transport details, testing tools, and NFR-05/NFR-07 numerical targets. Pagination is out of scope for Sprint 1. The five F-03 endpoint paths/methods and reviewed request/response/error policy are teammate-confirmed; physical implementation details remain outside this contract approval.
+- Deletion policy **TEAM CONFIRMED: ON DELETE RESTRICT** for `Registration.eventId` and `Registration.participantId`. The policy protects ACTIVE and CANCELLED Registration history for future cancellation, attendance, and reporting features. Referenced Event/User deletion is rejected while a Registration exists; cleanup must delete only the run-scoped Registration fixtures first, then the associated Event/User rows. No application Event/User deletion API currently exists. The additive migration `20261115120000_registration_restrict_delete` replaces the two previously applied CASCADE foreign keys without changing Registration data, indexes, or the partial unique index.
 
 ### Current verification evidence
 
-The following results apply to the current uncommitted working tree and are not tied to a tested commit SHA:
+The earlier results below were executed against commit `3d9d16bdd7ab79c1561f55485689a3147bff777f`, which matched both `HEAD` and `origin/feature/08-participant-event-registration` before the deletion-policy update. The ON DELETE RESTRICT implementation was subsequently committed and verified at implementation commit `1c3cfbe67acb5d8990f35126063f026409fef912`; the documentation update itself is not claimed as tested or pushed.
 
 | Check | Command/evidence | Result | Scope and limitation |
 | --- | --- | --- | --- |
 | Backend unit tests | `npm test --workspace=server -- --run` | 7 passed | Unit coverage only; database integration is recorded separately. |
 | Frontend unit tests | `npm test --workspace=client -- --run` | 15 passed | Includes Participant/Organizer dashboard-tab and registration interaction coverage. |
 | PostgreSQL integration | `DATABASE_URL="<redacted isolated eventcheck_test URL>" npm run test:integration --workspace=server` | 28 passed, 0 failed, 0 skipped | Executed against isolated `127.0.0.1:5433/eventcheck_test?schema=public`; no development database access. |
-| Playwright E2E | `E2E_DATABASE_URL="<redacted isolated eventcheck_test URL>" E2E_API_PORT=3211 E2E_WEB_PORT=5288 npx playwright test --reporter=line --timeout=30000` | 15 passed, 0 failed, 0 skipped | Playwright received the explicit isolated URL and temporary ports; broader F-03 negative/browser coverage remains limited. |
-| TypeScript/build/Prisma | `npm run typecheck`; `npm run build`; `DATABASE_URL="<redacted isolated eventcheck_test URL>" npm run prisma:validate` | Passed | Results apply to the current uncommitted working tree. |
+| Playwright E2E | `E2E_DATABASE_URL="<redacted isolated eventcheck_test URL>" E2E_API_PORT=3221 E2E_WEB_PORT=5298 npx playwright test --reporter=line --timeout=30000` | 15 passed, 0 failed, 0 skipped | Playwright received the explicit isolated URL and temporary ports; broader F-03 negative/browser coverage remains limited. |
+| TypeScript/build/Prisma | `npm run typecheck`; `npm run build`; `DATABASE_URL="<redacted isolated eventcheck_test URL>" npm run prisma:validate` | Passed | Results are tied to the tested commit above. |
 | Real API restart persistence | `DATABASE_URL="<redacted isolated eventcheck_test URL>" SERVER_PORT=3199 npm run dev --workspace server`; create/register a run-scoped Event; stop that process; run the same command again; call `GET /api/v1/me/registrations/{id}` | Passed | Returned the same Registration ID, Event ID, and `ACTIVE` status after restart. Run-scoped fixtures were deleted afterward. |
 | Formatting | `git diff --check` | Passed | No whitespace errors. |
+
+Post-decision verification on the isolated `eventcheck_test/public` database:
+
+| Check | Command/evidence | Result | Scope and limitation |
+| --- | --- | --- | --- |
+| RESTRICT migration | `DATABASE_URL="<redacted isolated eventcheck_test URL>" npx prisma migrate deploy --schema server/prisma/schema.prisma` | Migration `20261115120000_registration_restrict_delete` applied successfully | Development database `eventcheck` was not accessed. |
+| Foreign-key behavior and regressions | `DATABASE_URL="<redacted isolated eventcheck_test URL>" npm run test:integration --workspace=server` | 29 passed, 0 failed, 0 skipped | Includes Event/User deletion rejection, unchanged Registration history, explicit child-first cleanup, and existing F-01/F-02/F-03 integration suites. Executed against implementation commit `1c3cfbe67acb5d8990f35126063f026409fef912`. |
+
+Post-commit regression checks for implementation commit `1c3cfbe67acb5d8990f35126063f026409fef912` also passed: backend unit tests **7 passed**, the sequential backend full suite **36 passed**, frontend Vitest **15 passed**, full Playwright **15 passed**, TypeScript checks, production build, and Prisma validation passed. All database-dependent checks used the isolated `eventcheck_test/public` database. The dedicated integration and Playwright runs reported no unexpected skips. Parallel integration execution remains discouraged because global Event-count assertions in F-02 can be affected by writes from another suite; the sequential runner avoids that interference.
 
 The restart check used a run-scoped Event and Registration on `eventcheck_test` only. It verified a real API process restart, not merely a fresh PrismaClient connection.
 
@@ -191,10 +203,10 @@ The restart check used a run-scoped Event and Registration on `eventcheck_test` 
 
 | AC group | Current status | Reason |
 | --- | --- | --- |
-| AC-F03-01 to AC-F03-11 | Verified within the supported Sprint 1 scope by the current 28-test PostgreSQL suite plus frontend/browser evidence | The current schema represents only `PUBLISHED`, so unpublished-event coverage remains a documented limitation; broader browser negative-case coverage is also limited. |
+| AC-F03-01 to AC-F03-11 | Verified within the supported Sprint 1 scope by the 28-test commit-based suite plus the 29-test post-decision integration suite and frontend/browser evidence | The current schema represents only `PUBLISHED`, so unpublished-event coverage remains a documented limitation; broader browser negative-case coverage is also limited. |
 | AC-F03-12 | Partial | Database rollback is covered through the controlled transaction helper; API-level post-insert fault injection and false-201 assertion remain pending. |
 | AC-F03-13 | Verified for this run | Real API process was stopped and restarted against `eventcheck_test`; the same Registration was retrieved with ownership and `ACTIVE` status. |
-| AC-F03-14 | Pending | Final contract/review evidence and tested commit are not recorded yet. |
+| AC-F03-14 | Pending | Final contract/review completion evidence remains pending, although implementation commit `1c3cfbe67acb5d8990f35126063f026409fef912` and its verification results are now recorded. |
 | AC-F03-15 | Planning verified only | Performance method is documented; no quantitative benchmark is claimed. |
 | AC-F03-16 | Pending | The end-to-end Organizer-to-Participant journey is present, but the F-04 owner registration-list step is not implemented in this scope. |
 
@@ -202,7 +214,7 @@ The restart check used a run-scoped Event and Registration on `eventcheck_test` 
 
 - Teammate review: **TBD** — review decision and findings.
 - Implementation Issue/PR: **TBD** — link, branch, and merged commit.
-- Actual test source/results: Recorded above for the current uncommitted working tree; final release evidence remains **TBD**.
-- Tested commit/release evidence: **TBD** — the reported results have no commit SHA until the F-03 changes are committed.
+- Actual test source/results: Historical results are recorded for commit `3d9d16bdd7ab79c1561f55485689a3147bff777f`; post-RESTRICT results are recorded above for implementation commit `1c3cfbe67acb5d8990f35126063f026409fef912`.
+- Tested commit/release evidence: Implementation commit `1c3cfbe67acb5d8990f35126063f026409fef912` was tested directly; the documentation update, PR/review, release, and merge evidence remain **TBD**.
 
-The contract remains Draft for teammate review. F-04-dependent verification, unpublished-event coverage, quantitative performance execution, API-level post-insert rollback evidence, the open ON DELETE CASCADE/history-retention decision, and final completion evidence remain pending.
+The contract remains Draft for teammate review. F-04-dependent verification, unpublished-event coverage, quantitative performance execution, API-level post-insert rollback evidence, and final completion evidence remain pending. The ON DELETE policy is team-confirmed as RESTRICT, and its implementation commit has passed the recorded post-commit verification; PR/review and merge evidence remain pending.
