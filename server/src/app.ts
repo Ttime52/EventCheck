@@ -171,6 +171,47 @@ app.get("/api/v1/organizer/events/:eventId", requireAuth, requireRole(Role.ORGAN
   }
 });
 
+const eventIdPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+
+app.get("/api/v1/organizer/events/:eventId/registrations", requireAuth, requireRole(Role.ORGANIZER), async (request, response, next) => {
+  const organizerId = (request as AuthenticatedRequest).user!.id;
+  const eventId = Array.isArray(request.params.eventId) ? request.params.eventId[0] : request.params.eventId;
+  if (!eventIdPattern.test(eventId)) return response.status(404).json({ error: { code: "EVENT_NOT_FOUND", message: "Event not found" } });
+
+  try {
+    const event = await prisma.event.findFirst({
+      where: { id: eventId, organizerId },
+      select: { id: true },
+    });
+    if (!event) return response.status(404).json({ error: { code: "EVENT_NOT_FOUND", message: "Event not found" } });
+
+    const registrations = await prisma.registration.findMany({
+      where: { eventId: event.id },
+      orderBy: [{ registeredAt: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        participantId: true,
+        status: true,
+        registeredAt: true,
+        participant: { select: { displayName: true } },
+      },
+    });
+    return response.json({
+      data: {
+        registrations: registrations.map(registration => ({
+          id: registration.id,
+          participantId: registration.participantId,
+          participantDisplayName: registration.participant.displayName,
+          status: registration.status,
+          registeredAt: registration.registeredAt.toISOString(),
+        })),
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 app.patch("/api/v1/organizer/events/:eventId", requireAuth, requireRole(Role.ORGANIZER), (_request, response) => {
   return response.status(404).json({ error: { code: "UNSUPPORTED_OPERATION", message: "Event updates are not available in Sprint 1" } });
 });

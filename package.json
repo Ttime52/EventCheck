@@ -11,10 +11,11 @@
     "typecheck": "npm run typecheck --workspace server && npm run typecheck --workspace client",
     "test": "npm run test --workspace server && npm run test --workspace client",
     "build": "npm run build --workspace server && npm run build --workspace client",
-    "test:e2e": "playwright test",
+    "test:e2e": "npm run build --workspace server && playwright test",
     "prisma:generate": "npm run prisma:generate --workspace server",
     "prisma:validate": "npm run prisma:validate --workspace server",
-    "db:migrate": "npm run db:migrate --workspace server"
+    "db:migrate": "npm run db:migrate --workspace server",
+    "db:seed": "npm run db:seed --workspace server"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.0",

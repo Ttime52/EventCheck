@@ -311,3 +311,137 @@ describe("F-03 participant discovery UI", () => {
     expect(eventGets).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe("F-04 Organizer registration management UI", () => {
+  const organizer = { id: "organizer-1", displayName: "Demo Organizer", role: "ORGANIZER" as const };
+  const event = { id: "event-1", title: "University Workshop", description: "A persisted workshop.", location: "Engineering Building 1", startAt: "2026-11-20T02:00:00.000Z", endAt: "2026-11-20T05:00:00.000Z", capacity: 25, publicationState: "PUBLISHED" as const };
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => response(null, false, 401)));
+  });
+
+  async function openRegistrationList() {
+    await screen.findByRole("tab", { name: "My Events" });
+    fireEvent.click(screen.getByRole("tab", { name: "My Events" }));
+    fireEvent.click(await screen.findByRole("button", { name: "View details" }));
+    await screen.findByRole("form", { name: "Event details" });
+    fireEvent.click(screen.getByRole("button", { name: "View registrations" }));
+  }
+
+  it("TEST-F04-02/10: follows owned event navigation and renders approved registration fields in Bangkok time", async () => {
+    const registration = {
+      id: "registration-1",
+      participantId: "participant-1",
+      participantDisplayName: "Demo Participant",
+      status: "ACTIVE",
+      registeredAt: "2026-11-15T10:00:00.000Z",
+      passwordHash: "must-never-be-rendered",
+    };
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}/registrations`)) return response({ data: { registrations: [registration] } });
+      if (url.endsWith("/api/v1/me")) return response({ data: { user: organizer } });
+      if (url.endsWith("/api/v1/organizer/events")) return response({ data: { events: [event] } });
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}`)) return response({ data: { event } });
+      return response(null, false, 404);
+    });
+
+    render(<App />);
+    await openRegistrationList();
+    const region = await screen.findByRole("region", { name: "Registrations for University Workshop" });
+    expect(within(region).getByText("1 registration")).toBeInTheDocument();
+    expect(within(region).getByText("Demo Participant")).toBeInTheDocument();
+    expect(within(region).getByText("participant-1")).toBeInTheDocument();
+    expect(within(region).getByText("ACTIVE")).toBeInTheDocument();
+    expect(within(region).getByText("15 Nov 2026, 17:00")).toBeInTheDocument();
+    expect(within(region).queryByText("must-never-be-rendered")).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(`/api/v1/organizer/events/${event.id}/registrations`, { credentials: "include" });
+    fireEvent.click(within(region).getByRole("button", { name: "Back to Event details" }));
+    expect(await screen.findByRole("form", { name: "Event details" })).toBeInTheDocument();
+  });
+
+  it("TEST-F04-03/10: announces loading and displays the empty registration state", async () => {
+    const fetchMock = vi.mocked(fetch);
+    let resolveList!: (value: Response) => void;
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}/registrations`)) return new Promise<Response>(resolve => { resolveList = resolve; });
+      if (url.endsWith("/api/v1/me")) return response({ data: { user: organizer } });
+      if (url.endsWith("/api/v1/organizer/events")) return response({ data: { events: [event] } });
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}`)) return response({ data: { event } });
+      return response(null, false, 404);
+    });
+
+    render(<App />);
+    await openRegistrationList();
+    const loadingRegion = screen.getByRole("region", { name: "Registrations for University Workshop" });
+    expect(within(loadingRegion).getByRole("status")).toHaveTextContent("Loading registrations...");
+    resolveList(await response({ data: { registrations: [] } }));
+    const region = await screen.findByRole("region", { name: "Registrations for University Workshop" });
+    expect(within(region).getByText("0 registrations")).toBeInTheDocument();
+    expect(within(region).getByText("No registrations for this event yet.")).toBeInTheDocument();
+  });
+
+  it("TEST-F04-10: shows a safe permission error without displaying registration data", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}/registrations`)) return response({ error: { code: "FORBIDDEN", message: "Access denied" } }, false, 403);
+      if (url.endsWith("/api/v1/me")) return response({ data: { user: organizer } });
+      if (url.endsWith("/api/v1/organizer/events")) return response({ data: { events: [event] } });
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}`)) return response({ data: { event } });
+      return response(null, false, 404);
+    });
+
+    render(<App />);
+    await openRegistrationList();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Access denied");
+    expect(screen.queryByText("Demo Participant")).not.toBeInTheDocument();
+    expect(screen.queryByText("participant-1")).not.toBeInTheDocument();
+  });
+
+  it("TEST-F04-10: exposes a retry for a temporary registration-list failure", async () => {
+    const fetchMock = vi.mocked(fetch);
+    let listAttempts = 0;
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}/registrations`)) {
+        listAttempts += 1;
+        return listAttempts === 1 ? Promise.reject(new Error("offline")) : response({ data: { registrations: [] } });
+      }
+      if (url.endsWith("/api/v1/me")) return response({ data: { user: organizer } });
+      if (url.endsWith("/api/v1/organizer/events")) return response({ data: { events: [event] } });
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}`)) return response({ data: { event } });
+      return response(null, false, 404);
+    });
+
+    render(<App />);
+    await openRegistrationList();
+    const error = await screen.findByRole("alert");
+    expect(error).toHaveTextContent("Unable to load registrations for this event. Try again.");
+    const retryButton = within(error).getByRole("button", { name: "Retry" });
+    expect(retryButton.tabIndex).toBe(0);
+    fireEvent.click(retryButton);
+    expect(await screen.findByText("0 registrations")).toBeInTheDocument();
+    expect(listAttempts).toBe(2);
+  });
+
+  it("TEST-F04-06/10: returns to login after the registration request reports an expired session", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}/registrations`)) return response({ error: { code: "UNAUTHENTICATED", message: "Authentication required" } }, false, 401);
+      if (url.endsWith("/api/v1/me")) return response({ data: { user: organizer } });
+      if (url.endsWith("/api/v1/organizer/events")) return response({ data: { events: [event] } });
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}`)) return response({ data: { event } });
+      return response(null, false, 404);
+    });
+
+    render(<App />);
+    await openRegistrationList();
+    expect(await screen.findByRole("form", { name: "Login" })).toBeInTheDocument();
+    expect(screen.queryByText("Demo Participant")).not.toBeInTheDocument();
+  });
+});
