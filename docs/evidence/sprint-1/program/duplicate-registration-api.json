@@ -1,0 +1,10 @@
+{
+  "httpStatus": 409,
+  "response": {
+    "error": {
+      "code": "REGISTRATION_DUPLICATE",
+      "message": "Participant is already registered for this event"
+    }
+  },
+  "activeRowsAfterRejection": 1
+}

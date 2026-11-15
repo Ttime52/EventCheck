@@ -81,6 +81,8 @@ out
 # Nuxt.js build / generate output
 .nuxt
 dist
+playwright-report/
+test-results/
 .output
 
 # Gatsby files
@@ -147,3 +149,18 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# pdf
+*.pdf
+
+# Local Sprint 1 report build files and drafts
+docs/sprints/sprint-1/build-release-report.py
+docs/sprints/sprint-1/render-release-report.cjs
+docs/sprints/sprint-1/build-release-report-docx.py
+docs/sprints/sprint-1/render-report-diagrams.cjs
+docs/sprints/sprint-1/release-report-part-f.md
+docs/sprints/sprint-1/release-report-draft.md
+docs/sprints/sprint-1/release-report-draft.pdf
+docs/sprints/sprint-1/release-report-draft.docx
+docs/sprints/sprint-1/release-report-draft-approved.docx
+docs/sprints/sprint-1/~$*.docx

@@ -1,0 +1,16 @@
+{
+  "httpStatus": 200,
+  "response": {
+    "data": {
+      "registrations": [
+        {
+          "id": "c5182e9f-9a9e-477b-8277-4997ac14c38b",
+          "participantId": "1609fb39-15b1-4792-9b34-53b1aeb7e0bd",
+          "participantDisplayName": "Demo Participant",
+          "status": "ACTIVE",
+          "registeredAt": "2026-11-15T09:31:46.349Z"
+        }
+      ]
+    }
+  }
+}
