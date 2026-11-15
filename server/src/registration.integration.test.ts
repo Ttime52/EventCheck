@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import request from "supertest";
 import { PrismaClient, PublicationState, RegistrationStatus, Role } from "@prisma/client";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { app, createRegistration } from "./app.js";
 import { hashPassword } from "./security.js";
 import { prisma } from "./auth.js";
@@ -127,7 +127,7 @@ describe.skipIf(!isolatedDatabase)("F-03 participant registration API", () => {
     expect(reRegistered.status).toBe(201);
   });
 
-  it("TEST-F03-07/13: returns only owned registrations and persists through a fresh Prisma client", async () => {
+  it("TEST-F03-07: returns only owned registrations through the API and a fresh Prisma client", async () => {
     const ownEventA = await event(3, "my-list-a");
     const ownEventB = await event(3, "my-list-b");
     const otherEvent = await event(3, "my-list-other");
@@ -172,5 +172,35 @@ describe.skipIf(!isolatedDatabase)("F-03 participant registration API", () => {
     expect(await prisma.registration.count({ where: { eventId, status: RegistrationStatus.ACTIVE } })).toBe(0);
     const after = await request(app).get(`/api/v1/events/${eventId}`);
     expect(after.body.data.event.remainingPlaces).toBe(before.body.data.event.remainingPlaces);
+  });
+
+  it("TEST-F03-12: returns a safe API error and rolls back an AFTER INSERT database failure", async () => {
+    const eventId = await event(2, "api-rollback");
+    const cookie = await login(logins[1]);
+    const before = await request(app).get(`/api/v1/events/${eventId}`);
+    expect(before.status).toBe(200);
+    const suffix = randomUUID().replaceAll("-", "");
+    const functionName = `f03_fail_insert_${suffix}`;
+    const triggerName = `f03_fail_insert_${suffix}`;
+    let triggerCreated = false;
+    const expectedError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await prisma.$executeRawUnsafe(`CREATE FUNCTION "${functionName}"() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW."eventId" = '${eventId}' THEN RAISE EXCEPTION 'CONTROLLED_TEST_FAILURE'; END IF; RETURN NEW; END; $$`);
+      await prisma.$executeRawUnsafe(`CREATE TRIGGER "${triggerName}" AFTER INSERT ON "Registration" FOR EACH ROW EXECUTE FUNCTION "${functionName}"()`);
+      triggerCreated = true;
+      const response = await request(app).post(`/api/v1/events/${eventId}/registrations`).set(origin).set("Cookie", cookie).send({});
+      expect(response.status).toBe(500);
+      expect(String(expectedError.mock.calls[0]?.[0])).toContain("CONTROLLED_TEST_FAILURE");
+      expect(response.body).toEqual({ error: { code: "INTERNAL_SERVER_ERROR", message: "Unexpected server error" } });
+      expect(response.body.data).toBeUndefined();
+      expect(await prisma.registration.count({ where: { eventId } })).toBe(0);
+      const after = await request(app).get(`/api/v1/events/${eventId}`);
+      expect(after.status).toBe(200);
+      expect(after.body.data.event.remainingPlaces).toBe(before.body.data.event.remainingPlaces);
+    } finally {
+      expectedError.mockRestore();
+      if (triggerCreated) await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS "${triggerName}" ON "Registration"`);
+      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS "${functionName}"()`);
+    }
   });
 });
