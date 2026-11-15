@@ -2,10 +2,10 @@
 
 **Issue:** I-05 — Contract: Event Registration & Organizer Management
 
-**Contract version:** 0.1
-**Status:** Draft for teammate review; not yet accepted for implementation
+**Contract version:** 0.2
+**Status:** Teammate accepted for Sprint 1 with documented follow-ups; final PR approval and Definition of Done completion pending
 
-> This is a versioned design and verification plan. It records no implementation, test execution, review approval, or completion evidence.
+> Teammate acceptance of the v0.1 contract was confirmed on 2026-11-15. Version 0.2 records that decision without changing scope, AC IDs, or TEST IDs. Acceptance is not final PR approval or Definition of Done completion; actual verification is recorded in the implementation evidence.
 
 ## A. Feature overview
 
@@ -79,7 +79,7 @@ F-04 requires no new tables, columns, or migrations. It reuses the F-01 User/ses
 | AC-F04-10 | FR-15, NFR-08 | Loading, empty, success, authentication, permission, and error states are explicit, labelled, keyboard-accessible, and privacy-safe. |
 | AC-F04-11 | FR-15, NFR-09, NFR-10 | The reviewed contract retains stable IDs and every AC maps to a planned test and later actual evidence before Done. |
 
-## D. Software Test Specification (planned; not executed)
+## D. Software Test Specification (test definitions; execution results recorded separately)
 
 | Test ID | AC | Level | Preconditions and steps | Expected result and assertions |
 | --- | --- | --- | --- | --- |
@@ -102,17 +102,19 @@ F-04 requires no new tables, columns, or migrations. It reuses the F-01 User/ses
 | Version | Date | Status | Change |
 | --- | --- | --- | --- |
 | 0.1 | 2026-11-13 | Draft for teammate review | Initial F-04 design, AC, planned STS, privacy boundaries, and restart retrieval behavior. |
+| 0.2 | 2026-11-15 | Teammate accepted for Sprint 1 with documented follow-ups | Record teammate acceptance of v0.1 and independent PR #19 verification at `3d130deb06cda356c78b0e1204f652a879be62b5`. Document UI coverage in implementation evidence; AC-F04-11, final PR approval, and DoD completion remain pending. No behavioral requirements changed. |
 
 ### Baseline and open decisions
 
 - Approved baseline: F-01 server sessions, F-02 ownership/Event identity, F-03 committed Registration data, approved UTC/Asia/Bangkok convention, and team-approved React/TypeScript/Vite, Node.js/Express/TypeScript, PostgreSQL, and Prisma stack.
 - Proposed/open: CSRF transport, testing tools, and deployment configuration. Pagination is out of scope for Sprint 1. The F-04 endpoint path/method and reviewed request/response/error policy are teammate-confirmed; physical implementation details remain outside this contract approval.
 
-### Future completion evidence placeholders
+### Teammate acceptance and completion follow-ups
 
-- Teammate review: **TBD** — review decision and findings.
-- Implementation Issue/PR: **TBD** — link, branch, and merged commit.
-- Actual test source/results: **TBD** — files, commands, counts, failures/skips, and results.
-- Tested commit/release evidence: **TBD** — tested SHA, release reference, and restart/privacy evidence.
+- Teammate decision (2026-11-15): accepted the F-04 v0.1 contract for Sprint 1, including Organizer-only access, Event ownership, privacy and permitted fields, UI states, persistence, and F-01/F-02/F-03 dependencies.
+- Implementation: [Issue #11](https://github.com/Ttime52/EventCheck/issues/11), [PR #19](https://github.com/Ttime52/EventCheck/pull/19), branch `feature/09-organizer-registration-management`.
+- Independently tested commit: `3d130deb06cda356c78b0e1204f652a879be62b5`. The teammate reports 7/7 backend unit, 36/36 PostgreSQL integration, 20/20 frontend, and 16/16 full Playwright tests passed (E2E exit code 0), plus typecheck, production build, and manual UI verification passed. Database tests used isolated `eventcheck_test/public`.
+- Actual commands, historical interrupted Playwright execution, and specific AC-F04-10 coverage are documented in [F-04 implementation evidence](./f-04-implementation-evidence.md).
+- **AC-F04-11 remains pending** until final PR review and completion evidence are recorded. Final PR approval, merge/release identity, and Sprint 1 DoD completion are not claimed.
 
-No implementation or test execution is claimed. The contract must be accepted and reconciled with F-01, F-02, and F-03 before implementation.
+Contract acceptance is confirmed. The documented follow-ups do not constitute final PR approval or Definition of Done completion.
