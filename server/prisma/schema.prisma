@@ -70,8 +70,8 @@ model Registration {
   participantId String
   status       RegistrationStatus
   registeredAt DateTime         @default(now())
-  event        Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  participant  User             @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  event        Event            @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  participant  User             @relation(fields: [participantId], references: [id], onDelete: Restrict)
 
   @@index([eventId, status])
   @@index([participantId, status])

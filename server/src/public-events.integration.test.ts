@@ -83,4 +83,25 @@ describe.skipIf(!isolatedDatabase)("F-03 public event discovery", () => {
     const cancelled = await prisma.registration.create({ data: { eventId, participantId, status: RegistrationStatus.CANCELLED } });
     expect(cancelled.status).toBe(RegistrationStatus.CANCELLED);
   });
+
+  it("supports history-preserving RESTRICT cleanup ordering", async () => {
+    const passwordHash = await hashPassword(`restrict-${runId}`);
+    const organizer = await prisma.user.create({ data: { loginIdentifier: `f03-restrict-organizer-${runId}@example.test`, displayName: "F03 Restrict Organizer", role: Role.ORGANIZER, passwordHash } });
+    const participant = await prisma.user.create({ data: { loginIdentifier: `f03-restrict-participant-${runId}@example.test`, displayName: "F03 Restrict Participant", role: Role.PARTICIPANT, passwordHash } });
+    const restrictedEvent = await prisma.event.create({ data: { organizerId: organizer.id, title: `F03 Restrict Event ${runId}`, description: "RESTRICT fixture", location: "Room 3", startAt: new Date("2026-12-03T02:00:00.000Z"), endAt: new Date("2026-12-03T04:00:00.000Z"), capacity: 2, publicationState: PublicationState.PUBLISHED } });
+    const active = await prisma.registration.create({ data: { eventId: restrictedEvent.id, participantId: participant.id, status: RegistrationStatus.ACTIVE } });
+    const cancelled = await prisma.registration.create({ data: { eventId: restrictedEvent.id, participantId: participant.id, status: RegistrationStatus.CANCELLED } });
+    try {
+      await expect(prisma.event.delete({ where: { id: restrictedEvent.id } })).rejects.toThrow();
+      await expect(prisma.user.delete({ where: { id: participant.id } })).rejects.toThrow();
+      await expect(prisma.registration.findMany({ where: { id: { in: [active.id, cancelled.id] } }, orderBy: { id: "asc" } })).resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: active.id, status: RegistrationStatus.ACTIVE, eventId: restrictedEvent.id, participantId: participant.id }),
+        expect.objectContaining({ id: cancelled.id, status: RegistrationStatus.CANCELLED, eventId: restrictedEvent.id, participantId: participant.id }),
+      ]));
+    } finally {
+      await prisma.registration.deleteMany({ where: { id: { in: [active.id, cancelled.id] } } });
+      await prisma.event.delete({ where: { id: restrictedEvent.id } });
+      await prisma.user.deleteMany({ where: { id: { in: [participant.id, organizer.id] } } });
+    }
+  });
 });
