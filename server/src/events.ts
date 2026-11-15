@@ -90,3 +90,21 @@ export function eventView(event: Pick<EventRecord, "id" | "title" | "description
     publicationState: event.publicationState,
   };
 }
+
+export function publicEventView(event: Pick<EventRecord, "id" | "title" | "description" | "location" | "startAt" | "endAt" | "capacity">, activeRegistrations: number) {
+  if (event.capacity <= 0 || activeRegistrations < 0 || activeRegistrations > event.capacity) {
+    throw new Error("Invalid registration capacity state");
+  }
+  const remainingPlaces = event.capacity - activeRegistrations;
+  return {
+    id: event.id,
+    title: event.title,
+    description: event.description,
+    location: event.location,
+    startAt: event.startAt.toISOString(),
+    endAt: event.endAt.toISOString(),
+    capacity: event.capacity,
+    remainingPlaces,
+    registrationAvailable: remainingPlaces > 0,
+  };
+}

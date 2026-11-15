@@ -11,7 +11,7 @@ function isIsolatedE2EDatabase(value: string | undefined) {
   if (!value) return false;
   try {
     const url = new URL(value);
-    return url.protocol === "postgresql:" && url.hostname === "127.0.0.1" && url.port === "5433" && url.pathname === "/eventcheck_test";
+    return url.protocol === "postgresql:" && url.hostname === "127.0.0.1" && url.port === "5433" && url.pathname === "/eventcheck_test" && url.searchParams.get("schema") === "public";
   } catch {
     return false;
   }
@@ -109,7 +109,7 @@ test.describe("F-01 authentication", () => {
     await login(page, participantLogin!, participantPassword!);
     await expect(page.getByText("Welcome, Demo Participant")).toBeVisible();
 
-    const [sessionCookie] = await page.context().cookies("http://localhost:5173");
+    const [sessionCookie] = await page.context().cookies();
     expect(sessionCookie?.name).toBe("eventcheck_session");
     const prisma = new PrismaClient({ datasources: { db: { url: e2eDatabaseUrl! } } });
     try {
