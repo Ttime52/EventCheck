@@ -1,9 +1,10 @@
 import { PrismaClient, Role } from "@prisma/client";
 import { hashPassword } from "../src/security.js";
+import { assertSeedEnvironment } from "../src/seed-policy.js";
 
 const prisma = new PrismaClient();
 
-if (process.env.NODE_ENV === "production") throw new Error("Synthetic seed is disabled in production");
+assertSeedEnvironment(process.env.NODE_ENV);
 const participantPassword = process.env.SEED_PARTICIPANT_PASSWORD;
 const organizerPassword = process.env.SEED_ORGANIZER_PASSWORD;
 if (!participantPassword || !organizerPassword) throw new Error("Set SEED_PARTICIPANT_PASSWORD and SEED_ORGANIZER_PASSWORD in the ignored local environment");
