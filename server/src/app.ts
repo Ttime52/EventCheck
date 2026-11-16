@@ -220,6 +220,15 @@ app.get("/health", (_request, response) => {
   response.json({ status: "ok" });
 });
 
+app.get("/api/ready", async (_request, response) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return response.status(200).json({ status: "ready" });
+  } catch {
+    return response.status(503).json({ status: "unavailable" });
+  }
+});
+
 app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
   const parseError = error as { type?: string; status?: number };
   if (parseError.type === "entity.parse.failed" || parseError.status === 400) {

@@ -38,7 +38,7 @@ node --env-file=.env node_modules/prisma/build/index.js generate --schema server
 node --env-file=.env node_modules/tsx/dist/cli.mjs server/prisma/seed.ts
 ```
 
-Wait for the PostgreSQL health check before migrating. The checked-in migrations create the F-01 User/Session, F-02 Event, and F-03 Registration schema and referential restrictions. F-04 reuses the same schema. Seeding upserts `organizer@example.test` and `participant@example.test` with the local `SEED_*_PASSWORD` values. Seeding refuses to run with `NODE_ENV=production`.
+Wait for the PostgreSQL health check before migrating. The checked-in migrations create the F-01 User/Session, F-02 Event, and F-03 Registration schema and referential restrictions. F-04 reuses the same schema. Synthetic seeding is allowed only when `NODE_ENV` is exactly `development` or `test`; production, unknown, and unset values are rejected. It upserts `organizer@example.test` and `participant@example.test` using passwords supplied through the `SEED_*_PASSWORD` environment variables. Production demo-account provisioning must use a separate explicitly controlled process.
 
 `docker compose stop postgres` preserves the named data volume. `docker compose down -v` deletes local data; use it only for an intentional development reset.
 
@@ -50,6 +50,8 @@ Start the backend in one terminal:
 npm run build --workspace server
 node --env-file=.env server/dist/index.js
 ```
+
+Cloud Run supplies the `PORT` environment variable; the server prefers it and falls back to local `SERVER_PORT` (3000). The liveness endpoint is `GET /health`. The database readiness endpoint is `GET /api/ready`; it returns `200 {"status":"ready"}` only when PostgreSQL responds and `503 {"status":"unavailable"}` otherwise.
 
 Start the frontend in another:
 
