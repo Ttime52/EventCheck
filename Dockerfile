@@ -19,8 +19,10 @@
 #   * Secrets (DATABASE_URL, passwords) are NEVER baked into the image; they are
 #     injected at runtime from Secret Manager (see deploy/deploy.sh).
 #   * Stage 3 runs as the unprivileged `node` user (USER node) — keep it.
-#   * prisma/ is copied into the runtime image on purpose: the Cloud Run
-#     migration job runs `prisma migrate deploy` + seed from this same image.
+#   * prisma/ is copied into the runtime image for a separate production
+#     migration job. Production runs `prisma migrate deploy` only; it must never
+#     run the synthetic development seed. docker-compose.yml is local-only and
+#     runs migration plus seed for local demo accounts.
 #
 # REFERENCES
 #   - Multi-stage builds : https://docs.docker.com/build/building/multi-stage/
@@ -77,7 +79,7 @@ FROM node:24-alpine AS production
 WORKDIR /app/server
 RUN apk add --no-cache openssl
 
-# --- Copy build output from the previous stages (no dev tooling) -------------
+# --- Copy backend dependencies and build output -------------------------------
 COPY --from=server-builder /app/node_modules /app/node_modules
 COPY --from=server-builder /app/server/package.json ./package.json
 COPY --from=server-builder /app/server/dist ./dist
@@ -92,6 +94,7 @@ RUN chmod +x ./docker-entrypoint.sh
 # --- Runtime configuration ----------------------------------------------------
 ENV NODE_ENV=production
 ENV TZ=Asia/Bangkok
+ENV SERVE_CLIENT=true
 # CHANGE ME: PORT must match your app AND `--port` in deploy/deploy.sh (step 11).
 ENV PORT=3000
 EXPOSE 3000

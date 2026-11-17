@@ -17,6 +17,8 @@ services:
       timeout: 5s
       retries: 10
 
+  # Local development only: apply migrations and insert synthetic demo users.
+  # Production must run migrations separately and must never run db:seed.
   migrate:
     build:
       context: .

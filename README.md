@@ -28,6 +28,21 @@ A local development URL has this form, with your own local values:
 DATABASE_URL="postgresql://<local-user>:<local-password>@127.0.0.1:5433/eventcheck?schema=public"
 ```
 
+## Docker Compose and production migrations
+
+The full application stack in `docker-compose.yml` is for local development
+only. Its `migrate` service applies migrations and runs the synthetic demo seed
+for the local PostgreSQL volume. Do not use this migration-and-seed workflow in
+production.
+
+Production deployments use the root `Dockerfile` for the unified API and SPA
+image. Run `prisma migrate deploy` as a separate, one-shot production migration
+job with the production `DATABASE_URL` supplied securely. Do not run
+`npm run db:seed` or `server/prisma/seed.ts` in production; the synthetic seed
+is restricted to `NODE_ENV=development` or `test` under the Issue #24 policy.
+Production account provisioning, if needed, must be a separate explicitly
+approved process.
+
 ## PostgreSQL, migrations, and seed data
 
 ```sh
