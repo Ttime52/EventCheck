@@ -87,6 +87,8 @@ npm run prisma:validate
 
 `npm test` runs server unit and frontend component tests. Database integration tests skip when `DATABASE_URL` is unset. Their runner accepts only the isolated `127.0.0.1:5433/eventcheck_test?schema=public` database and rejects other URLs. Create that separate local database once. For the example Compose user:
 
+Pull requests into `sprint-1-staging` or `main` run `.github/workflows/ci-docker.yml`. The read-only `test-and-docker` job uses a temporary PostgreSQL service, runs offline deployment-script tests, backend/frontend checks, and builds the unified Docker image. It does not deploy to GCP or push an image.
+
 ```sh
 docker compose -f compose.db-only.yaml exec -T postgres psql -U eventcheck -d postgres -c 'CREATE DATABASE eventcheck_test;'
 ```
