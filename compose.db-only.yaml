@@ -1,3 +1,4 @@
+# Database-only Compose configuration. Select it explicitly with -f.
 services:
   postgres:
     image: postgres:16-alpine

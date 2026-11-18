@@ -1,4 +1,6 @@
 import express from "express";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { prisma, requireAuth, csrfGuard, newSessionId, setSessionCookie, clearSessionCookie, safeUser, ABSOLUTE_MS, requireRole, type AuthenticatedRequest } from "./auth.js";
 import { verifyPassword } from "./security.js";
 import { PublicationState, RegistrationStatus, Role } from "@prisma/client";
@@ -219,6 +221,26 @@ app.patch("/api/v1/organizer/events/:eventId", requireAuth, requireRole(Role.ORG
 app.get("/health", (_request, response) => {
   response.json({ status: "ok" });
 });
+
+app.get("/api/ready", async (_request, response) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return response.status(200).json({ status: "ready" });
+  } catch {
+    return response.status(503).json({ status: "unavailable" });
+  }
+});
+
+if (process.env.SERVE_CLIENT === "true") {
+  const clientDistPath = fileURLToPath(new URL("../../client/dist/", import.meta.url));
+  app.use(express.static(clientDistPath));
+  app.use((request, response, next) => {
+    if (request.method !== "GET" || request.path === "/api" || request.path.startsWith("/api/")) return next();
+    response.sendFile(resolve(clientDistPath, "index.html"), error => {
+      if (error) next(error);
+    });
+  });
+}
 
 app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
   const parseError = error as { type?: string; status?: number };

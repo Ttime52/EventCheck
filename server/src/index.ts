@@ -3,7 +3,7 @@ import { app } from "./app.js";
 import { config } from "./config.js";
 
 const server = createServer(app);
-server.listen(config.port, () => {
+server.listen(config.port, "0.0.0.0", () => {
   console.log(`EventCheck API listening on port ${config.port}`);
 });
 
