@@ -28,11 +28,26 @@ A local development URL has this form, with your own local values:
 DATABASE_URL="postgresql://<local-user>:<local-password>@127.0.0.1:5433/eventcheck?schema=public"
 ```
 
+## Docker Compose and production migrations
+
+The full application stack in `docker-compose.yml` is for local development
+only. Its `migrate` service applies migrations and runs the synthetic demo seed
+for the local PostgreSQL volume. Do not use this migration-and-seed workflow in
+production.
+
+Production deployments use the root `Dockerfile` for the unified API and SPA
+image. Run `prisma migrate deploy` as a separate, one-shot production migration
+job with the production `DATABASE_URL` supplied securely. Do not run
+`npm run db:seed` or `server/prisma/seed.ts` in production; the synthetic seed
+is restricted to `NODE_ENV=development` or `test` under the Issue #24 policy.
+Production account provisioning, if needed, must be a separate explicitly
+approved process.
+
 ## PostgreSQL, migrations, and seed data
 
 ```sh
-docker compose up -d postgres
-docker compose ps
+docker compose -f compose.db-only.yaml up -d postgres
+docker compose -f compose.db-only.yaml ps
 node --env-file=.env node_modules/prisma/build/index.js migrate deploy --schema server/prisma/schema.prisma
 node --env-file=.env node_modules/prisma/build/index.js generate --schema server/prisma/schema.prisma
 node --env-file=.env node_modules/tsx/dist/cli.mjs server/prisma/seed.ts
@@ -40,7 +55,7 @@ node --env-file=.env node_modules/tsx/dist/cli.mjs server/prisma/seed.ts
 
 Wait for the PostgreSQL health check before migrating. The checked-in migrations create the F-01 User/Session, F-02 Event, and F-03 Registration schema and referential restrictions. F-04 reuses the same schema. Synthetic seeding is allowed only when `NODE_ENV` is exactly `development` or `test`; production, unknown, and unset values are rejected. It upserts `organizer@example.test` and `participant@example.test` using passwords supplied through the `SEED_*_PASSWORD` environment variables. Production demo-account provisioning must use a separate explicitly controlled process.
 
-`docker compose stop postgres` preserves the named data volume. `docker compose down -v` deletes local data; use it only for an intentional development reset.
+`docker compose -f compose.db-only.yaml stop postgres` preserves the named data volume. `docker compose -f compose.db-only.yaml down -v` deletes local data; use it only for an intentional development reset.
 
 ## Run the application
 
@@ -73,7 +88,7 @@ npm run prisma:validate
 `npm test` runs server unit and frontend component tests. Database integration tests skip when `DATABASE_URL` is unset. Their runner accepts only the isolated `127.0.0.1:5433/eventcheck_test?schema=public` database and rejects other URLs. Create that separate local database once. For the example Compose user:
 
 ```sh
-docker compose exec -T postgres psql -U eventcheck -d postgres -c 'CREATE DATABASE eventcheck_test;'
+docker compose -f compose.db-only.yaml exec -T postgres psql -U eventcheck -d postgres -c 'CREATE DATABASE eventcheck_test;'
 ```
 
 If it already exists, skip creation. Add a separate test URL to the ignored `.env`, replacing the placeholders with your local test credentials:

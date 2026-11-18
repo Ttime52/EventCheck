@@ -1,0 +1,74 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: eventcheck-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-eventcheck}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eventcheck}
+      POSTGRES_DB: ${POSTGRES_DB:-eventcheck}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-eventcheck} -d ${POSTGRES_DB:-eventcheck}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Local development only: apply migrations and insert synthetic demo users.
+  # Production must run migrations separately and must never run db:seed.
+  migrate:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: eventcheck-migrate
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-eventcheck}:${POSTGRES_PASSWORD:-eventcheck}@db:5432/${POSTGRES_DB:-eventcheck}?schema=public
+      SEED_PARTICIPANT_PASSWORD: ${SEED_PARTICIPANT_PASSWORD:-Test123!}
+      SEED_ORGANIZER_PASSWORD: ${SEED_ORGANIZER_PASSWORD:-Test123!}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-AdminInitial123!}
+      DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-DemoInitial123!}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+    command: ["sh", "-c", "npx prisma migrate deploy && npm run db:seed"]
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: eventcheck-server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      TZ: Asia/Bangkok
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-eventcheck}:${POSTGRES_PASSWORD:-eventcheck}@db:5432/${POSTGRES_DB:-eventcheck}?schema=public
+    ports:
+      - "3000:3000"
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+      args:
+        VITE_API_URL: ""
+    container_name: eventcheck-client
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "5173:80"
+
+volumes:
+  postgres_data:

@@ -258,7 +258,7 @@ export E2E_PARTICIPANT_PASSWORD="$SEED_PARTICIPANT_PASSWORD"
 export E2E_ORGANIZER_LOGIN='organizer@example.test'
 export E2E_ORGANIZER_PASSWORD="$SEED_ORGANIZER_PASSWORD"
 export NODE_ENV=development
-docker compose up -d postgres
+docker compose -f compose.db-only.yaml up -d postgres
 npm run db:migrate --workspace server
 npm run db:seed --workspace server
 npx playwright install chromium
