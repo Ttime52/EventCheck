@@ -1,0 +1,94 @@
+name: CI & Docker Build
+
+on:
+  pull_request:
+    branches: [sprint-1-staging, main]
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: eventcheck
+          POSTGRES_PASSWORD: eventcheck
+          POSTGRES_DB: eventcheck_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U eventcheck -d eventcheck_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Setup Python 3.14
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.14"
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Check deployment scripts offline
+        run: |
+          bash -n deploy/deploy.sh deploy/teardown.sh deploy/release.sh
+          bash deploy/tests/test_deploy_stub.sh
+          bash deploy/tests/test_release_stub.sh
+          python3 -m unittest discover -s deploy/tests -p 'test_smoke.py'
+
+      - name: Generate and validate Prisma Client
+        env:
+          DATABASE_URL: postgresql://eventcheck:eventcheck@127.0.0.1:5433/eventcheck_test?schema=public
+        run: |
+          npm run prisma:generate
+          npm run prisma:validate
+
+      - name: Migrate and seed isolated CI database
+        env:
+          DATABASE_URL: postgresql://eventcheck:eventcheck@127.0.0.1:5433/eventcheck_test?schema=public
+          NODE_ENV: test
+          SEED_PARTICIPANT_PASSWORD: ci-test-participant
+          SEED_ORGANIZER_PASSWORD: ci-test-organizer
+        run: |
+          npm exec -- prisma migrate deploy --schema server/prisma/schema.prisma
+          npm run db:seed --workspace=server
+
+      - name: Backend unit tests
+        run: npm test --workspace=server -- --run
+
+      - name: Backend PostgreSQL integration tests
+        env:
+          DATABASE_URL: postgresql://eventcheck:eventcheck@127.0.0.1:5433/eventcheck_test?schema=public
+        run: npm run test:integration --workspace=server
+
+      - name: Frontend tests, typecheck, and build
+        run: |
+          npm test --workspace=client -- --run
+          npm run typecheck
+          npm run build
+
+      - name: Build unified production Docker image
+        run: docker build --tag eventcheck-ci:${{ github.sha }} .

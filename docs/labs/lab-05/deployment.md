@@ -1,13 +1,12 @@
-# Lab 5 Episode 2 — Deployment Plan
+# Lab 5 Episodes 2 and 4 — Deployment Plan
 
 ## Deployment status
 
-This is the initial deployment plan for EventCheck Issue #24 (the Student Guide
-calls the corresponding exercise “Issue #2”). The repository contains local
-cloud-readiness changes for seed safety, Cloud Run port handling, database
-sessions, and a PostgreSQL readiness endpoint. Docker packaging, CI/CD, GCP
-resources, and a production deployment are not implemented or verified by this
-document.
+This document records the planned deployment architecture for EventCheck Issue
+#24 and the pull-request CI boundary for Issue #26 (the Student Guide labels
+these exercises as Issues #2 and #4). Source-level cloud-readiness and Docker
+packaging are present; GCP resources, CI/CD execution on GitHub, and a
+production deployment are not claimed here.
 
 The six source-level checks are recorded separately in
 [`cloud-readiness.md`](./cloud-readiness.md). This document describes the
@@ -46,7 +45,7 @@ must be supplied by the approved deployment configuration or secret mechanism.
 | `PORT` | Optional local override | Cloud Run supplied listener port |
 | `SERVER_PORT` | Local fallback, default `3000` | Not required when Cloud Run supplies `PORT` |
 | `DATABASE_URL` | Local PostgreSQL or isolated test PostgreSQL URL | Cloud SQL PostgreSQL URL supplied securely |
-| `CLIENT_ORIGIN` | Local frontend origin, normally `http://localhost:5173` | Approved deployed frontend origin |
+| `CLIENT_ORIGIN` | Local frontend origin, normally `http://localhost:5173` | Must be set to the actual deployed frontend/browser origin; final production value is a deployment decision |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` / `POSTGRES_PORT` | Docker Compose PostgreSQL settings | Not a substitute for managed Cloud SQL configuration |
 | `SEED_PARTICIPANT_PASSWORD` / `SEED_ORGANIZER_PASSWORD` | Synthetic local/test seed passwords | Must not be used as an implicit production provisioning mechanism |
 | `E2E_DATABASE_URL` | Optional isolated E2E database only | Not a production setting |
@@ -134,3 +133,18 @@ collecting Episode 2 evidence.
 This document does not claim deployment, cloud-resource creation, billing/IAM
 configuration, CI/CD execution, or production verification. Those claims
 require separate evidence tied to a reviewed commit and deployed revision.
+
+## Episode 4 CI boundary
+
+`.github/workflows/ci-docker.yml` is the pull-request quality gate for
+`sprint-1-staging` and `main`, and can also be called with `workflow_call` or
+started manually with `workflow_dispatch`. Its `test-and-docker` job installs
+from the root lockfile, runs the offline deployment-script checks, uses a
+throw-away GitHub Actions PostgreSQL service named `eventcheck_test`, runs
+Prisma setup plus backend/frontend checks, and builds the root Docker image.
+
+The workflow has read-only repository permissions and does not authenticate to
+GCP, push images, or access production secrets. GitHub Actions success must be
+verified on an actual pull request; local checks alone are not release evidence.
+Episodes 5–7 remain responsible for first deployment, CI/CD authentication, and
+release/persistence evidence.
