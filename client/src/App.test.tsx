@@ -13,7 +13,7 @@ describe("F-01 authentication UI (TEST-F01-12)", () => {
     let calls = 0;
     fetchMock.mockImplementation(() => { calls += 1; return calls === 1 ? response(null, false, 401) : response({ data: { user } }); });
     render(<App />);
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Sign in"));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("INTENTIONAL GATE FAILURE"));
     expect(screen.getByLabelText("Login identifier")).toBeInTheDocument();
     fireEvent.input(screen.getByLabelText("Login identifier"), { target: { value: "participant@example.test" } });
     fireEvent.input(screen.getByLabelText("Password"), { target: { value: "secret" } });
