@@ -34,16 +34,64 @@ import urllib.request
 
 # --- HTTP helper --------------------------------------------------------------
 # Returns the response body (bytes). Raises on HTTP errors / timeouts.
-def request(base, path, data=None, token=None):
+def request(base, path, data=None, token=None, cookie=None, origin=None):
     headers = {}
     if data is not None:
         headers['Content-Type'] = 'application/json'
     if token:
         headers['Authorization'] = 'Bearer ' + token
+    if cookie:
+        headers['Cookie'] = cookie
+    if origin:
+        headers['Origin'] = origin
     req = urllib.request.Request(base + path, headers=headers,
         data=json.dumps(data).encode() if data is not None else None)
     with urllib.request.urlopen(req, timeout=30) as response:
         return response.read()
+
+
+def authenticated_check(base, email, password):
+    """Exercise EventCheck's cookie session using the real auth endpoints."""
+    import http.cookiejar
+
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+    origin = (os.environ.get('SMOKE_ORIGIN') or base).rstrip('/')
+    if not origin:
+        raise RuntimeError('Smoke service URL is required')
+
+    def call(path, data=None):
+        headers = {'Origin': origin}
+        if data is not None:
+            headers['Content-Type'] = 'application/json'
+        req = urllib.request.Request(
+            base.rstrip('/') + path,
+            headers=headers,
+            data=json.dumps(data).encode() if data is not None else None,
+            method='POST' if data is not None else 'GET',
+        )
+        with opener.open(req, timeout=30) as response:
+            return response.status, response.read()
+
+    try:
+        status, body = call('/api/v1/auth/login', {
+            'loginIdentifier': email,
+            'password': password,
+        })
+        payload = json.loads(body)
+        if status != 200 or not payload.get('data', {}).get('user', {}).get('id'):
+            raise RuntimeError('Login smoke check failed')
+        status, body = call('/api/v1/me')
+        if status != 200 or not json.loads(body).get('data', {}).get('user', {}).get('id'):
+            raise RuntimeError('Session smoke check failed')
+        status, _ = call('/api/v1/auth/logout', {})
+        if status != 204:
+            raise RuntimeError('Logout smoke check failed')
+    except (urllib.error.HTTPError, urllib.error.URLError, ValueError, RuntimeError) as error:
+        if isinstance(error, RuntimeError):
+            raise
+        raise RuntimeError('Authenticated smoke check failed') from None
+    print('PASS login/session/logout')
 
 
 def check(base):
@@ -65,6 +113,15 @@ def check(base):
                     raise RuntimeError('Smoke check failed: ' + path) from None
                 time.sleep(3)
         print('PASS ' + path)
+
+    email = os.environ.get('SMOKE_EMAIL')
+    password = os.environ.get('SMOKE_PASSWORD')
+    if not email and not password:
+        print('SKIP login')
+    elif not email or not password:
+        raise RuntimeError('SMOKE_EMAIL and SMOKE_PASSWORD must be configured together')
+    else:
+        authenticated_check(base.rstrip('/'), email, password)
 
 # --- Entry point ----------------------------------------------------------------
 if __name__ == '__main__':
