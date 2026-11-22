@@ -47,6 +47,37 @@ jobs:
           : "${WIF_PROVIDER:?Set WIF_PROVIDER in the demo environment}"
           : "${WIF_SERVICE_ACCOUNT:?Set WIF_SERVICE_ACCOUNT in the demo environment}"
 
+      - name: Diagnose OIDC claims (temporary)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, json, base64, urllib.request
+
+          req = urllib.request.Request(
+              os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"],
+              headers={
+                  "Authorization": "Bearer "
+                  + os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]
+              },
+          )
+
+          with urllib.request.urlopen(req) as response:
+              token = json.load(response)["value"]
+
+          payload = token.split(".")[1]
+          payload += "=" * (-len(payload) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(payload))
+
+          for key in [
+              "repository_id",
+              "repository_owner_id",
+              "ref",
+              "workflow_ref",
+              "sub",
+          ]:
+              print(f"{key}: {claims.get(key)}")
+          PY
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
