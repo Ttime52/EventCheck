@@ -17,7 +17,7 @@ const compilerEntry = resolve(serverDir, "../node_modules/typescript/bin/tsc");
 const build = spawnSync(process.execPath, [compilerEntry, "-p", resolve(serverDir, "tsconfig.json")], { cwd: serverDir, stdio: "inherit", env: process.env });
 if ((build.status ?? 1) !== 0) process.exit(build.status ?? 1);
 const vitestEntry = resolve(serverDir, "../node_modules/vitest/vitest.mjs");
-const suites = ["src/auth.integration.test.ts", "src/events.integration.test.ts", "src/public-events.integration.test.ts", "src/registration.integration.test.ts", "src/organizer-registrations.integration.test.ts"];
+const suites = ["src/auth.integration.test.ts", "src/events.integration.test.ts", "src/public-events.integration.test.ts", "src/registration.integration.test.ts", "src/organizer-registrations.integration.test.ts", "src/production-provisioning.integration.test.ts"];
 for (const suite of suites) {
   const result = spawnSync(process.execPath, [vitestEntry, "run", suite], { cwd: serverDir, stdio: "inherit", env: process.env });
   if ((result.status ?? 1) !== 0) process.exit(result.status ?? 1);
