@@ -85,10 +85,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           {
-            echo "## EventCheck deployment"
-            echo
-            echo "- Release commit: `${GITHUB_SHA}`"
-            echo "- Deployed image: `${DEPLOYED_IMAGE}`"
-            echo "- Cloud Run service: ${SERVICE_URL}"
+            printf '## EventCheck deployment\n\n'
+            printf -- '- Release commit: `%s`\n' "$GITHUB_SHA"
+            printf -- '- Deployed image: `%s`\n' "$DEPLOYED_IMAGE"
+            printf -- '- Cloud Run service: %s\n' "$SERVICE_URL"
           } >> "$GITHUB_STEP_SUMMARY"
