@@ -123,10 +123,165 @@ collecting Episode 2 evidence.
 7. Production passwords must never be hardcoded, committed, printed, or shown
    in screenshots.
 8. Provisioning must not reset production data or overwrite unrelated users.
-9. The production provisioning process is **PLANNED, not implemented** in this
-   repository. No working production provisioning command is claimed.
+9. A separate production account provisioning command is implemented in
+   `server/prisma/provision-production-accounts.ts`; it has not been run against
+   Cloud SQL by this repository change. No production account creation is claimed.
 10. Future Episode 5 and Episode 7 deployment scripts must be reviewed to
     ensure they never combine production migration with the development seed.
+
+## One-time production demo-account provisioning
+
+The production provisioning utility creates a synthetic `ORGANIZER` and a
+synthetic `PARTICIPANT` for the EventCheck demo. It is separate from
+`server/prisma/seed.ts`, the Episode 5 migration job, and routine Episode 7
+releases. It is not called by `deploy/deploy.sh`, `deploy/release.sh`, or
+`.github/workflows/deploy.yml`.
+
+The command is `npm run db:provision-production-accounts` in the server
+workspace. It requires `NODE_ENV=production`, a PostgreSQL `DATABASE_URL`, and
+the following values supplied to the Cloud Run Job from Secret Manager:
+
+| Environment variable | Secret Manager secret | Purpose |
+|---|---|---|
+| `PROVISION_ORGANIZER_EMAIL` | `eventcheck-provision-organizer-email` | Organizer login identifier |
+| `PROVISION_ORGANIZER_PASSWORD` | `eventcheck-provision-organizer-password` | Organizer password; at least 16 characters |
+| `PROVISION_PARTICIPANT_EMAIL` | `eventcheck-provision-participant-email` | Participant login identifier |
+| `PROVISION_PARTICIPANT_PASSWORD` | `eventcheck-provision-participant-password` | Participant password; at least 16 characters |
+| `DATABASE_URL` | Existing `eventcheck-database-url` | Cloud SQL connection used by Prisma |
+
+Emails are trimmed and normalized to lowercase. The two email addresses and the
+two passwords must be different. Password values are used exactly as stored in
+Secret Manager. The script validates the complete configuration before opening
+a Prisma client, looks up both login identifiers case-insensitively, and checks
+role conflicts before writing. Missing accounts are inserted in one database
+transaction with salted scrypt hashes compatible with login. A matching existing
+account is left byte-for-byte unchanged, including its display name and
+password hash. If an email already belongs to the other role, the command fails
+before writing either account. If an existing login identifier differs only in
+letter casing, or multiple case variants exist, the command also fails closed;
+it never silently treats a case-sensitive login as usable. The production seed
+restriction remains in force; do not set another `NODE_ENV` or run
+`server/prisma/seed.ts` in production.
+
+### Prepare the one-time job after the application change is approved
+
+Run these steps manually only after the provisioning code has been merged and
+the Episode 7 release has successfully deployed an image containing it. They
+create Secret Manager resources and a Cloud Run Job, and add secret-level IAM
+access for the existing runtime service account. This repository change does
+not run these commands or change GCP resources, IAM, secrets, or production data.
+
+1. Set the project and region used by the existing EventCheck deployment in
+   Cloud Shell:
+
+   ```sh
+   export PROJECT_ID=YOUR_GCP_PROJECT_ID
+   export REGION=YOUR_GCP_REGION
+   ```
+
+2. Create the four secrets if they do not already exist:
+
+   ```sh
+   gcloud secrets create eventcheck-provision-organizer-email --replication-policy=automatic --project="$PROJECT_ID"
+   gcloud secrets create eventcheck-provision-organizer-password --replication-policy=automatic --project="$PROJECT_ID"
+   gcloud secrets create eventcheck-provision-participant-email --replication-policy=automatic --project="$PROJECT_ID"
+   gcloud secrets create eventcheck-provision-participant-password --replication-policy=automatic --project="$PROJECT_ID"
+   ```
+
+   In Secret Manager, add a version to each secret with its intended value.
+   Generate two different strong passwords (at least 16 characters). Do not
+   put secret values in shell commands, shell history, source control, screenshots,
+   or logs. If a named secret already exists, inspect its owner and versions
+   before using it; do not replace a version just to rerun provisioning.
+
+3. Grant the existing runtime account access to these four secrets individually.
+   Keep the existing secret-level grant for `eventcheck-database-url`; do not
+   grant project-wide Secret Manager access.
+
+   ```sh
+   RUNTIME_SA="eventcheck-runner@${PROJECT_ID}.iam.gserviceaccount.com"
+   for SECRET in \
+     eventcheck-provision-organizer-email \
+     eventcheck-provision-organizer-password \
+     eventcheck-provision-participant-email \
+     eventcheck-provision-participant-password
+   do
+     gcloud secrets add-iam-policy-binding "$SECRET" \
+       --member="serviceAccount:${RUNTIME_SA}" \
+       --role="roles/secretmanager.secretAccessor" \
+       --project="$PROJECT_ID"
+   done
+   ```
+
+4. Deploy a dedicated one-task job using the immutable image currently serving
+   EventCheck. The job uses the existing runtime service account and Cloud SQL
+   connection. `gcloud run jobs deploy` creates or updates this job; it does not
+   execute it.
+
+   ```sh
+   IMAGE="$(gcloud run services describe eventcheck \
+     --region="$REGION" --project="$PROJECT_ID" \
+     --format='value(spec.template.spec.containers[0].image)')"
+   test -n "$IMAGE"
+
+   gcloud run jobs deploy eventcheck-provision-accounts \
+     --image="$IMAGE" \
+     --region="$REGION" \
+     --project="$PROJECT_ID" \
+     --service-account="eventcheck-runner@${PROJECT_ID}.iam.gserviceaccount.com" \
+     --set-cloudsql-instances="${PROJECT_ID}:${REGION}:eventcheck-pg" \
+     --set-secrets="DATABASE_URL=eventcheck-database-url:latest,PROVISION_ORGANIZER_EMAIL=eventcheck-provision-organizer-email:latest,PROVISION_ORGANIZER_PASSWORD=eventcheck-provision-organizer-password:latest,PROVISION_PARTICIPANT_EMAIL=eventcheck-provision-participant-email:latest,PROVISION_PARTICIPANT_PASSWORD=eventcheck-provision-participant-password:latest" \
+     --set-env-vars="NODE_ENV=production,TZ=Asia/Bangkok" \
+     --command=npm \
+     --args=run,db:provision-production-accounts \
+     --tasks=1 \
+     --max-retries=0 \
+     --task-timeout=300s
+   ```
+
+5. Review the job configuration and secret versions, then explicitly execute it
+   once:
+
+   ```sh
+   gcloud run jobs execute eventcheck-provision-accounts \
+     --region="$REGION" --project="$PROJECT_ID" --wait
+   ```
+
+   A successful execution logs only role and outcome (for example,
+   `ORGANIZER account created`); it never logs email addresses, passwords,
+   password hashes, or the database URL. Check the latest execution in Cloud Run
+   Jobs and its logs. On failure, confirm the job image, `NODE_ENV`, required
+   secret versions, secret-level access for `eventcheck-runner`, Cloud SQL
+   connection name, and database readiness. The job suppresses raw Prisma
+   errors because they may contain connection details. Correct the configuration
+   and execute the same job again only after reviewing it; reruns are safe and
+   do not reset existing accounts.
+
+6. Verify each account privately by signing in at the public EventCheck URL and
+   confirming the expected role. Confirm the Organizer can reach event creation
+   and the Participant can browse/register. Do not capture or share passwords.
+   This source change and a successful job status alone are not evidence that
+   account login was verified.
+
+### Episode 7.3 authenticated smoke test
+
+Use the provisioned `PARTICIPANT` account as the lowest-privilege smoke-test
+account. In the GitHub `demo` environment, set `SMOKE_EMAIL` to that account's
+email as an environment variable, `SMOKE_PASSWORD` to the same password as an
+environment secret, and `SMOKE_ORIGIN` to the deployed Cloud Run service URL.
+The `deploy.yml` smoke step already passes these values to
+`deploy/smoke_test.py`. On a subsequent successful release it performs login,
+retrieves the authenticated identity, and logs out; the expected result is
+`PASS login/session/logout`. The password is supplied as an environment secret
+and is not written into the workflow or this document. Configure both login
+values or neither; the workflow skips the login check when both are absent and
+fails closed if only one is set. Ensure the Cloud Run service's `CLIENT_ORIGIN`
+equals the public service URL; `SMOKE_ORIGIN` must have that same value so the
+application's Origin-based CSRF check accepts login and logout requests.
+
+Provisioning remains a manual, one-time operation even when authenticated smoke
+testing is configured. Routine releases continue to run migrations and deploy
+the application without invoking the provisioning command.
 
 ## Review boundary
 
