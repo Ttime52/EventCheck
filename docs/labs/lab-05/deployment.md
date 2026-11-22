@@ -148,3 +148,35 @@ GCP, push images, or access production secrets. GitHub Actions success must be
 verified on an actual pull request; local checks alone are not release evidence.
 Episodes 5–7 remain responsible for first deployment, CI/CD authentication, and
 release/persistence evidence.
+
+## Episode 7 release procedure (planned and repeatable)
+
+The prepared `.github/workflows/deploy.yml` is the Episode 7 release workflow.
+The repeatable path is:
+
+1. Develop on a feature branch and open a pull request into
+   `sprint-1-staging`.
+2. Obtain teammate review and wait for the Episode 4 CI workflow to pass.
+3. Open a release pull request from the reviewed staging state into `main`.
+4. After that release pull request is merged, the deployment workflow runs on
+   `main`. It builds and pushes an image tagged with the merged commit SHA,
+   runs the versioned migration job, updates Cloud Run, and then runs the
+   public smoke checks (`/health`, `/api/ready`, and `/`).
+
+The deploy job uses the GitHub `demo` environment and Workload Identity
+Federation. It requires `GCP_PROJECT_ID`, `GCP_REGION`, `WIF_PROVIDER`, and
+`WIF_SERVICE_ACCOUNT`; no service-account key is stored in the repository.
+Optional authenticated smoke checks use `vars.SMOKE_EMAIL`, the secret
+`SMOKE_PASSWORD`, and `vars.SMOKE_ORIGIN`. If neither login value is supplied,
+the workflow records `SKIP login`; supplying only one value fails closed.
+`SMOKE_ORIGIN` must match the deployed `CLIENT_ORIGIN` so EventCheck's Origin
+and CSRF validation remains enabled.
+
+After a successful run, inspect the workflow's **Summary** for the release
+commit SHA, immutable deployed image digest, and Cloud Run service URL. The
+Cloud Run revision should be checked in the Google Cloud console or with
+`gcloud run revisions list/describe`, confirming that its image digest matches
+the summary. The deployed image tag and workflow commit must match the merged
+`main` commit. These deployment and revision checks are instructions for real
+Episode 7 execution; this repository does not claim that a production run has
+already completed.
