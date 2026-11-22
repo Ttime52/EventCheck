@@ -736,6 +736,7 @@ export function App() {
           <span className="brand-mark" aria-hidden="true">✦</span>
           EventCheck
         </a>
+        <p className="deployment-label">EventCheck — Deployment verification v2</p>
         <div className="card-heading">
           <p className="eyebrow">Welcome back</p>
           <h1 id="login-heading">Let’s get you there.</h1>
