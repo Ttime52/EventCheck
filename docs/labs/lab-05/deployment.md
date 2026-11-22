@@ -1,19 +1,18 @@
-# Lab 5 Episodes 2 and 4 — Deployment Plan
+# Lab 5 Episodes 2, 4, and 7 — Deployment Plan
 
 ## Deployment status
 
-This document records the planned deployment architecture for EventCheck Issue
-#24 and the pull-request CI boundary for Issue #26 (the Student Guide labels
-these exercises as Issues #2 and #4). Source-level cloud-readiness and Docker
-packaging are present; GCP resources, CI/CD execution on GitHub, and a
-production deployment are not claimed here.
+This document records the deployment architecture for EventCheck Issue #24,
+the pull-request CI boundary for Issue #26, and the Episode 7 release procedure
+(the Student Guide labels these exercises as Issues #2, #4, and #7). Source-
+level cloud-readiness, Docker packaging, GitHub Actions CI, and a historical
+Cloud Run release are documented below. Current production state must still be
+checked against the latest GitHub Actions run and Cloud Run revision.
 
 The six source-level checks are recorded separately in
-[`cloud-readiness.md`](./cloud-readiness.md). This document describes the
-intended deployment architecture and the operational contract that must be
-reviewed before deployment.
+[`cloud-readiness.md`](./cloud-readiness.md). This document describes the implemented deployment architecture, verified historical release evidence, and operational procedures for subsequent deployments.
 
-## Target architecture (planned)
+## Target architecture and verified release boundary
 
 The intended architecture is:
 
@@ -28,10 +27,17 @@ The intended architecture is:
 - GitHub Actions for build/test and deployment workflows, authenticated to GCP
   through Workload Identity Federation.
 
-These services and the single-container packaging workflow are planned Lab 5
-choices. No Cloud Run service, Cloud SQL instance, Artifact Registry
-repository, Secret Manager secret, IAM binding, or GitHub Actions deployment is
-claimed here.
+The single-container packaging and deployment workflow are implemented. A
+historical release was verified for Cloud Run service `eventcheck` in project
+`cpe334-th-008`, region `asia-southeast1`, using revision
+`eventcheck-00006-mqn` and production URL
+<https://eventcheck-4otxlp3nna-as.a.run.app>. This evidence is tied to release
+commit `945a59c`, Release PR [#41](https://github.com/Ttime52/EventCheck/pull/41),
+Feature PR [#40](https://github.com/Ttime52/EventCheck/pull/40), and Actions run
+[#44999977201](https://github.com/Ttime52/EventCheck/actions/runs/44999977201).
+It is historical evidence, not a claim that this remains the latest revision.
+Production demo-account provisioning remains a separate manual operation and
+has not been claimed as executed.
 
 ## Environment configuration
 
@@ -39,21 +45,36 @@ The root [`.env.example`](../../../.env.example) contains placeholders only.
 Local and test values must remain in the ignored `.env` file; production values
 must be supplied by the approved deployment configuration or secret mechanism.
 
-| Variable | Local/test use | Production intent |
-|---|---|---|
-| `NODE_ENV` | `development` or `test` for local synthetic seed operations | `production`; synthetic seed is rejected |
-| `PORT` | Optional local override | Cloud Run supplied listener port |
-| `SERVER_PORT` | Local fallback, default `3000` | Not required when Cloud Run supplies `PORT` |
-| `DATABASE_URL` | Local PostgreSQL or isolated test PostgreSQL URL | Cloud SQL PostgreSQL URL supplied securely |
-| `CLIENT_ORIGIN` | Local frontend origin, normally `http://localhost:5173` | Must be set to the actual deployed frontend/browser origin; final production value is a deployment decision |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` / `POSTGRES_PORT` | Docker Compose PostgreSQL settings | Not a substitute for managed Cloud SQL configuration |
-| `SEED_PARTICIPANT_PASSWORD` / `SEED_ORGANIZER_PASSWORD` | Synthetic local/test seed passwords | Must not be used as an implicit production provisioning mechanism |
-| `E2E_DATABASE_URL` | Optional isolated E2E database only | Not a production setting |
-| `E2E_API_PORT` / `E2E_WEB_PORT` | Isolated Playwright ports | Not a production setting |
-| `E2E_ORGANIZER_LOGIN` / `E2E_PARTICIPANT_LOGIN` | Optional E2E account overrides | Not a production setting |
-| `E2E_ORGANIZER_PASSWORD` / `E2E_PARTICIPANT_PASSWORD` | Optional E2E password overrides; otherwise use `SEED_*_PASSWORD` | Not a production setting |
-| `E2E_CAPTURE_EVIDENCE` | Optional local evidence capture flag | Not a production setting |
-| `VITE_API_PROXY_TARGET` | Local Vite proxy target | Build/deployment routing decision remains to be finalized |
+| Variable | Purpose | Local/Test Use | Production Use | Secret? | Source |
+|---|---|---|---|---|---|
+| `NODE_ENV` | Selects runtime mode and seed policy | `development` or `test`; synthetic seed is allowed | Set to `production`; synthetic seed is rejected | No | Local `.env`, Compose, or Cloud Run environment |
+| `PORT` | HTTP listener port | Optional local override | Supplied by Cloud Run | No | Cloud Run runtime; local `.env` override |
+| `SERVER_PORT` | Local fallback listener port | Defaults to `3000` when `PORT` is absent | Not required when Cloud Run supplies `PORT` | No | Local `.env` |
+| `DATABASE_URL` | Prisma PostgreSQL connection | Local Compose database or guarded `eventcheck_test` URL | Cloud SQL URL supplied through Secret Manager | Yes | Local ignored `.env`, Compose-generated value, or `eventcheck-database-url` |
+| `CLIENT_ORIGIN` | Allowed browser Origin for cookie-authenticated writes and CSRF checks | Normally `http://localhost:5173` | Must equal the deployed browser origin | No | Local `.env` or reviewed Cloud Run environment configuration |
+| `SERVE_CLIENT` | Enables Express to serve the built frontend | Usually unset during Vite development | `true` in the unified production image | No | Root Dockerfile/runtime environment |
+| `POSTGRES_USER` | Local PostgreSQL username | Compose database and generated `DATABASE_URL` | Not used as a Cloud SQL substitute | No | Local `.env` or Compose defaults |
+| `POSTGRES_PASSWORD` | Local PostgreSQL password | Compose database and generated `DATABASE_URL` | Not used for managed Cloud SQL | Yes | Local ignored `.env` or Compose-only secret input |
+| `POSTGRES_DB` | Local PostgreSQL database name | Defaults to `eventcheck` in Compose | Not a production Cloud SQL setting | No | Local `.env` or Compose defaults |
+| `POSTGRES_PORT` | Host port mapped to local PostgreSQL | Defaults to `5433` in Compose | Not used by Cloud Run | No | Local `.env` or Compose defaults |
+| `SEED_PARTICIPANT_PASSWORD` | Synthetic Participant seed password | Required for local/test seed | Must not be supplied to production seed | Yes | Local ignored `.env` or CI test environment |
+| `SEED_ORGANIZER_PASSWORD` | Synthetic Organizer seed password | Required for local/test seed | Must not be supplied to production seed | Yes | Local ignored `.env` or CI test environment |
+| `ADMIN_PASSWORD` | Legacy/local Compose migration input | Only if a local Compose customization consumes it | Not a production provisioning mechanism | Yes | Local ignored `.env`/Compose only |
+| `DEMO_USER_PASSWORD` | Legacy/local Compose migration input | Only if a local Compose customization consumes it | Not a production provisioning mechanism | Yes | Local ignored `.env`/Compose only |
+| `SEED_DEMO_DATA` | Local Compose demo-data switch | Compose-only flag when explicitly used | Not used by production deployment | No | Local `.env` or Compose defaults |
+| `E2E_DATABASE_URL` | Isolated Playwright database connection | Must target `127.0.0.1:5433/eventcheck_test?schema=public` | Not a production setting | Yes | Local ignored `.env` or CI job environment |
+| `E2E_API_PORT` / `E2E_WEB_PORT` | Isolated Playwright server ports | Defaults to `3101` / `5178` | Not a production setting | No | Local `.env` or CI job environment |
+| `E2E_ORGANIZER_LOGIN` / `E2E_PARTICIPANT_LOGIN` | Synthetic E2E account identifiers | Optional overrides; safe test accounts only | Not a production setting | No | Local `.env` or CI job environment |
+| `E2E_ORGANIZER_PASSWORD` / `E2E_PARTICIPANT_PASSWORD` | Synthetic E2E account passwords | Optional overrides; otherwise use `SEED_*_PASSWORD` | Not a production setting | Yes | Local ignored `.env` or CI secret/environment configuration |
+| `E2E_CAPTURE_EVIDENCE` | Enables optional local browser evidence capture | `0` or `1` for Playwright runs | Not a production setting | No | Local `.env` |
+| `VITE_API_PROXY_TARGET` | Vite development proxy target for `/api` | Normally `http://localhost:3000` | Not used by the unified runtime image | No | Local `.env` or CI build configuration |
+| `PROVISION_ORGANIZER_EMAIL` / `PROVISION_PARTICIPANT_EMAIL` | One-time production demo login identifiers | Not used by local seed or normal tests | Supplied only to the explicitly authorized provisioning Cloud Run Job | No | Secret Manager-backed Cloud Run Job environment |
+| `PROVISION_ORGANIZER_PASSWORD` / `PROVISION_PARTICIPANT_PASSWORD` | One-time production demo passwords | Not used by local seed or normal tests | Supplied only from Secret Manager to the provisioning job | Yes | Secret Manager-backed Cloud Run Job environment |
+| `GCP_PROJECT_ID` / `GCP_REGION` | Deployment project and region | Not required for local app execution | Required by the deployment workflow | No | GitHub `demo` environment variables |
+| `WIF_PROVIDER` / `WIF_SERVICE_ACCOUNT` | Keyless GitHub-to-GCP authentication | Not required locally | Required by the deployment workflow | `WIF_SERVICE_ACCOUNT`: No; provider: No | GitHub `demo` environment variables |
+| `SMOKE_EMAIL` | Optional authenticated smoke-test login | Not required; no login smoke test when both smoke values are absent | Optional GitHub deployment smoke test | No | GitHub `demo` environment variable |
+| `SMOKE_PASSWORD` | Optional authenticated smoke-test password | Not required locally | Optional GitHub deployment smoke test | Yes | GitHub `demo` secret |
+| `SMOKE_ORIGIN` | Origin sent by authenticated smoke test | Not required locally | Must match deployed `CLIENT_ORIGIN` | No | GitHub `demo` environment variable |
 
 No real passwords, tokens, service-account keys, or complete production
 connection strings belong in this repository or in screenshots.
@@ -126,8 +147,7 @@ collecting Episode 2 evidence.
 9. A separate production account provisioning command is implemented in
    `server/prisma/provision-production-accounts.ts`; it has not been run against
    Cloud SQL by this repository change. No production account creation is claimed.
-10. Future Episode 5 and Episode 7 deployment scripts must be reviewed to
-    ensure they never combine production migration with the development seed.
+10. Episode 5 and Episode 7 deployment scripts must continue to keep production migrations separate from development seeding.
 
 ## One-time production demo-account provisioning
 
@@ -289,9 +309,13 @@ the application without invoking the provisioning command.
 
 ## Review boundary
 
-This document does not claim deployment, cloud-resource creation, billing/IAM
-configuration, CI/CD execution, or production verification. Those claims
-require separate evidence tied to a reviewed commit and deployed revision.
+This document records source-level configuration and the supplied historical
+deployment evidence above. It does not claim that the referenced Cloud Run
+revision is still current, that production demo accounts were provisioned, or
+that database persistence after a fresh production restart was independently
+verified. New deployment, billing/IAM, Cloud SQL, Secret Manager, and runtime
+claims require evidence tied to the relevant reviewed commit and deployed
+revision.
 
 ## Episode 4 CI boundary
 
@@ -308,9 +332,11 @@ verified on an actual pull request; local checks alone are not release evidence.
 Episodes 5–7 remain responsible for first deployment, CI/CD authentication, and
 release/persistence evidence.
 
-## Episode 7 release procedure (planned and repeatable)
+## Episode 7 release procedure (implemented and repeatable)
 
-The prepared `.github/workflows/deploy.yml` is the Episode 7 release workflow.
+The `.github/workflows/deploy.yml` is the Episode 7 release workflow. It has
+completed the historical release recorded above; the procedure remains the
+repeatable path for subsequent releases.
 The repeatable path is:
 
 1. Develop on a feature branch and open a pull request into
@@ -336,6 +362,4 @@ commit SHA, immutable deployed image digest, and Cloud Run service URL. The
 Cloud Run revision should be checked in the Google Cloud console or with
 `gcloud run revisions list/describe`, confirming that its image digest matches
 the summary. The deployed image tag and workflow commit must match the merged
-`main` commit. These deployment and revision checks are instructions for real
-Episode 7 execution; this repository does not claim that a production run has
-already completed.
+`main` commit. These checks are required for each new release. The historical release was verified through its successful GitHub Actions run, Cloud Run revision, and visible production UI change. Image digest consistency must be checked against the relevant workflow summary and Cloud Run revision for each release.
