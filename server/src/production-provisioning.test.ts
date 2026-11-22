@@ -42,7 +42,10 @@ function makeDatabase(initialUsers: FakeUser[] = []) {
   });
   const transaction = { user: { findMany, create } };
   const transactionCall = vi.fn(async <T>(callback: (tx: typeof transaction) => Promise<T>) => callback(transaction));
-  const client = { $transaction: transactionCall } as unknown as Pick<PrismaClient, "$transaction">;
+  const client = {
+    user: { findMany },
+    $transaction: transactionCall,
+  } as unknown as Pick<PrismaClient, "$transaction" | "user">;
 
   return { client, users, findMany, create, transactionCall };
 }

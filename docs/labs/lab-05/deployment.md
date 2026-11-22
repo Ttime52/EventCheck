@@ -159,7 +159,11 @@ account is left byte-for-byte unchanged, including its display name and
 password hash. If an email already belongs to the other role, the command fails
 before writing either account. If an existing login identifier differs only in
 letter casing, or multiple case variants exist, the command also fails closed;
-it never silently treats a case-sensitive login as usable. The production seed
+it never silently treats a case-sensitive login as usable. The database
+migration also adds a PostgreSQL unique index on the lowercase login identifier.
+If case-insensitive duplicates already exist, the migration fails without
+deleting or changing users; review and resolve conflicts explicitly before
+deployment. The production seed
 restriction remains in force; do not set another `NODE_ENV` or run
 `server/prisma/seed.ts` in production.
 

@@ -1,4 +1,4 @@
-import { Role, type PrismaClient } from "@prisma/client";
+import { Prisma, Role, type PrismaClient } from "@prisma/client";
 import { hashPassword } from "./security.js";
 
 export class ProvisioningConfigurationError extends Error {}
@@ -16,7 +16,7 @@ export type ProvisioningResult = {
   status: "created" | "existing-unchanged";
 };
 
-type ProvisioningClient = Pick<PrismaClient, "$transaction">;
+export type ProvisioningClient = Pick<PrismaClient, "$transaction" | "user">;
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 
@@ -91,8 +91,70 @@ export async function provisionProductionAccounts(
   client: ProvisioningClient,
   accounts: ProductionAccount[],
 ): Promise<ProvisioningResult[]> {
-  return client.$transaction(async (transaction) => {
-    const existingUsers = await transaction.user.findMany({
+  try {
+    return await client.$transaction(async (transaction) => {
+      const existingUsers = await transaction.user.findMany({
+        where: {
+          loginIdentifier: {
+            in: accounts.map((account) => account.loginIdentifier),
+            mode: "insensitive",
+          },
+        },
+        select: { loginIdentifier: true, role: true },
+      });
+
+      const existingByEmail = new Map<string, (typeof existingUsers)[number]>();
+      for (const user of existingUsers) {
+        const normalizedEmail = user.loginIdentifier.toLowerCase();
+        if (existingByEmail.has(normalizedEmail)) {
+          throw new ExistingAccountConflictError(
+            "Multiple accounts match a requested email without regard to casing; no accounts were changed",
+          );
+        }
+        existingByEmail.set(normalizedEmail, user);
+      }
+
+      // Check every role before the first write so a conflict cannot create only half the pair.
+      for (const account of accounts) {
+        const existing = existingByEmail.get(account.loginIdentifier.toLowerCase());
+        if (existing && (existing.role !== account.role || existing.loginIdentifier !== account.loginIdentifier)) {
+          throw new ExistingAccountConflictError(
+            "An account with a requested email already exists with a different role or casing; no accounts were changed",
+          );
+        }
+      }
+
+      const results: ProvisioningResult[] = [];
+      for (const account of accounts) {
+        if (existingByEmail.has(account.loginIdentifier.toLowerCase())) {
+          results.push({ role: account.role, status: "existing-unchanged" });
+          continue;
+        }
+
+        const passwordHash = await hashPassword(account.password);
+        await transaction.user.create({
+          data: {
+            loginIdentifier: account.loginIdentifier,
+            displayName: account.displayName,
+            role: account.role,
+            passwordHash,
+          },
+        });
+        results.push({ role: account.role, status: "created" });
+      }
+
+      return results;
+    });
+  } catch (error) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+      throw error;
+    }
+
+    // PostgreSQL's case-insensitive unique index is the final arbiter when two
+    // provisioning jobs race. The losing transaction has already rolled back.
+    // Re-read outside that failed transaction and report success only if the
+    // complete requested pair now exists with exactly the expected roles/casing.
+    const existingUsers = await client.user.findMany({
       where: {
         loginIdentifier: {
           in: accounts.map((account) => account.loginIdentifier),
@@ -101,49 +163,31 @@ export async function provisionProductionAccounts(
       },
       select: { loginIdentifier: true, role: true },
     });
-
     const existingByEmail = new Map<string, (typeof existingUsers)[number]>();
     for (const user of existingUsers) {
       const normalizedEmail = user.loginIdentifier.toLowerCase();
       if (existingByEmail.has(normalizedEmail)) {
         throw new ExistingAccountConflictError(
-          "Multiple accounts match a requested email without regard to casing; no accounts were changed",
+          "A case-insensitive account conflict was found; no accounts from this run were committed",
         );
       }
       existingByEmail.set(normalizedEmail, user);
     }
 
-    // Check every role before the first write so a conflict cannot create only half the pair.
     for (const account of accounts) {
       const existing = existingByEmail.get(account.loginIdentifier.toLowerCase());
-      if (existing && (existing.role !== account.role || existing.loginIdentifier !== account.loginIdentifier)) {
+      if (!existing || existing.role !== account.role || existing.loginIdentifier !== account.loginIdentifier) {
         throw new ExistingAccountConflictError(
-          "An account with a requested email already exists with a different role or casing; no accounts were changed",
+          "A concurrent account uniqueness conflict occurred; no accounts from this run were committed",
         );
       }
     }
 
-    const results: ProvisioningResult[] = [];
-    for (const account of accounts) {
-      if (existingByEmail.has(account.loginIdentifier.toLowerCase())) {
-        results.push({ role: account.role, status: "existing-unchanged" });
-        continue;
-      }
-
-      const passwordHash = await hashPassword(account.password);
-      await transaction.user.create({
-        data: {
-          loginIdentifier: account.loginIdentifier,
-          displayName: account.displayName,
-          role: account.role,
-          passwordHash,
-        },
-      });
-      results.push({ role: account.role, status: "created" });
-    }
-
-    return results;
-  });
+    return accounts.map((account) => ({
+      role: account.role,
+      status: "existing-unchanged",
+    }));
+  }
 }
 
 /** Validate all configuration before entering the database transaction. */
