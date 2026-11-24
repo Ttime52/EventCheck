@@ -20,7 +20,7 @@ The SDS describes logical components, responsibilities, data ownership, interfac
 
 The [SRS](srs.md) is authoritative for observable behavior, business rules, quality targets, IDs, and sprint allocation. The [Feature Inventory](features.md) groups those requirements into F-01–F-08 and SR-01–SR-06. The [Traceability Matrix](traceability.md) records coverage and open evidence gaps. The [Sprint Plan](sprints/plan.md) governs sequencing and completion gates. This SDS fills the architecture, data, API, permission, session, and deployment design gap identified by G-06.
 
-The audience is the two student developers, peer reviewers, instructor/TA, and acceptance testers. Decisions marked **Approved** are carried forward from the SRS. Choices marked **Proposed** are recommendations that require team review before being treated as implementation commitments. Open questions remain open; no implementation or stakeholder approval is inferred.
+The audience is the two student developers, peer reviewers, instructor/TA, and acceptance testers. Decisions marked **Agreed - Approved** or **Accepted — Team Reviewed** are carried forward from the SRS at their recorded level; team-reviewed policy does not by itself accept a feature contract, API/schema design, or implementation. Choices marked **Proposed** require team review before being treated as implementation commitments. Open questions remain open; no implementation or stakeholder approval is inferred.
 
 ## 2. Architectural Overview
 
@@ -339,7 +339,7 @@ Personal retrieval filters by the authenticated Participant, not a URL-supplied 
 
 ### E. Future workflows
 
-Sprint 2 adds deadline checks, controlled capacity edits, cancellation/re-registration history, and the **Proposed BR-16 check-in policy**: only the owning Organizer may check in an existing active registration for that event, during the server-authoritative time window `[event.start, event.end)`. This remains pending team review, as recorded in Q-05. Sprint 3 adds committed-state summaries. Each extension reuses the same authorization, UTC comparison, transaction, and safe-error boundaries; it does not move later features into Sprint 1.
+Sprint 2 adds deadline checks, controlled capacity edits, cancellation/re-registration history, and the **Accepted — Team Reviewed Q-05 check-in policy**: only the owning Organizer may check in an existing ACTIVE registration for that Event during the server-authoritative `[startAt, endAt)` window. Q-10 also accepts synthetic registration and attendance history retention through the project and assessment period without automatic deletion; real-user production policy remains separate. F-05 v0.5 records the reviewed field meanings: `registrationAvailable` reports remaining capacity, while `registrationOpen` reports whether the effective-deadline window is open. These public fields are informational; backend registration writes recheck all eligibility rules. F-05 API/schema acceptance and F-06/F-07 contract acceptance remain pending. Sprint 3 adds committed-state summaries. Each extension reuses the same authorization, UTC comparison, transaction, and safe-error boundaries; it does not move later features into Sprint 1.
 
 ## 9. Concurrency and Transaction Design
 
@@ -375,7 +375,7 @@ The following endpoint inventory is **Proposed** until feature contracts approve
 
 ### 10.1 API-wide conventions (Proposed)
 
-Candidate routes use an `/api/v1` base path, HTTPS, JSON request/response bodies, and cookie-authenticated requests. State-changing browser requests require CSRF protection and explicit credential-aware CORS configuration. Validation returns field details; success responses use a `data` envelope; errors use an `error` object with a stable code, safe message, and optional details. Typical statuses are 200/201/204 for success, 400/422 for malformed or invalid fields, 401 for missing/expired authentication, 403 for wrong role/owner, 404 for safe not-found, 409 for business conflicts, and 500 for an unexpected failure.
+Candidate routes use an `/api/v1` base path, HTTPS, JSON request/response bodies, and cookie-authenticated requests. State-changing browser requests require CSRF protection and explicit credential-aware CORS configuration. Validation returns field details; success responses use a `data` envelope; errors use an `error` object with a stable code, safe message, and optional details. Typical statuses are 200/201/204 for success, 400 for malformed JSON, 422 for syntactically valid but invalid fields, 401 for missing/expired authentication, 403 for wrong role/owner, 404 for safe not-found, 409 for business conflicts, and 500 for an unexpected failure.
 
 Collection endpoints may accept bounded `limit` and opaque `cursor` parameters and return `data` plus a `page.nextCursor`; Sprint 1 does not require pagination for small seeded lists. Instants serialize as UTC ISO 8601 values; the UI labels initial display/input as Asia/Bangkok. A request/correlation ID is returned in a response header and included in server logs without credentials. Error messages never reveal passwords, session identifiers, participant lists, or unrelated-record existence. The envelope and codes remain Proposed until team review or feature contracts.
 
@@ -420,7 +420,7 @@ These conventions support FR-02, FR-05, FR-07, FR-13, FR-16, NFR-01, and NFR-06 
 | `POST /auth/login` | Any visitor | Verify credentials; set session cookie. `200`, generic `401`, validation `422`. | FR-01, FR-02, NFR-02 | 1 |
 | `POST /auth/logout` | Authenticated user | Invalidate session and clear cookie. `204`, `401`. | FR-03, Q-09 | 1 |
 | `GET /me` | Authenticated user | Return id/display name/role only. `200`, `401`. | FR-04, FR-05 | 1 |
-| `GET /events` and `GET /events/{id}` | Public or authenticated | Return published public projection. `200`, empty list, safe not-found. | FR-11, FR-12, Q-08 | 1 |
+| `GET /events` and `GET /events/{id}` | Public or authenticated | Return published public projection. `200`, empty list, safe not-found. The F-05 draft extension adds `registrationDeadline` and `registrationOpen` (effective-deadline window); `registrationAvailable` retains its F-03 capacity meaning. Field semantics are reviewed, while the full API/schema contract remains pending; registration writes revalidate eligibility on the backend. | FR-11, FR-12, Q-08 | 1/2 |
 | `POST /events` | Organizer | Validate, derive owner, optionally create-and-publish. `201`, `401/403`, `422`. | FR-06–FR-08, BR-12 | 1 |
 | `GET /organizer/events` | Organizer | Return only owned management records. `200`, `401/403`. | FR-09 | 1 |
 | `POST /events/{id}/registrations` | Participant | Transaction-safe self-registration. `201`, duplicate/full conflict, `401/403/404/422`. | FR-13, FR-16, BR-06–BR-11 | 1 |
@@ -437,7 +437,7 @@ Request/response schemas, AC IDs, and STS IDs belong in feature contracts. No ro
 
 ## 11. Error Handling and Validation
 
-The backend distinguishes authentication failures (missing/invalid credentials or session, generally 401), authorization failures (wrong role/owner, 403 or safe not-found), validation errors (malformed fields, 422), business conflicts (duplicate/full/closed/concurrent state, 409), and unexpected persistence failures (generic 500 with server-side diagnostic logging). Messages are actionable for the authorized caller but do not reveal passwords, session identifiers, participant lists, or existence of unrelated private records.
+The backend distinguishes malformed JSON syntax (`400`) from syntactically valid but invalid field values (`422`); authentication failures (missing/invalid credentials or session, generally 401); authorization failures (wrong role/owner, 403 or safe not-found); business conflicts (duplicate/full/closed/concurrent state, 409); and unexpected persistence failures (generic 500 with server-side diagnostic logging). Messages are actionable for the authorized caller but do not reveal passwords, session identifiers, participant lists, or existence of unrelated private records.
 
 Validation occurs at the API boundary and again in the service/transaction where state can change. Invalid login does not create a session. Missing/expired sessions do not reach protected services. Invalid Event fields, unpublished/missing Events, duplicate/full registrations, invalid deadlines/cancellations/check-ins, and database conflicts leave no partial committed state. Database failures are rolled back, logged without secrets, and returned as a safe retry-oriented failure. Sprint 2 time-window behavior uses server-authoritative UTC instants.
 
@@ -566,7 +566,8 @@ All baseline IDs are preserved: FR-01–FR-23, BR-01–BR-18, NFR-01–NFR-12, D
 | Sprint 2 schema evolution | Medium risk; use migrations and preserve cancelled history, attendance uniqueness, and active-count invariants. |
 | Two-student workload | Feasible only with the planned vertical slice, shared review, and no unapproved scope expansion. |
 | Exact API naming/contracts, CSRF library, session-store implementation, GCP deployment configuration, cloud account/IAM/cost decisions, and testing tools | Open technical decisions; the core React/TypeScript/Vite, Node.js/Express/TypeScript, PostgreSQL, and Prisma selections are team-approved, but these remaining choices require separate confirmation. |
-| Sprint 2 policy questions Q-01–Q-06/Q-10 and Sprint 3 summary policy D-10/BR-18 | Remain governed by the SRS and sprint gates; do not silently resolve them in implementation. |
+| Sprint 2 policy questions Q-01–Q-06/Q-10 | Accepted — Team Reviewed and recorded in the SRS. F-05 API/schema acceptance and F-06/F-07 contract acceptance remain pending. |
+| Q-07, Sprint 3 summary policy D-10/BR-18, and later planning decision D-13 | Remain open/proposed under the SRS and sprint gates; do not silently resolve them in implementation. |
 
 Assumptions are limited to seeded synthetic accounts, a transactional database, HTTPS in deployed environments, and the approved public discovery/session/time decisions. If a technology or policy conflicts with the SRS, the conflict must be reported and reviewed rather than silently changing another document.
 
