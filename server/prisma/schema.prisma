@@ -55,6 +55,7 @@ model Event {
   location        String
   startAt         DateTime
   endAt           DateTime
+  registrationDeadline DateTime?
   capacity        Int
   publicationState PublicationState @default(PUBLISHED)
   createdAt       DateTime        @default(now())

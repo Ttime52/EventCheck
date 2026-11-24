@@ -58,4 +58,12 @@ describe("F-03 public event projection", () => {
     expect(() => publicEventView({ ...event, capacity: -1 }, 0)).toThrow("Invalid registration capacity state");
     expect(() => publicEventView(event, -1)).toThrow("Invalid registration capacity state");
   });
+
+  it("TEST-F05-08/09: evaluates registrationOpen at exact deadline boundaries", () => {
+    const deadline = new Date("2026-12-01T00:00:00.000Z");
+    const withDeadline = { ...event, registrationDeadline: deadline };
+    expect(publicEventView(withDeadline, 0, new Date("2026-11-30T23:59:59.999Z")).registrationOpen).toBe(true);
+    expect(publicEventView(withDeadline, 0, deadline).registrationOpen).toBe(false);
+    expect(publicEventView(withDeadline, 0, new Date("2026-12-01T00:00:00.001Z")).registrationOpen).toBe(false);
+  });
 });

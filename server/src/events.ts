@@ -78,7 +78,9 @@ export function validateCreateEventInput(body: unknown): ValidationResult {
   };
 }
 
-export function eventView(event: Pick<EventRecord, "id" | "title" | "description" | "location" | "startAt" | "endAt" | "capacity" | "publicationState">) {
+type EventWithDeadline = Pick<EventRecord, "id" | "title" | "description" | "location" | "startAt" | "endAt" | "capacity"> & { registrationDeadline?: Date | null };
+
+export function eventView(event: EventWithDeadline & Pick<EventRecord, "publicationState">) {
   return {
     id: event.id,
     title: event.title,
@@ -86,12 +88,13 @@ export function eventView(event: Pick<EventRecord, "id" | "title" | "description
     location: event.location,
     startAt: event.startAt.toISOString(),
     endAt: event.endAt.toISOString(),
+    registrationDeadline: event.registrationDeadline?.toISOString() ?? null,
     capacity: event.capacity,
     publicationState: event.publicationState,
   };
 }
 
-export function publicEventView(event: Pick<EventRecord, "id" | "title" | "description" | "location" | "startAt" | "endAt" | "capacity">, activeRegistrations: number) {
+export function publicEventView(event: EventWithDeadline, activeRegistrations: number, now = new Date()) {
   if (event.capacity <= 0 || activeRegistrations < 0 || activeRegistrations > event.capacity) {
     throw new Error("Invalid registration capacity state");
   }
@@ -106,5 +109,7 @@ export function publicEventView(event: Pick<EventRecord, "id" | "title" | "descr
     capacity: event.capacity,
     remainingPlaces,
     registrationAvailable: remainingPlaces > 0,
+    registrationDeadline: event.registrationDeadline?.toISOString() ?? null,
+    registrationOpen: now < (event.registrationDeadline ?? event.startAt),
   };
 }

@@ -2,8 +2,9 @@
 
 **Issue:** #47 — Contract task: Capacity & Registration Deadline Management
 
-**Contract version:** 0.5
-**Status:** Draft — field semantics Accepted — Team Reviewed; remaining API/contract acceptance pending; implementation is not authorized until a teammate accepts this version.
+**Contract version:** 0.6
+**Status:** Accepted — Team Reviewed implementation baseline; implementation and release evidence pending.
+**Approval evidence:** Teammate approval was explicitly supplied in the Issue #48 task context. Reviewer identity, date, and approval URL are not available in this repository and must be recorded by the project owner.
 **Sprint:** 2
 **Updated:** 2026-11-24
 
@@ -32,7 +33,7 @@ The backend derives the Organizer from the validated F-01 session and requires `
 3. A Participant can register only while server time is strictly before the effective deadline and while all Sprint 1 publication, duplicate, capacity, and authorization rules pass. At or after the deadline, the request is rejected without consuming a place.
 4. A rejected edit or registration leaves the previously committed Event, Registration rows, active count, and remaining places unchanged. No participant is automatically displaced when capacity is reduced.
 
-Q-01, Q-02, and Q-03 policy review is recorded in F-05 v0.3 and reflected in the SRS. The F-05 v0.4 changes from Issue #47 are preserved as the baseline. This v0.5 records the team-reviewed API field semantics: `registrationAvailable` remains capacity-based and additive `registrationOpen` represents the deadline window. Final API/schema and contract acceptance remains pending.
+Q-01, Q-02, and Q-03 policy review is recorded in F-05 v0.3 and reflected in the SRS. The F-05 v0.4 changes from Issue #47 are preserved as the baseline. This v0.6 records the team-reviewed implementation baseline for the API and schema while retaining the reviewed semantics: `registrationAvailable` remains capacity-based and additive `registrationOpen` represents the deadline window. Implementation completion and release evidence remain pending.
 
 ## B. UI and interaction design
 
@@ -45,11 +46,11 @@ Q-01, Q-02, and Q-03 policy review is recorded in F-05 v0.3 and reflected in the
 
 Focus moves to the active panel after tab/detail navigation, labels identify capacity and deadline controls, invalid fields are announced, and keyboard users can operate all controls. Existing F-01/F-02/F-03 layout and authentication behavior remain intact.
 
-## C. API and data contract (v0.5 draft details)
+## C. API and data contract (v0.6 accepted implementation baseline)
 
-The route reuse, request semantics, schema changes, and proposed outcomes below remain draft contract details pending teammate acceptance. The field meanings are Accepted — Team Reviewed: preserve F-03 `registrationAvailable` as capacity availability and use additive `registrationOpen` for the time window. This review does not claim that routes, migrations, or implementation are accepted or complete.
+The route reuse, request semantics, schema changes, and outcomes below are the team-reviewed implementation baseline, based on the existing F-01/F-03 conventions. The reviewed field meanings are preserved: F-03 `registrationAvailable` is capacity availability and additive `registrationOpen` is the deadline-window state. Implementation and feature completion evidence are recorded separately below.
 
-| Method and route | Authentication/authorization | Proposed request/response | Proposed failure behavior |
+| Method and route | Authentication/authorization | Implementation proposal request/response | Implementation proposal failure behavior |
 | --- | --- | --- | --- |
 | `PATCH /api/v1/organizer/events/{eventId}` | Owning Organizer session; server checks ownership and published/before-start policy | Partial update. `capacity` and `registrationDeadline` are independently optional. At least one recognized field is required. A capacity-only request leaves the deadline unchanged; a deadline-only request leaves capacity unchanged. `registrationDeadline: null` clears the explicit deadline; `capacity: null` is invalid. Empty `{}` and unknown-only fields are invalid. Success returns the existing Event representation with persisted values. | `400 MALFORMED_JSON`; `401 UNAUTHENTICATED`; `403 FORBIDDEN` or `CSRF_REJECTED`; privacy-preserving `404 EVENT_NOT_FOUND`; `409 EVENT_MODIFICATION_CLOSED` or `CAPACITY_BELOW_ACTIVE_COUNT`; `422 VALIDATION_ERROR` for syntactically valid but invalid fields. All failures use the existing F-03/F-04 error envelope. |
 | `GET /api/v1/events/{eventId}` | Public route | Extend the existing public detail projection with `registrationDeadline` (UTC ISO 8601 string or `null`) and boolean `registrationOpen`. Preserve F-03 `registrationAvailable` as capacity availability (`remainingPlaces > 0`), along with the privacy boundary and remaining-place calculation. | Existing safe `404` missing/unpublished behavior; malformed persisted state must fail safely, not be masked. |
@@ -75,7 +76,7 @@ Where:
 - The Participant Register action is offered only when both fields are true; neither field guarantees that a specific Participant can register.
 - The registration API independently revalidates authentication, publication, deadline, capacity, and duplicate-active constraints before accepting a request.
 
-This additive `registrationOpen` field avoids changing F-03's approved `registrationAvailable` behavior. The field semantics are Accepted — Team Reviewed in this v0.5 follow-up; final API/schema and contract acceptance remains pending. The backend registration operation is authoritative and rechecks publication, effective deadline, capacity, and duplicate-ACTIVE rules inside the transaction, regardless of the public fields' values.
+This additive `registrationOpen` field avoids changing F-03's approved `registrationAvailable` behavior. The complete API/schema design is the team-reviewed implementation baseline. The backend registration operation is authoritative and rechecks publication, effective deadline, capacity, and duplicate-ACTIVE rules inside the transaction, regardless of the public fields' values.
 
 ### Policy decisions
 
@@ -85,7 +86,7 @@ This additive `registrationOpen` field avoids changing F-03's approved `registra
 | Q-02 — reduction below active count | Reject the reduction, preserve prior capacity and every Registration, and never cancel/displace Participants automatically. | Accepted — Team Reviewed |
 | Q-03 — deadline/default | Deadline is optional; if absent, Event start is the effective deadline. An explicit deadline must be no later than start, and registration is allowed only when server time is strictly earlier. | Accepted — Team Reviewed |
 
-Acceptance rationale recorded by the teammate review: Q-01 preserves owner control while preventing edits after the event starts; Q-02 preserves the BR-09 invariant and avoids silently displacing Participants; Q-03 gives organizers an optional cutoff with a deterministic start-time default and server-authoritative boundary. The field meanings are Accepted — Team Reviewed in v0.5; remaining API/schema details, migration, and final contract acceptance remain pending teammate review.
+Acceptance rationale recorded by the teammate review: Q-01 preserves owner control while preventing edits after the event starts; Q-02 preserves the BR-09 invariant and avoids silently displacing Participants; Q-03 gives organizers an optional cutoff with a deterministic start-time default and server-authoritative boundary. The field meanings and v0.6 API/schema baseline are accepted; implementation and release evidence remain pending.
 
 The proposed PATCH success returns `200` with the existing Event success representation. Syntactically malformed JSON returns `400 MALFORMED_JSON`; syntactically valid but empty, unknown-only, mistyped, or invalid field values return `422 VALIDATION_ERROR` with field details. An edit at/after start returns `409 EVENT_MODIFICATION_CLOSED`; a reduction below the committed ACTIVE count returns `409 CAPACITY_BELOW_ACTIVE_COUNT`. Authentication, role, CSRF, and inaccessible Event outcomes use `401`, `403`, and privacy-preserving `404` as shown above. No request partially applies one field when the other field fails validation.
 
@@ -93,7 +94,7 @@ Because PATCH is a cookie-authenticated state-changing request, it must use the 
 
 ## D. Data, persistence, and concurrency design
 
-The existing PostgreSQL/Prisma `Event.capacity`, UTC-based `startAt`, `endAt`, publication state, ownership, and F-03 `Registration` schema are reused. F-05 proposes one nullable `Event.registrationDeadline` (`DateTime?`, stored as a UTC instant), requiring a new additive migration; no migration is created or executed by this documentation task. Existing `ON DELETE RESTRICT` foreign keys and the partial active-registration uniqueness strategy remain unchanged.
+The existing PostgreSQL/Prisma `Event.capacity`, UTC-based `startAt`, `endAt`, publication state, ownership, and F-03 `Registration` schema are reused. F-05 adds one nullable `Event.registrationDeadline` (`DateTime?`, stored as a UTC instant) through the additive migration described below. Existing `ON DELETE RESTRICT` foreign keys and the partial active-registration uniqueness strategy remain unchanged.
 
 Required database and application invariants:
 
@@ -104,7 +105,7 @@ Required database and application invariants:
 - Concurrent capacity-edit/registration operations serialize on the Event lock. The final committed state always satisfies `activeRegistrations <= capacity`; no automatic displacement occurs.
 - Public projections calculate remaining places from the committed active count and must reject/flag an impossible persisted state rather than silently presenting a healthy value.
 
-Proposed additive migration: add nullable Prisma `Event.registrationDeadline DateTime?` using the repository's existing PostgreSQL `TIMESTAMP(3)` UTC-value convention; existing rows become `NULL` without rewriting event data. Add `CHECK ("registrationDeadline" IS NULL OR "registrationDeadline" <= "startAt")`, matching the existing Event column names and timestamp precision. Deploy the additive migration before code that reads or writes the field. For rollback, revert application code while retaining the nullable column and check; do not drop populated deadline data or rewrite applied migration history. Removing the field later requires a separate reviewed forward migration and explicit data-disposition decision. This remains a proposal until a teammate reviews the schema change.
+The additive migration adds nullable Prisma `Event.registrationDeadline DateTime?` using the repository's existing PostgreSQL `TIMESTAMP(3)` UTC-value convention; existing rows become `NULL` without rewriting event data. It adds `CHECK ("registrationDeadline" IS NULL OR "registrationDeadline" <= "startAt")`, matching the existing Event column names and timestamp precision. Deploy the additive migration before code that reads or writes the field. For rollback, revert application code while retaining the nullable column and check; do not drop populated deadline data or rewrite applied migration history. Removing the field later requires a separate reviewed forward migration and explicit data-disposition decision.
 
 ## E. Acceptance criteria
 
@@ -153,21 +154,21 @@ Issue #47 contract work is complete for review when Sections A–F are internall
 | Requirements and dependency links | Documented |
 | AC/TEST mapping and draft API/schema details | Documented; final contract review required |
 | Q-01, Q-02, Q-03 | Team-reviewed policy recorded in F-05 v0.3 and synchronized to the SRS |
-| `registrationAvailable` / `registrationOpen` meanings | Accepted — Team Reviewed in v0.5; final API/schema contract approval remains pending |
-| Issue #47 coordination | F-05 v0.4 carried forward without rewriting its reviewed history; this v0.5 is an additive follow-up |
-| Contract completion/review | Pending teammate acceptance |
+| `registrationAvailable` / `registrationOpen` meanings | Accepted — Team Reviewed; implementation evidence pending |
+| Issue #47 coordination | F-05 v0.4 carried forward without rewriting its reviewed history; v0.6 records the accepted implementation baseline |
+| Contract completion/review | Accepted baseline; implementation and evidence pending |
 
 ## H. Future F-05 Feature Implementation Definition of Done
 
-F-05 implementation is not Done until the accepted Q-01, Q-02, and Q-03 policies and reviewed field semantics are implemented, the additive migration and remaining API/UI design are accepted, all required tests pass against isolated `eventcheck_test/public`, and evidence identifies the tested commit.
+F-05 implementation is not Done until the accepted Q-01, Q-02, and Q-03 policies and v0.6 API/schema baseline are implemented and migrated; all required tests pass against isolated `eventcheck_test/public`; and evidence identifies the tested commit.
 
 | Item | Status |
 | --- | --- |
 | Q-01, Q-02, Q-03 policy acceptance | Team Reviewed; recorded in F-05 v0.3 and synchronized to the SRS |
-| `registrationAvailable` / `registrationOpen` field semantics | Accepted — Team Reviewed; recorded in v0.5 |
-| Remaining v0.5 API/data contract approval | Pending teammate approval |
-| Implementation, migration, and executable tests | Not started in this contract task |
-| Test evidence and release identity | Pending implementation |
+| `registrationAvailable` / `registrationOpen` field semantics | Accepted — Team Reviewed; implementation evidence pending |
+| v0.6 API/data contract approval | Accepted — Team Reviewed; implementation evidence pending |
+| Implementation, migration, and executable tests | Implemented locally; latest harness changes require macOS rerun |
+| Test evidence and release identity | Historical owner evidence recorded; latest working-tree evidence pending |
 | PR/release approval | Pending |
 
 ### Review record
@@ -179,8 +180,50 @@ F-05 implementation is not Done until the accepted Q-01, Q-02, and Q-03 policies
 | 0.3 | 2026-11-24 | Draft — Pending Final Teammate Approval | Recorded teammate acceptance of Q-01, Q-02, and Q-03; aligned the public field with F-03 `registrationAvailable`, added F-01 Origin/CSRF requirements, corrected Prisma `startAt`/`endAt` naming, and clarified compatibility and STS coverage. |
 | 0.4 | 2026-11-24 | Draft — API/contract review pending | Reconciled Q-01 to Q-03 policy status with the SRS; preserved F-03 capacity-based `registrationAvailable` and proposed additive `registrationOpen`; fixed validation status semantics; specified the additive deadline check/rollback plan; clarified AC/STS and NFR-09/NFR-10 traceability. |
 | 0.5 | 2026-11-24 | Draft — field semantics Accepted — Team Reviewed; remaining contract acceptance pending | Carried forward the Issue #47 F-05 v0.4 content and history without overwriting it; recorded that `registrationAvailable` means remaining capacity and `registrationOpen` means the effective-deadline window; clarified backend-authoritative eligibility and aligned dependent F-06/F-07 contracts with the reviewed decisions. No route/schema acceptance, implementation, migration, or test execution is claimed. |
+| 0.6 | 2026-11-24 | Accepted — Team Reviewed implementation baseline | Recorded the team-reviewed PATCH API, response/error conventions, nullable `registrationDeadline` migration and constraint, rollback strategy, shared Event-row locking protocol, and backend-authoritative F-03 deadline enforcement. Reviewer/date/reference evidence is supplied by task context but not recorded locally; implementation is present, while latest working-tree test evidence remains pending. |
 
 ### Related baseline
+
+### Verification evidence
+
+The following results were supplied as verified macOS executions by the feature owner and are retained as historical evidence for the implementation revision; they were not rerun in this documentation pass:
+
+| Check | Result | Environment/limitation |
+| --- | --- | --- |
+| Prisma migrations | 6 applied; schema up to date | Isolated `127.0.0.1:5433/eventcheck_test?schema=public` |
+| Frontend Vitest | 23/23 passed | macOS; historical result |
+| Full backend suite (`--no-file-parallelism`) | 90/90 passed | macOS; historical result |
+| F-05 PostgreSQL integration | 10/10 passed | Isolated test database; historical result |
+| Full Playwright E2E | 19/19 passed | macOS; historical result |
+| F-05 Playwright E2E | 3/3 passed (included in full suite) | macOS; historical result |
+| Actual API process restart | PASS | Owner-supplied macOS result on 2026-11-24; `npm run test:f05:restart --workspace=server`; isolated database |
+
+These results were supplied by the feature owner and were not executed by Codex. The owner reported `Database: SAFE`, configured Organizer credentials, a successful build, and `F-05 restart verification passed`. The restart run was against the uncommitted working tree represented by HEAD `203ed91f71edadf66d3d185463f53c82aca5e4fa` plus the working-tree changes; no tested implementation commit SHA is claimed.
+
+This revision adds `e2e/f05-capacity-deadline.spec.ts` and expands the isolated F-05 integration suite. Those latest changes were not executed in this session because an isolated PostgreSQL target and browser run were not available; they must be rerun before feature completion. TEST-F05-13 remains a manual evidence checklist.
+
+For actual process-restart verification, `npm run test:f05:restart --workspace=server` builds the API, starts it on an isolated localhost port, creates and updates a run-owned Event through HTTP, stops only that child process, starts a fresh API process against the same isolated database, verifies the persisted public/Organizer values, and removes only the created Event. The owner-supplied run passed; the latest harness changes still require a fresh macOS execution.
+
+Codex checks in the current session: typecheck, build, frontend tests, selected backend unit/event tests, `node --check server/scripts/f05-restart-check.mjs`, and `git diff --check` passed. PostgreSQL integration, the restart harness, and browser execution were not run in this session.
+
+Current review state: branch `feature/48-f05-capacity-deadline`, HEAD `203ed91f71edadf66d3d185463f53c82aca5e4fa`, with uncommitted F-05 implementation, migration, tests, and documentation changes. The intended base `sprint-2-staging` exists locally and at `origin/sprint-2-staging`.
+
+### TEST-F05-13 manual evidence checklist
+
+| Evidence item | Status | Basis/remaining action |
+| --- | --- | --- |
+| Requirements and AC/TEST traceability | Complete | Sections E–F map the accepted IDs. |
+| Prisma schema and additive migration | Complete | Schema/migration files are present; owner confirmed six migrations applied. |
+| API authorization, Origin/CSRF, and validation | Complete | Covered by TEST-F05-02/03; latest owner rerun evidence remains historical. |
+| Capacity invariant and PostgreSQL concurrency | Pending latest rerun | TEST-F05-10 now includes reduction-vs-registration and last-place races; rerun after this change. |
+| Deadline boundaries | Complete historically; latest rerun pending | Controlled-clock TEST-F05-06/09 exists; rerun latest suite. |
+| Controlled transaction rollback | Complete historically; latest rerun pending | Post-write callback rollback test exists. |
+| Public response semantics | Complete historically; latest rerun pending | `registrationAvailable`/`registrationOpen` assertions exist. |
+| Frontend and keyboard accessibility | Complete historically; latest rerun pending | Owner reported F-05 Playwright 3/3; rerun after fixture changes. |
+| Actual API process restart | PASS | Owner-supplied macOS result; latest harness changes require rerun. |
+| Sprint 1 regression | PASS historically | Owner supplied backend 90/90 and full Playwright 19/19. |
+| Final tested commit identity | Pending | Working tree remains uncommitted; no tested implementation SHA claimed. |
+| Teammate PR review | Pending | Formal PR review/approval not yet recorded. |
 
 - [SRS](../../srs.md), [Feature Inventory](../../features.md), [Traceability Matrix](../../traceability.md), and [Sprint Plan](../plan.md).
 - Existing Sprint 1 contracts: [F-01](../sprint-1/f-01-authentication.md), [F-02](../sprint-1/f-02-event-publishing.md), [F-03](../sprint-1/f-03-event-registration.md), and [F-04](../sprint-1/f-04-organizer-registrations.md).
