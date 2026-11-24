@@ -2,8 +2,8 @@
 
 **Issue:** #47 — Contract task: Capacity & Registration Deadline Management
 
-**Contract version:** 0.4
-**Status:** Draft — API/contract review pending; implementation is not authorized until a teammate accepts this version.
+**Contract version:** 0.5
+**Status:** Draft — field semantics Accepted — Team Reviewed; remaining API/contract acceptance pending; implementation is not authorized until a teammate accepts this version.
 **Sprint:** 2
 **Updated:** 2026-11-24
 
@@ -32,7 +32,7 @@ The backend derives the Organizer from the validated F-01 session and requires `
 3. A Participant can register only while server time is strictly before the effective deadline and while all Sprint 1 publication, duplicate, capacity, and authorization rules pass. At or after the deadline, the request is rejected without consuming a place.
 4. A rejected edit or registration leaves the previously committed Event, Registration rows, active count, and remaining places unchanged. No participant is automatically displaced when capacity is reduced.
 
-Q-01, Q-02, and Q-03 policy review is recorded in F-05 v0.3 and reflected in the SRS. F-05 v0.4 proposes the additive `registrationOpen` field while preserving F-03's capacity-based `registrationAvailable`; final API and contract acceptance remains pending.
+Q-01, Q-02, and Q-03 policy review is recorded in F-05 v0.3 and reflected in the SRS. The F-05 v0.4 changes from Issue #47 are preserved as the baseline. This v0.5 records the team-reviewed API field semantics: `registrationAvailable` remains capacity-based and additive `registrationOpen` represents the deadline window. Final API/schema and contract acceptance remains pending.
 
 ## B. UI and interaction design
 
@@ -45,9 +45,9 @@ Q-01, Q-02, and Q-03 policy review is recorded in F-05 v0.3 and reflected in the
 
 Focus moves to the active panel after tab/detail navigation, labels identify capacity and deadline controls, invalid fields are announced, and keyboard users can operate all controls. Existing F-01/F-02/F-03 layout and authentication behavior remain intact.
 
-## C. API and data contract (proposed v0.4 details)
+## C. API and data contract (v0.5 draft details)
 
-The route reuse, additive public fields, request semantics, and proposed outcomes below are explicit for review. They are not approved API changes until a teammate accepts this version. The proposal preserves the meaning of the F-03 `registrationAvailable` field and adds a separate window-state field.
+The route reuse, request semantics, schema changes, and proposed outcomes below remain draft contract details pending teammate acceptance. The field meanings are Accepted — Team Reviewed: preserve F-03 `registrationAvailable` as capacity availability and use additive `registrationOpen` for the time window. This review does not claim that routes, migrations, or implementation are accepted or complete.
 
 | Method and route | Authentication/authorization | Proposed request/response | Proposed failure behavior |
 | --- | --- | --- | --- |
@@ -75,17 +75,17 @@ Where:
 - The Participant Register action is offered only when both fields are true; neither field guarantees that a specific Participant can register.
 - The registration API independently revalidates authentication, publication, deadline, capacity, and duplicate-active constraints before accepting a request.
 
-This additive `registrationOpen` field avoids changing F-03's approved `registrationAvailable` behavior. Q-01 to Q-03 policy review is recorded in F-05 v0.3 and reflected in the SRS; this v0.4 API/schema contract still requires teammate acceptance.
+This additive `registrationOpen` field avoids changing F-03's approved `registrationAvailable` behavior. The field semantics are Accepted — Team Reviewed in this v0.5 follow-up; final API/schema and contract acceptance remains pending. The backend registration operation is authoritative and rechecks publication, effective deadline, capacity, and duplicate-ACTIVE rules inside the transaction, regardless of the public fields' values.
 
-### Proposed policy decisions
+### Policy decisions
 
-| Decision | Current proposal | Status |
+| Decision | Policy | Status |
 | --- | --- | --- |
 | Q-01 — edit after publication | Starting Sprint 2, the owner may edit an owned published Event only before start; Sprint 1 published capacity remains fixed. | Accepted — Team Reviewed |
 | Q-02 — reduction below active count | Reject the reduction, preserve prior capacity and every Registration, and never cancel/displace Participants automatically. | Accepted — Team Reviewed |
 | Q-03 — deadline/default | Deadline is optional; if absent, Event start is the effective deadline. An explicit deadline must be no later than start, and registration is allowed only when server time is strictly earlier. | Accepted — Team Reviewed |
 
-Acceptance rationale recorded by the teammate review: Q-01 preserves owner control while preventing edits after the event starts; Q-02 preserves the BR-09 invariant and avoids silently displacing Participants; Q-03 gives organizers an optional cutoff with a deterministic start-time default and server-authoritative boundary. These policies are team-reviewed; the v0.4 API/field extension, migration, and final contract acceptance remain pending teammate review.
+Acceptance rationale recorded by the teammate review: Q-01 preserves owner control while preventing edits after the event starts; Q-02 preserves the BR-09 invariant and avoids silently displacing Participants; Q-03 gives organizers an optional cutoff with a deterministic start-time default and server-authoritative boundary. The field meanings are Accepted — Team Reviewed in v0.5; remaining API/schema details, migration, and final contract acceptance remain pending teammate review.
 
 The proposed PATCH success returns `200` with the existing Event success representation. Syntactically malformed JSON returns `400 MALFORMED_JSON`; syntactically valid but empty, unknown-only, mistyped, or invalid field values return `422 VALIDATION_ERROR` with field details. An edit at/after start returns `409 EVENT_MODIFICATION_CLOSED`; a reduction below the committed ACTIVE count returns `409 CAPACITY_BELOW_ACTIVE_COUNT`. Authentication, role, CSRF, and inaccessible Event outcomes use `401`, `403`, and privacy-preserving `404` as shown above. No request partially applies one field when the other field fails validation.
 
@@ -151,18 +151,21 @@ Issue #47 contract work is complete for review when Sections A–F are internall
 | Contract item | Status |
 | --- | --- |
 | Requirements and dependency links | Documented |
-| AC/TEST mapping and proposed API semantics | Documented; teammate review required |
-| Q-01, Q-02, Q-03 | Team-reviewed policy recorded in F-05 v0.3 and synchronized to the SRS; v0.4 API/schema contract approval remains pending |
+| AC/TEST mapping and draft API/schema details | Documented; final contract review required |
+| Q-01, Q-02, Q-03 | Team-reviewed policy recorded in F-05 v0.3 and synchronized to the SRS |
+| `registrationAvailable` / `registrationOpen` meanings | Accepted — Team Reviewed in v0.5; final API/schema contract approval remains pending |
+| Issue #47 coordination | F-05 v0.4 carried forward without rewriting its reviewed history; this v0.5 is an additive follow-up |
 | Contract completion/review | Pending teammate acceptance |
 
 ## H. Future F-05 Feature Implementation Definition of Done
 
-F-05 implementation is not Done until the accepted Q-01, Q-02, and Q-03 policies are implemented, the additive migration and API/UI design are reviewed, all required tests pass against isolated `eventcheck_test/public`, and evidence identifies the tested commit.
+F-05 implementation is not Done until the accepted Q-01, Q-02, and Q-03 policies and reviewed field semantics are implemented, the additive migration and remaining API/UI design are accepted, all required tests pass against isolated `eventcheck_test/public`, and evidence identifies the tested commit.
 
 | Item | Status |
 | --- | --- |
 | Q-01, Q-02, Q-03 policy acceptance | Team Reviewed; recorded in F-05 v0.3 and synchronized to the SRS |
-| v0.4 API/data contract approval | Pending teammate approval |
+| `registrationAvailable` / `registrationOpen` field semantics | Accepted — Team Reviewed; recorded in v0.5 |
+| Remaining v0.5 API/data contract approval | Pending teammate approval |
 | Implementation, migration, and executable tests | Not started in this contract task |
 | Test evidence and release identity | Pending implementation |
 | PR/release approval | Pending |
@@ -175,6 +178,7 @@ F-05 implementation is not Done until the accepted Q-01, Q-02, and Q-03 policies
 | 0.2 | 2026-11-23 | Draft — pending teammate review | Clarified PATCH field presence/null semantics, proposed API envelopes/status/error conventions, explicit STS fixtures and actions, shared Event-lock protocol with F-03, separate Issue #47 contract completion criteria, and manual-review versus executable-test evidence boundaries. |
 | 0.3 | 2026-11-24 | Draft — Pending Final Teammate Approval | Recorded teammate acceptance of Q-01, Q-02, and Q-03; aligned the public field with F-03 `registrationAvailable`, added F-01 Origin/CSRF requirements, corrected Prisma `startAt`/`endAt` naming, and clarified compatibility and STS coverage. |
 | 0.4 | 2026-11-24 | Draft — API/contract review pending | Reconciled Q-01 to Q-03 policy status with the SRS; preserved F-03 capacity-based `registrationAvailable` and proposed additive `registrationOpen`; fixed validation status semantics; specified the additive deadline check/rollback plan; clarified AC/STS and NFR-09/NFR-10 traceability. |
+| 0.5 | 2026-11-24 | Draft — field semantics Accepted — Team Reviewed; remaining contract acceptance pending | Carried forward the Issue #47 F-05 v0.4 content and history without overwriting it; recorded that `registrationAvailable` means remaining capacity and `registrationOpen` means the effective-deadline window; clarified backend-authoritative eligibility and aligned dependent F-06/F-07 contracts with the reviewed decisions. No route/schema acceptance, implementation, migration, or test execution is claimed. |
 
 ### Related baseline
 

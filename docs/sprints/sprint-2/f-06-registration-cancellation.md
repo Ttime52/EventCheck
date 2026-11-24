@@ -2,8 +2,8 @@
 
 **Issue:** 11B - Sprint 2 Feature Contracts<br>
 **Feature ID:** F-06<br>
-**Contract version:** 0.2<br>
-**Status:** Draft - Review Ready; pending team review; not Accepted<br>
+**Contract version:** 0.3<br>
+**Status:** Draft - Review Ready; policy decisions Accepted — Team Reviewed; F-06 contract acceptance pending<br>
 **Updated:** 2026-11-24<br>
 **Author:** Issue 11B contributor (name not recorded in the repository)<br>
 **Reviewer:** Student 1 (assigned peer reviewer; review pending)<br>
@@ -14,7 +14,7 @@
 
 F-06 lets a Participant cancel an eligible registration they own, retains that cancelled registration as history, releases its place exactly once, and permits a later re-registration only after the normal current eligibility checks pass. This contract covers the Participant UI, the cancellation API, persistence, transaction and authorization rules, acceptance criteria, and planned tests.
 
-This is a pre-implementation contract. It does not create an implementation or approve the pending policy decisions listed below. The Sprint 1 RegistrationStatus enum already contains ACTIVE and CANCELLED, and the database already has a partial unique index for one ACTIVE registration per Participant and Event. The current schema has no cancelledAt field and the application has no cancellation endpoint.
+This is a pre-implementation contract. Q-04, Q-06, and Q-10 are Accepted — Team Reviewed and synchronized with the SRS; this policy review does not accept the F-06 feature contract or API/schema details. The Sprint 1 RegistrationStatus enum already contains ACTIVE and CANCELLED, and the database already has a partial unique index for one ACTIVE registration per Participant and Event. The current schema has no cancelledAt field and the application has no cancellation endpoint.
 
 ## 2. Requirement and responsibility links
 
@@ -34,18 +34,20 @@ This is a pre-implementation contract. It does not create an implementation or a
 | F-02 | Event identity, owner, startAt, and endAt are stored in UTC-based instants. Only the backend clock is used for the cutoff. |
 | F-03 | The existing POST /api/v1/events/{eventId}/registrations route creates a self-registration. GET /api/v1/me/registrations and its detail route expose a Participant's own persisted records. F-06 reuses these routes for re-registration and history. |
 | F-04 | The existing owner-scoped registration list exposes registration status. F-06 does not give an Organizer permission to cancel for a Participant. |
-| F-05 | Use the team-reviewed Q-01/Q-02 capacity rules and Q-03 effective deadline rule recorded in F-05 v0.3 and synchronized to the SRS: only ACTIVE rows count; deadline is optional, otherwise startAt is effective; registration requires server time strictly before it. F-05 v0.4 preserves F-03 capacity-based `registrationAvailable` and adds proposed `registrationOpen`; final F-05 API/contract acceptance remains pending. |
+| F-05 | Use the team-reviewed Q-01/Q-02 capacity rules and Q-03 effective deadline rule recorded in F-05 v0.3 and synchronized to the SRS: only ACTIVE rows count; deadline is optional, otherwise startAt is effective; registration requires server time strictly before it. F-05 v0.5 records the reviewed field meanings: `registrationAvailable` means remaining capacity and `registrationOpen` means the effective-deadline window. These fields are UI information only; the backend registration operation rechecks publication, deadline, capacity, and duplicate-ACTIVE eligibility in its transaction. Final F-05 API/schema acceptance remains pending. |
 | F-07 | Check cancellation against persisted Attendance, and share the Event-then-Registration lock order with check-in so a checked-in record cannot be cancelled. |
 
 ### Decision register
 
-The proposals below remain Pending Team Review. The F-05 Q-01 to Q-03 review record does not approve Q-04, Q-06, or Q-10.
+Q-04, Q-06, and Q-10 are Accepted — Team Reviewed in the PR review recorded 2026-11-24. The F-06 contract and its proposed API/schema details remain pending acceptance.
 
-| Decision | Proposed behavior | Rationale | Affected features / requirements | Dependencies | Status and approval record |
+| Decision | Policy | Rationale | Affected features / requirements | Dependencies | Status and approval record |
 | --- | --- | --- | --- | --- | --- |
-| Q-04 | A Participant may cancel their own ACTIVE registration strictly before Event start, including after the registration deadline, unless the registration has Attendance. At or after start, an ACTIVE registration cannot be cancelled. A retry on an already CANCELLED registration is an idempotent no-op that returns its existing cancelled state and timestamp. | Allows a late withdrawal to release a place without changing the check-in or attendance record. Idempotent retries avoid a second place release. | F-06; FR-17; BR-13; F-07 checked-in guard | F-01, F-03, F-05, F-07; D-08/Q-11 server UTC time | Pending Team Review in SRS. No approval or reviewer decision is recorded. Student 1 peer review is pending and is not policy approval. |
-| Q-06 | Re-registration creates a new ACTIVE Registration only after rechecking publication, effective deadline, capacity, and duplicate-ACTIVE rules. The old CANCELLED row remains unchanged. | Preserves an auditable lifecycle and applies current eligibility rather than reviving a stale reservation. | F-03/F-05/F-06; FR-18; BR-08, BR-09, BR-14 | F-03 registration transaction and the team-reviewed F-05 policy; final F-05 API/contract acceptance remains a dependency. | Pending Team Review in SRS. No approval or reviewer decision is recorded. |
-| Q-10 | Retain synthetic Registration and Attendance history for the project and assessment period; do not add automatic deletion or a retention-management interface. Any real-user production policy needs separate review. | Supports the assessment's persistence and history evidence without asserting a production retention policy. | F-06/F-07; FR-14, FR-18; NFR-04 | Restrictive references and durable database storage | Pending Team Review in SRS. No approval or reviewer decision is recorded. |
+| Q-04 | A Participant may cancel their own ACTIVE registration strictly before Event start, including after the registration deadline, provided it has not been checked in. At or after start, or after check-in, cancellation is denied. | Allows a late withdrawal to release a place without changing an attendance record. | F-06; FR-17; BR-13; F-07 checked-in guard | F-01, F-03, F-05, F-07; D-08/Q-11 server UTC time | Accepted — Team Reviewed (PR review recorded 2026-11-24); F-06 contract acceptance pending. |
+| Q-06 | Re-registration creates a new ACTIVE Registration only after rechecking publication, effective deadline, capacity, and duplicate-ACTIVE rules. The old CANCELLED row remains unchanged. | Preserves an auditable lifecycle and applies current eligibility rather than reviving a stale reservation. | F-03/F-05/F-06; FR-18; BR-08, BR-09, BR-14 | F-03 registration transaction and the team-reviewed F-05 policy; final F-05 API/contract acceptance remains a dependency. | Accepted — Team Reviewed (PR review recorded 2026-11-24); F-06 contract acceptance pending. |
+| Q-10 | Retain synthetic Registration and Attendance history for the project and assessment period; do not add automatic deletion or a retention-management interface. Any real-user production policy needs separate review. | Supports the assessment's persistence and history evidence without asserting a production retention policy. | F-06/F-07; FR-14, FR-18; NFR-04 | Restrictive references and durable database storage | Accepted — Team Reviewed (PR review recorded 2026-11-24); real-user production policy is separate. |
+
+Idempotent retries on an already CANCELLED record remain a proposed F-06 contract behavior; they are not part of the Q-04 policy decision and remain subject to feature-contract review.
 
 ## 4. Feature-level SDS
 
@@ -140,7 +142,7 @@ This contract adds no mutable active-registration counter, no separate cancellat
 
 1. Only ACTIVE registrations consume capacity. Cancellation changes one row to CANCELLED, so the derived active count falls by exactly one; an idempotent retry has no further effect.
 2. Re-registration is a new Registration through F-03. It must pass the F-05 effective deadline and active-capacity rules at commit time. A cancellation after the effective registration deadline may succeed before start, but re-registration at that same time is closed.
-3. Cancellation history remains in the old Registration row and does not reset when a new row is created. Q-10's proposed assessment-period retention is not yet approved.
+3. Cancellation history remains in the old Registration row and does not reset when a new row is created. Under accepted Q-10, synthetic registration and attendance history is retained through the project and assessment period without automatic deletion.
 4. Attendance is linked to Registration. If Attendance exists, F-06 cannot cancel that Registration. F-07 and F-06 share row-lock order and transaction boundaries.
 5. F-06 does not modify F-05 capacity policy, F-04's Organizer authority, or F-03's approved registration endpoint and response fields except for the proposed additive cancelledAt field on Participant reads.
 6. F-01 authentication, CSRF, safe errors, and server ownership checks apply to every new mutation.
@@ -310,7 +312,7 @@ These are planned specifications only. No F-06 implementation or test execution 
 
 F-06 implementation is Done only after every item is evidenced on the reviewed Sprint 2 release. All boxes below are future completion criteria, not claims that work is complete.
 
-- [ ] Team resolves or revises Q-04, Q-06, and the affected Q-10 policy in the SRS; implementation also waits for teammate acceptance of F-05 v0.4 API/schema details.
+- [ ] Before implementation, confirm the SRS and contracts still reflect Accepted — Team Reviewed Q-04, Q-06, and Q-10; obtain teammate acceptance of the remaining F-05 v0.5 API/schema details.
 - [ ] A teammate other than the author accepts this versioned contract and any API/schema changes before implementation.
 - [ ] Reviewed additive migration adds cancelledAt and its lifecycle invariant; the existing partial unique ACTIVE index and restrictive history references remain valid.
 - [ ] F-06 backend uses session-derived Participant identity, CSRF protection, Event-then-Registration locks, server time after lock acquisition, and atomic status/timestamp persistence.
@@ -325,12 +327,12 @@ F-06 implementation is Done only after every item is evidenced on the reviewed S
 
 | Item | Current observation | Required treatment |
 | --- | --- | --- |
-| F-05 dependency status | Q-01 to Q-03 policy review is recorded in F-05 v0.3 and synchronized to the SRS. F-05 v0.4 API/schema acceptance remains pending. | Keep Q-04/Q-06/Q-10 pending and obtain final F-05 teammate acceptance before implementing dependent deadline behavior. |
+| F-05 dependency status | Q-01 to Q-03 and the `registrationAvailable` / `registrationOpen` meanings are team-reviewed; the F-05 v0.5 API/schema contract remains pending acceptance. | Preserve the reviewed field meanings and backend-authoritative eligibility; obtain final F-05 teammate acceptance before implementation. |
 | Current schema gap | RegistrationStatus and the partial ACTIVE index already support the lifecycle, but cancelledAt is absent. | Add and review the additive migration before coding F-06. |
 | Deadline dependency | Event.registrationDeadline is not in the current Prisma schema; F-05 proposes it. | Do not treat a deadline as implemented. Re-registration depends on the accepted F-05 field and transaction behavior. |
 | Publication-state representation | The current Prisma PublicationState enum contains only PUBLISHED, so a non-published Event fixture cannot be represented by the current schema. | Re-registration still reuses the F-03 publication eligibility check. Do not add an unpublished lifecycle as F-06 scope; add a negative-state test only if a later reviewed F-02 schema supports it. |
 | Concurrent lifecycle work | A cancellation and check-in must not commit incompatible state. | F-06 and F-07 must use the same Event-then-Registration lock order and test at the start boundary. |
-| Retention | Q-10 remains Pending Team Review. | This contract proposes no automatic deletion; any production retention rule is outside this decision. |
+| Retention | Q-10 is Accepted — Team Reviewed for synthetic data during the project and assessment period. | No automatic deletion or retention-management interface is added for this scope; any real-user production policy requires separate review. |
 
 ## 10. Version and decision history
 
@@ -338,13 +340,14 @@ F-06 implementation is Done only after every item is evidenced on the reviewed S
 | --- | --- | --- | --- |
 | 0.1 | 2026-11-24 | Draft - Review Ready; pending team review | Initial F-06 scope, workflow, API/data proposal, AC, planned STS, DoD, cross-feature transaction rules, and unresolved decision register. No implementation or test result recorded. |
 | 0.2 | 2026-11-24 | Draft - Review Ready; pending team review | Synchronized the F-05 dependency status with the SRS, clarified that F-05 v0.4 API/schema acceptance remains pending, and linked cancellation/re-registration AC and STS rows to Q-04/Q-06. No policy approval, implementation, or test execution is claimed. |
+| 0.3 | 2026-11-24 | Draft - Review Ready; Q-04/Q-06/Q-10 Accepted — Team Reviewed; contract acceptance pending | Recorded the PR-reviewed policies in the decision register, SRS references, and lifecycle/retention notes; aligned the F-05 dependency with v0.5 field semantics and backend-authoritative registration checks. F-05 API/schema and F-06 contract acceptance, implementation, migration, and test execution remain pending. |
 
 ### Review record
 
 | Review item | Status |
 | --- | --- |
 | Student 1 peer review | Pending |
-| Team policy confirmation for Q-04, Q-06, Q-10 | Pending |
+| Team policy confirmation for Q-04, Q-06, Q-10 | Accepted — Team Reviewed; PR review recorded 2026-11-24 |
 | Contract acceptance | Pending |
 | Implementation, migration, and test execution | Not started by this documentation change |
 | PR/release approval | Pending |
