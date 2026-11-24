@@ -2,7 +2,7 @@
 
 **Issue:** 11B - Sprint 2 Feature Contracts<br>
 **Feature ID:** F-06<br>
-**Contract version:** 0.1<br>
+**Contract version:** 0.2<br>
 **Status:** Draft - Review Ready; pending team review; not Accepted<br>
 **Updated:** 2026-11-24<br>
 **Author:** Issue 11B contributor (name not recorded in the repository)<br>
@@ -34,7 +34,7 @@ This is a pre-implementation contract. It does not create an implementation or a
 | F-02 | Event identity, owner, startAt, and endAt are stored in UTC-based instants. Only the backend clock is used for the cutoff. |
 | F-03 | The existing POST /api/v1/events/{eventId}/registrations route creates a self-registration. GET /api/v1/me/registrations and its detail route expose a Participant's own persisted records. F-06 reuses these routes for re-registration and history. |
 | F-04 | The existing owner-scoped registration list exposes registration status. F-06 does not give an Organizer permission to cancel for a Participant. |
-| F-05 | Use Q-01/Q-02 capacity behavior and Q-03 effective deadline behavior in F-05 v0.3: only ACTIVE rows count; deadline is optional, otherwise startAt is effective; registration requires server time strictly before it. F-05 v0.3 records Q-01 to Q-03 as Team Reviewed, but that contract is still Draft pending final approval. The SRS still labels Q-01 to Q-03 Open - Proposed; reconcile that document status before accepting the related implementation baseline. |
+| F-05 | Use the team-reviewed Q-01/Q-02 capacity rules and Q-03 effective deadline rule recorded in F-05 v0.3 and synchronized to the SRS: only ACTIVE rows count; deadline is optional, otherwise startAt is effective; registration requires server time strictly before it. F-05 v0.4 preserves F-03 capacity-based `registrationAvailable` and adds proposed `registrationOpen`; final F-05 API/contract acceptance remains pending. |
 | F-07 | Check cancellation against persisted Attendance, and share the Event-then-Registration lock order with check-in so a checked-in record cannot be cancelled. |
 
 ### Decision register
@@ -44,7 +44,7 @@ The proposals below remain Pending Team Review. The F-05 Q-01 to Q-03 review rec
 | Decision | Proposed behavior | Rationale | Affected features / requirements | Dependencies | Status and approval record |
 | --- | --- | --- | --- | --- | --- |
 | Q-04 | A Participant may cancel their own ACTIVE registration strictly before Event start, including after the registration deadline, unless the registration has Attendance. At or after start, an ACTIVE registration cannot be cancelled. A retry on an already CANCELLED registration is an idempotent no-op that returns its existing cancelled state and timestamp. | Allows a late withdrawal to release a place without changing the check-in or attendance record. Idempotent retries avoid a second place release. | F-06; FR-17; BR-13; F-07 checked-in guard | F-01, F-03, F-05, F-07; D-08/Q-11 server UTC time | Pending Team Review in SRS. No approval or reviewer decision is recorded. Student 1 peer review is pending and is not policy approval. |
-| Q-06 | Re-registration creates a new ACTIVE Registration only after rechecking publication, effective deadline, capacity, and duplicate-ACTIVE rules. The old CANCELLED row remains unchanged. | Preserves an auditable lifecycle and applies current eligibility rather than reviving a stale reservation. | F-03/F-05/F-06; FR-18; BR-08, BR-09, BR-14 | F-03 registration transaction and F-05 accepted capacity/deadline behavior | Pending Team Review in SRS. No approval or reviewer decision is recorded. |
+| Q-06 | Re-registration creates a new ACTIVE Registration only after rechecking publication, effective deadline, capacity, and duplicate-ACTIVE rules. The old CANCELLED row remains unchanged. | Preserves an auditable lifecycle and applies current eligibility rather than reviving a stale reservation. | F-03/F-05/F-06; FR-18; BR-08, BR-09, BR-14 | F-03 registration transaction and the team-reviewed F-05 policy; final F-05 API/contract acceptance remains a dependency. | Pending Team Review in SRS. No approval or reviewer decision is recorded. |
 | Q-10 | Retain synthetic Registration and Attendance history for the project and assessment period; do not add automatic deletion or a retention-management interface. Any real-user production policy needs separate review. | Supports the assessment's persistence and history evidence without asserting a production retention policy. | F-06/F-07; FR-14, FR-18; NFR-04 | Restrictive references and durable database storage | Pending Team Review in SRS. No approval or reviewer decision is recorded. |
 
 ## 4. Feature-level SDS
@@ -104,7 +104,8 @@ Proposed cancellation outcomes use the existing JSON error envelope:
 | Wrong role | 403 | FORBIDDEN |
 | Missing or another Participant's Registration | 404 | REGISTRATION_NOT_FOUND; do not disclose record existence |
 | Missing, malformed, or disallowed Origin | 403 | CSRF_REJECTED; no database mutation |
-| Malformed JSON or invalid body fields | 400 / 422 | MALFORMED_JSON / INVALID_CANCELLATION_REQUEST |
+| Malformed JSON syntax | 400 | MALFORMED_JSON |
+| Syntactically valid JSON with invalid body fields | 422 | INVALID_CANCELLATION_REQUEST with field details |
 | Active, checked-in Registration | 409 | REGISTRATION_CHECKED_IN; preserve current state |
 | Active Registration at or after startAt | 409 | CANCELLATION_CLOSED; preserve current state |
 | Already CANCELLED own Registration | 200 | Return current state idempotently; not a second transition |
@@ -168,15 +169,15 @@ This contract adds no mutable active-registration counter, no separate cancellat
 | AC ID | Linked requirements | Acceptance criterion |
 | --- | --- | --- |
 | AC-F06-01 | FR-05, FR-17, BR-03, BR-04, NFR-01, NFR-03 | Only an authenticated Participant can cancel their own Registration. Identity is session-derived; anonymous, wrong-role, cross-Participant, invalid-session, and CSRF-failing requests produce safe outcomes with no mutation or private-data leak. |
-| AC-F06-02 | FR-17, BR-13, BR-14, D-08, Q-11 | An own ACTIVE Registration may be cancelled when server time is strictly before startAt, including after the effective registration deadline. Cancellation persists status=CANCELLED and a server UTC cancelledAt. |
-| AC-F06-03 | FR-17, BR-13, D-08, Q-11 | An ACTIVE Registration cannot be cancelled at or after startAt. The request leaves status, cancelledAt, and active count unchanged. |
-| AC-F06-04 | FR-17, BR-13, BR-09 | Repeating cancellation for an already CANCELLED own Registration returns its unchanged state and original cancelledAt, including on a retry after startAt; it never releases another place. |
+| AC-F06-02 | FR-17, BR-13, BR-14, D-08, Q-04, Q-11 | An own ACTIVE Registration may be cancelled when server time is strictly before startAt, including after the effective registration deadline. Cancellation persists status=CANCELLED and a server UTC cancelledAt. |
+| AC-F06-03 | FR-17, BR-13, D-08, Q-04, Q-11 | An ACTIVE Registration cannot be cancelled at or after startAt. The request leaves status, cancelledAt, and active count unchanged. |
+| AC-F06-04 | FR-17, BR-13, BR-09, Q-04 | Repeating cancellation for an already CANCELLED own Registration returns its unchanged state and original cancelledAt, including on a retry after startAt; it never releases another place. |
 | AC-F06-05 | FR-17, BR-13, BR-11 | A Registration with Attendance cannot be cancelled. Registration and Attendance remain unchanged. |
 | AC-F06-06 | FR-17, BR-09 | One successful cancellation removes exactly one Registration from the ACTIVE count and adds exactly one remaining place. Retries and rejected requests do not change either value. |
 | AC-F06-07 | FR-14, FR-17, BR-11, NFR-04, Q-10 | The old cancelled row, registeredAt, status, and cancelledAt remain retrievable after restart in the Participant's own registration history; the Organizer list continues to show its CANCELLED state. No automatic history deletion is introduced. |
-| AC-F06-08 | FR-18, BR-08, BR-09, BR-14 | Eligible re-registration for a currently PUBLISHED Event creates a distinct ACTIVE row with a new ID and registeredAt while leaving the original CANCELLED row and cancelledAt unchanged. |
-| AC-F06-09 | FR-16, FR-18, BR-08, BR-09, BR-14, BR-15 | Re-registration at/after the effective deadline, when capacity is full, or when an ACTIVE duplicate exists is rejected after current eligibility checks. No extra ACTIVE row or place is created. |
-| AC-F06-10 | FR-17, FR-18, BR-08, BR-09, BR-11, NFR-05 | Concurrent cancellation and re-registration operations serialize so no more than one ACTIVE row exists for the Participant/Event pair and cancellation releases no more than one place. |
+| AC-F06-08 | FR-18, BR-08, BR-09, BR-14, Q-06 | Eligible re-registration for a currently PUBLISHED Event creates a distinct ACTIVE row with a new ID and registeredAt while leaving the original CANCELLED row and cancelledAt unchanged. |
+| AC-F06-09 | FR-16, FR-18, BR-08, BR-09, BR-14, BR-15, Q-03, Q-06 | Re-registration at/after the effective deadline, when capacity is full, or when an ACTIVE duplicate exists is rejected after current eligibility checks. No extra ACTIVE row or place is created. |
+| AC-F06-10 | FR-17, FR-18, BR-08, BR-09, BR-11, NFR-05, Q-04, Q-06 | Concurrent cancellation and re-registration operations serialize so no more than one ACTIVE row exists for the Participant/Event pair and cancellation releases no more than one place. |
 | AC-F06-11 | FR-17, FR-19, BR-11, BR-13, BR-16, NFR-05 | F-06 and F-07 use one Event-then-Registration lock order. At the start boundary, check-in may succeed while cancellation is denied; a committed Attendance prevents later cancellation. |
 | AC-F06-12 | FR-17, FR-18, BR-11, NFR-06 | A validation, authorization, conflict, or injected persistence failure returns no success and leaves Registration, Attendance, and derived active count at their pre-request values. |
 | AC-F06-13 | FR-14, FR-17, FR-18, NFR-08 | Participant screens expose labelled status, loading, empty, success, session, conflict, and error states; controls have keyboard access and visible focus. Cancelled history remains visible after the cancellation action. |
@@ -195,7 +196,7 @@ These are planned specifications only. No F-06 implementation or test execution 
 
 ### TEST-F06-02 - Cancel after deadline but before start
 
-- **Related AC / requirements:** AC-F06-02; FR-17; BR-13, BR-14; D-08, Q-11.
+- **Related AC / requirements:** AC-F06-02; FR-17; BR-13, BR-14; D-08, Q-04, Q-11.
 - **Level:** Integration.
 - **Preconditions and data:** E1 starts at 2026-11-25T04:00:00Z and ends at 05:00:00Z. Its explicit registrationDeadline is 03:30:00Z. R1 is ACTIVE for Participant A. Freeze server time at 03:45:00Z.
 - **Steps and inputs:** POST {} to A's cancellation route with allowed Origin.
@@ -203,7 +204,7 @@ These are planned specifications only. No F-06 implementation or test execution 
 
 ### TEST-F06-03 - Event start boundary
 
-- **Related AC / requirements:** AC-F06-02, AC-F06-03; FR-17; BR-13; D-08, Q-11.
+- **Related AC / requirements:** AC-F06-02, AC-F06-03; FR-17; BR-13; D-08, Q-04, Q-11.
 - **Level:** Integration.
 - **Preconditions and data:** Create three equivalent ACTIVE registrations for Events starting at 2026-11-25T04:00:00Z; use independent fixtures and a controlled server clock.
 - **Steps and inputs:** Cancel at 03:59:59Z, exactly 04:00:00Z, and 04:00:01Z.
@@ -211,7 +212,7 @@ These are planned specifications only. No F-06 implementation or test execution 
 
 ### TEST-F06-04 - Idempotent cancellation retry
 
-- **Related AC / requirements:** AC-F06-04, AC-F06-06; FR-17; BR-09, BR-13.
+- **Related AC / requirements:** AC-F06-04, AC-F06-06; FR-17; BR-09, BR-13; Q-04.
 - **Level:** API.
 - **Preconditions and data:** R1 is already CANCELLED with cancelledAt=2026-11-25T03:00:00Z; Event start is 04:00:00Z. Current server time is 04:05:00Z.
 - **Steps and inputs:** The owning Participant retries POST {} to the cancellation route twice.
@@ -243,7 +244,7 @@ These are planned specifications only. No F-06 implementation or test execution 
 
 ### TEST-F06-08 - Eligible re-registration creates a new row
 
-- **Related AC / requirements:** AC-F06-08; FR-13, FR-18; BR-08, BR-09, BR-14.
+- **Related AC / requirements:** AC-F06-08; FR-13, FR-18; BR-08, BR-09, BR-14; Q-06.
 - **Level:** Integration.
 - **Preconditions and data:** R1 is CANCELLED; E1 is PUBLISHED, capacity=2 with one other ACTIVE row, registrationDeadline=2026-11-25T03:30:00Z, startAt=04:00:00Z. Current time is 03:20:00Z.
 - **Steps and inputs:** Participant A calls the existing F-03 POST /api/v1/events/E1/registrations with {}.
@@ -259,7 +260,7 @@ These are planned specifications only. No F-06 implementation or test execution 
 
 ### TEST-F06-10 - Full Event and existing ACTIVE duplicate
 
-- **Related AC / requirements:** AC-F06-09; FR-16, FR-18; BR-08, BR-09, BR-14, BR-15.
+- **Related AC / requirements:** AC-F06-09; FR-16, FR-18; BR-08, BR-09, BR-14, BR-15; Q-03, Q-06.
 - **Level:** API.
 - **Preconditions and data:** Fixture A: R1 is CANCELLED, another Participant fills E1 capacity=1, and deadline is still open. Fixture B: Participant A already has an ACTIVE R2 and an older cancelled R1.
 - **Steps and inputs:** Re-register A on full E1; then call the F-03 registration route for Fixture B's Event with {}.
@@ -267,7 +268,7 @@ These are planned specifications only. No F-06 implementation or test execution 
 
 ### TEST-F06-11 - Concurrent cancellation requests
 
-- **Related AC / requirements:** AC-F06-04, AC-F06-06, AC-F06-10; FR-17; BR-09, BR-11, BR-13; NFR-05.
+- **Related AC / requirements:** AC-F06-04, AC-F06-06, AC-F06-10; FR-17; BR-09, BR-11, BR-13; NFR-05; Q-04.
 - **Level:** Integration.
 - **Preconditions and data:** One ACTIVE R1, no Attendance, Event capacity=1, and server time 03:00:00Z before start 04:00:00Z. Use two synchronized API clients with the same Participant session.
 - **Steps and inputs:** Release both POST {} cancellation requests from a barrier; then issue one normal F-03 registration request after both responses.
@@ -275,7 +276,7 @@ These are planned specifications only. No F-06 implementation or test execution 
 
 ### TEST-F06-12 - Cancellation versus re-registration race
 
-- **Related AC / requirements:** AC-F06-08, AC-F06-10; FR-17, FR-18; BR-08, BR-09, BR-11; NFR-05.
+- **Related AC / requirements:** AC-F06-08, AC-F06-10; FR-17, FR-18; BR-08, BR-09, BR-11; NFR-05; Q-04, Q-06.
 - **Level:** Integration.
 - **Preconditions and data:** One ACTIVE R1 for Participant A, capacity=1, no Attendance, deadline open, and fixed time 03:00:00Z before start.
 - **Steps and inputs:** Synchronize POST cancel(R1) and F-03 POST registration(E1) from A. Repeat with fresh fixtures for five race attempts or the team-approved NFR-05 sample.
@@ -309,7 +310,7 @@ These are planned specifications only. No F-06 implementation or test execution 
 
 F-06 implementation is Done only after every item is evidenced on the reviewed Sprint 2 release. All boxes below are future completion criteria, not claims that work is complete.
 
-- [ ] Team resolves or revises Q-04, Q-06, and the affected Q-10 policy in the SRS; the Q-01 to Q-03 SRS/F-05 status discrepancy and final F-05 approval are resolved before implementation.
+- [ ] Team resolves or revises Q-04, Q-06, and the affected Q-10 policy in the SRS; implementation also waits for teammate acceptance of F-05 v0.4 API/schema details.
 - [ ] A teammate other than the author accepts this versioned contract and any API/schema changes before implementation.
 - [ ] Reviewed additive migration adds cancelledAt and its lifecycle invariant; the existing partial unique ACTIVE index and restrictive history references remain valid.
 - [ ] F-06 backend uses session-derived Participant identity, CSRF protection, Event-then-Registration locks, server time after lock acquisition, and atomic status/timestamp persistence.
@@ -324,7 +325,7 @@ F-06 implementation is Done only after every item is evidenced on the reviewed S
 
 | Item | Current observation | Required treatment |
 | --- | --- | --- |
-| F-05 status mismatch | F-05 v0.3 says Q-01 to Q-03 are Team Reviewed; docs/srs.md still says Open - Proposed. F-05 final contract approval also remains pending. | Keep Q-04/Q-06/Q-10 pending. Reconcile the SRS/F-05 status record and accept the relevant F-05 contract before implementation. |
+| F-05 dependency status | Q-01 to Q-03 policy review is recorded in F-05 v0.3 and synchronized to the SRS. F-05 v0.4 API/schema acceptance remains pending. | Keep Q-04/Q-06/Q-10 pending and obtain final F-05 teammate acceptance before implementing dependent deadline behavior. |
 | Current schema gap | RegistrationStatus and the partial ACTIVE index already support the lifecycle, but cancelledAt is absent. | Add and review the additive migration before coding F-06. |
 | Deadline dependency | Event.registrationDeadline is not in the current Prisma schema; F-05 proposes it. | Do not treat a deadline as implemented. Re-registration depends on the accepted F-05 field and transaction behavior. |
 | Publication-state representation | The current Prisma PublicationState enum contains only PUBLISHED, so a non-published Event fixture cannot be represented by the current schema. | Re-registration still reuses the F-03 publication eligibility check. Do not add an unpublished lifecycle as F-06 scope; add a negative-state test only if a later reviewed F-02 schema supports it. |
@@ -336,6 +337,7 @@ F-06 implementation is Done only after every item is evidenced on the reviewed S
 | Version | Date | Status | Change |
 | --- | --- | --- | --- |
 | 0.1 | 2026-11-24 | Draft - Review Ready; pending team review | Initial F-06 scope, workflow, API/data proposal, AC, planned STS, DoD, cross-feature transaction rules, and unresolved decision register. No implementation or test result recorded. |
+| 0.2 | 2026-11-24 | Draft - Review Ready; pending team review | Synchronized the F-05 dependency status with the SRS, clarified that F-05 v0.4 API/schema acceptance remains pending, and linked cancellation/re-registration AC and STS rows to Q-04/Q-06. No policy approval, implementation, or test execution is claimed. |
 
 ### Review record
 
