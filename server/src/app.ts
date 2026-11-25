@@ -10,6 +10,8 @@ import { decideCancellation } from "./registration-lifecycle.js";
 export const app = express();
 let nowProvider = () => new Date();
 export function setNowProvider(provider: () => Date) { nowProvider = provider; }
+let attendanceFailureInjector: (() => void) | null = null;
+export function setAttendanceFailureInjector(injector: (() => void) | null) { attendanceFailureInjector = injector; }
 
 const offsetDateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 function validOffsetDateTime(value: unknown): value is string {
@@ -177,7 +179,9 @@ app.post("/api/v1/organizer/registrations/:registrationId/attendance", requireAu
       if (existing) throw Object.assign(new Error("ATTENDANCE_ALREADY_EXISTS"), { code: "ATTENDANCE_ALREADY_EXISTS", existing });
       const now = nowProvider();
       if (now < lockedEvent[0].startAt || now >= lockedEvent[0].endAt) throw Object.assign(new Error("CHECK_IN_WINDOW_CLOSED"), { code: "CHECK_IN_WINDOW_CLOSED" });
-      return transaction.attendance.create({ data: { registrationId, eventId: owned.eventId, participantId: registration.participantId, recordedByOrganizerId: organizerId, checkedInAt: now } });
+      const created = await transaction.attendance.create({ data: { registrationId, eventId: owned.eventId, participantId: registration.participantId, recordedByOrganizerId: organizerId, checkedInAt: now } });
+      attendanceFailureInjector?.();
+      return created;
     });
     return response.status(201).json({ data: { attendance: attendanceView(attendance) } });
   } catch (error) {

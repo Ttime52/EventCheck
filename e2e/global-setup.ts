@@ -63,16 +63,17 @@ export default async function globalSetup() {
   let organizer: { id: string; loginIdentifier: string } | undefined;
   let participant: { id: string; loginIdentifier: string } | undefined;
   let event: { id: string; title: string } | undefined;
+  let secondaryEvent: { id: string; title: string } | undefined;
   let registration: { id: string } | undefined;
   let api: ChildProcess | undefined;
   let web: ChildProcess | undefined;
   const cleanup = async () => {
     await stop(web);
     await stop(api);
-    if (event) {
-      await prisma.attendance.deleteMany({ where: { eventId: event.id } });
-      if (registration) await prisma.registration.deleteMany({ where: { id: registration.id } });
-      await prisma.event.deleteMany({ where: { id: event.id } });
+    for (const ownedEvent of [event, secondaryEvent]) if (ownedEvent) {
+      await prisma.attendance.deleteMany({ where: { eventId: ownedEvent.id } });
+      await prisma.registration.deleteMany({ where: { eventId: ownedEvent.id } });
+      await prisma.event.deleteMany({ where: { id: ownedEvent.id } });
     }
     const userIds = [organizer?.id, participant?.id].filter((id): id is string => Boolean(id));
     if (userIds.length) {
@@ -87,11 +88,15 @@ export default async function globalSetup() {
     const startAt = new Date(Date.now() - 60_000);
     event = await prisma.event.create({ data: { organizerId: organizer.id, title: `F07 E2E Event ${run}`, description: "F07 fixture", location: "F07 Test Hall", startAt, endAt: new Date(Date.now() + 3_600_000), capacity: 5, publicationState: PublicationState.PUBLISHED }, select: { id: true, title: true } });
     registration = await prisma.registration.create({ data: { eventId: event.id, participantId: participant.id, status: RegistrationStatus.ACTIVE }, select: { id: true } });
+    await prisma.registration.create({ data: { eventId: event.id, participantId: participant.id, status: RegistrationStatus.CANCELLED, cancelledAt: new Date() } });
+    secondaryEvent = await prisma.event.create({ data: { organizerId: organizer.id, title: `F07 E2E Secondary ${run}`, description: "F07 secondary fixture", location: "F07 Test Hall 2", startAt, endAt: new Date(Date.now() + 3_600_000), capacity: 2, publicationState: PublicationState.PUBLISHED }, select: { id: true, title: true } });
+    await prisma.registration.create({ data: { eventId: secondaryEvent.id, participantId: participant.id, status: RegistrationStatus.ACTIVE } });
     process.env.E2E_F07_ORGANIZER_LOGIN = organizer.loginIdentifier;
     process.env.E2E_F07_PARTICIPANT_LOGIN = participant.loginIdentifier;
     process.env.E2E_F07_ORGANIZER_PASSWORD = password;
     process.env.E2E_F07_PARTICIPANT_PASSWORD = password;
     process.env.E2E_F07_EVENT_TITLE = event.title;
+    process.env.E2E_F07_SECONDARY_EVENT_TITLE = secondaryEvent.title;
     process.env.E2E_F07_REGISTRATION_ID = registration.id;
     api = spawn(process.execPath, [resolve("server/dist/index.js")], {
       cwd: process.cwd(),

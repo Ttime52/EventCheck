@@ -20,7 +20,7 @@ type PublishedEvent = {
 
 type PublicEvent = Omit<PublishedEvent, "publicationState"> & { remainingPlaces: number; registrationAvailable: boolean; registrationOpen: boolean };
 type Registration = { id: string; eventId: string; status: "ACTIVE" | "CANCELLED"; registeredAt: string; cancelledAt: string | null; event: Pick<PublicEvent, "id" | "title" | "description" | "location" | "startAt" | "endAt">; attendance?: Attendance | null };
-type OrganizerRegistration = { id: string; participantId: string; participantDisplayName: string; status: "ACTIVE" | "CANCELLED"; registeredAt: string };
+type OrganizerRegistration = { id: string; participantId: string; participantDisplayName: string; status: "ACTIVE" | "CANCELLED"; registeredAt: string; cancelledAt?: string | null };
 type Attendance = { id: string; registrationId: string; eventId: string; participantId: string; recordedByOrganizerId: string; checkedInAt: string };
 type AttendanceState = { status: "loading" | "success" | "error"; value?: Attendance | null };
 
@@ -407,15 +407,22 @@ function OrganizerRegistrationsView({ event, onBack, onSessionExpired }: Organiz
   const [message, setMessage] = useState("");
   const [checkingInId, setCheckingInId] = useState<string | null>(null);
   const [listError, setListError] = useState("");
+  const [attendanceError, setAttendanceError] = useState("");
+  const [attendanceLoaded, setAttendanceLoaded] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [clock, setClock] = useState(() => Date.now());
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => { headingRef.current?.focus(); }, []);
+  useEffect(() => { const timer = window.setInterval(() => setClock(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
 
   useEffect(() => {
     let active = true;
+    let registrationsLoaded = false;
     setLoading(true);
     setListError("");
+    setAttendanceError("");
+    setAttendanceLoaded(false);
     fetch(`/api/v1/organizer/events/${encodeURIComponent(event.id)}/registrations`, { credentials: "include" })
       .then(async (response) => ({ response, body: await response.json().catch(() => null) }))
       .then(async ({ response, body }) => {
@@ -428,16 +435,24 @@ function OrganizerRegistrationsView({ event, onBack, onSessionExpired }: Organiz
           setListError(errorMessage(body, "Unable to load registrations for this event"));
           return;
         }
-        setRegistrations(body.data.registrations);
+        const loadedRegistrations = body.data.registrations as OrganizerRegistration[];
+        setRegistrations(loadedRegistrations);
+        registrationsLoaded = true;
         const attendanceResponse = await fetch(`/api/v1/organizer/events/${encodeURIComponent(event.id)}/attendance`, { credentials: "include" });
         const attendanceBody = await attendanceResponse.json().catch(() => null);
-        if (attendanceResponse.status === 401) { onSessionExpired(); throw new Error("Session expired"); }
-        if (!attendanceResponse.ok || !Array.isArray(attendanceBody?.data?.attendances)) throw new Error(errorMessage(attendanceBody, "Unable to load attendance"));
+        if (!active) return;
+        if (attendanceResponse.status === 401) { onSessionExpired(); return; }
+        if (!attendanceResponse.ok || !Array.isArray(attendanceBody?.data?.attendances)) {
+          setAttendanceError(errorMessage(attendanceBody, "Unable to load attendance. Try again."));
+          return;
+        }
         const byRegistration = Object.fromEntries((attendanceBody.data.attendances as Attendance[]).map(item => [item.registrationId, item]));
-        setAttendance(Object.fromEntries(body.data.registrations.map((registration: OrganizerRegistration) => [registration.id, byRegistration[registration.id] ?? null])));
+        setAttendance(Object.fromEntries(loadedRegistrations.map(registration => [registration.id, byRegistration[registration.id] ?? null])));
+        setAttendanceLoaded(true);
       })
       .catch(() => {
-        if (active) setListError("Unable to load registrations for this event. Try again.");
+        if (active && !registrationsLoaded) setListError("Unable to load registrations for this event. Try again.");
+        else if (active) setAttendanceError("Unable to load attendance. Try again.");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -463,11 +478,14 @@ function OrganizerRegistrationsView({ event, onBack, onSessionExpired }: Organiz
     }
   }
 
+  const activeRegistrations = registrations.filter(registration => registration.status === "ACTIVE");
+  const cancelledRegistrations = registrations.filter(registration => registration.status === "CANCELLED");
   const registrationCount = registrations.length;
   const registrationCountLabel = `${registrationCount} ${registrationCount === 1 ? "registration" : "registrations"}`;
-  const now = Date.now();
+  const now = clock;
   const eventStatus = now < new Date(event.startAt).getTime() ? "Upcoming" : now < new Date(event.endAt).getTime() ? "Ongoing" : "Ended";
-  const checkedInCount = Object.values(attendance).filter(Boolean).length;
+  const checkedInCount = activeRegistrations.filter(registration => Boolean(attendance[registration.id])).length;
+  const notCheckedInCount = Math.max(0, activeRegistrations.length - checkedInCount);
 
   return (
     <section className="event-detail-page organizer-registrations-page" aria-labelledby="organizer-registrations-heading">
@@ -479,7 +497,8 @@ function OrganizerRegistrationsView({ event, onBack, onSessionExpired }: Organiz
         <div className="attendance-event-summary"><span className={`event-status event-status-${eventStatus.toLowerCase()}`}>{eventStatus}</span><span>{formatBangkokDate(event.startAt)} – {formatBangkokDate(event.endAt)}</span></div>
         {message && <p className="status-text" role="status" aria-live="polite">{message}</p>}
       </div>
-      <div className="attendance-metrics" aria-label="Attendance summary"><div><strong>{registrationCount}</strong><span>Total registrations</span></div><div><strong>{checkedInCount}</strong><span>Checked in</span></div><div><strong>{Math.max(0, registrationCount - checkedInCount)}</strong><span>Not checked in</span></div></div>
+      {attendanceError && <div className="registration-detail-card" role="alert"><p>{attendanceError}</p><button type="button" className="button button-secondary" onClick={() => setAttempt(value => value + 1)}>Retry attendance</button></div>}
+      {attendanceLoaded && <div className="attendance-metrics" aria-label="Attendance summary"><div><strong>{activeRegistrations.length}</strong><span>Active registrations</span></div><div><strong>{cancelledRegistrations.length}</strong><span>Cancelled registrations</span></div><div><strong>{checkedInCount}</strong><span>Checked in</span></div><div><strong>{notCheckedInCount}</strong><span>Not checked in</span></div><div><strong>{Math.max(0, event.capacity - activeRegistrations.length)}</strong><span>Remaining seats</span></div><div><strong>{registrationCount}</strong><span>Total registration records</span></div></div>}
       {loading ? <p className="detail-status" role="status">Loading registrations...</p> : listError ? (
         <div className="registration-detail-card" role="alert">
           <p>{listError}</p>
@@ -489,23 +508,26 @@ function OrganizerRegistrationsView({ event, onBack, onSessionExpired }: Organiz
         <>
           <p className="detail-status" role="status" aria-live="polite">{registrationCountLabel}</p>
           {registrationCount === 0 ? <p className="empty-state">No registrations for this event yet.</p> : (
-            <ul className="event-list" aria-label="Event registration list">
-              {registrations.map(registration => (
+            <>
+            <h3>Active Registrations</h3>
+            <ul className="event-list" aria-label="Active Registrations">
+              {activeRegistrations.map(registration => (
                 <li className="event-card" key={registration.id}>
                   <div className="event-card-heading">
                     <h3>{registration.participantDisplayName}</h3>
                     <span className="published-badge">{registration.status}</span>
                   </div>
                   <dl className="event-meta">
-                    <div><dt>Registration ID</dt><dd className="event-id">{registration.id}</dd></div>
-                    <details className="technical-details"><summary>Technical details</summary><div><dt>Registration ID</dt><dd className="event-id">{registration.id}</dd></div><div><dt>Participant ID</dt><dd className="event-id">{registration.participantId}</dd></div></details>
                     <div><dt>Registered (Asia/Bangkok, UTC+7)</dt><dd>{formatBangkokDate(registration.registeredAt)}</dd></div>
-                    <div><dt>Attendance</dt><dd>{attendance[registration.id] ? `Checked In — ${formatBangkokDate(attendance[registration.id]!.checkedInAt)}` : "Not Checked In"}</dd></div>
+                    <div><dt>Attendance</dt><dd>{!attendanceLoaded ? "Attendance unavailable" : attendance[registration.id] ? `Checked In — ${formatBangkokDate(attendance[registration.id]!.checkedInAt)}` : "Not Checked In"}</dd></div>
                   </dl>
-                  {registration.status === "ACTIVE" && !attendance[registration.id] && <button type="button" className="button button-secondary" onClick={() => void checkIn(registration)} disabled={checkingInId !== null}>{checkingInId === registration.id ? "Checking in..." : "Check in participant"}</button>}
+                  <details className="technical-details"><summary>Technical details</summary><p><span>Registration ID</span> <code className="event-id">{registration.id}</code></p><p><span>Participant ID</span> <code className="event-id">{registration.participantId}</code></p></details>
+                  {(() => { const eligible = now >= new Date(event.startAt).getTime() && now < new Date(event.endAt).getTime(); const reason = !attendanceLoaded ? "Attendance unavailable; retry to check in." : attendance[registration.id] ? "Already checked in." : !eligible ? (now < new Date(event.startAt).getTime() ? "Check-in opens at event start." : "Check-in closed after the event ended.") : ""; return <>{registration.status === "ACTIVE" && !attendance[registration.id] && <button type="button" className="button button-secondary" onClick={() => void checkIn(registration)} disabled={checkingInId !== null || !eligible || !attendanceLoaded}>{checkingInId === registration.id ? "Checking in..." : "Check in participant"}</button>}{reason && <span className="field-help">{reason}</span>}</>; })()}
                 </li>
               ))}
             </ul>
+            {cancelledRegistrations.length > 0 && <><h3>Registration History</h3><ul className="event-list" aria-label="Registration History">{cancelledRegistrations.map(registration => <li className="event-card" key={registration.id}><div className="event-card-heading"><h3>{registration.participantDisplayName}</h3><span className="published-badge">CANCELLED</span></div><p>Registered {formatBangkokDate(registration.registeredAt)}</p><p>Registration cancelled{registration.cancelledAt ? ` · ${formatBangkokDate(registration.cancelledAt)}` : ""}</p></li>)}</ul></>}
+            </>
           )}
         </>
       )}
