@@ -127,12 +127,27 @@ function PublicEventsPanel({ user, onSessionExpired }: { user: User | null; onSe
       const response = await fetch("/api/v1/events", { credentials: "include" });
       const body = await response.json().catch(() => null);
       if (!response.ok || !Array.isArray(body?.data?.events)) throw new Error(errorMessage(body, "Unable to load published events"));
-      setEvents(body.data.events.filter(isPublicEvent));
+      const publicEvents = body.data.events.filter(isPublicEvent);
+      if (publicEvents.length !== body.data.events.length) {
+        throw new Error("The API returned an unsupported event format. Check that the API and client are running from the same version.");
+      }
+      setEvents(publicEvents);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to load published events"); }
     finally { setLoading(false); }
   }
 
-  useEffect(() => { void loadEvents(); if (user?.role === "PARTICIPANT") void loadRegistrations(); }, []);
+  useEffect(() => {
+    void loadEvents();
+    if (user?.role === "PARTICIPANT") void loadRegistrations();
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void loadEvents();
+      if (user?.role === "PARTICIPANT") void loadRegistrations();
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => document.removeEventListener("visibilitychange", refreshWhenVisible);
+  }, []);
 
   async function loadRegistrations() {
     setRegistrationsLoading(true);
@@ -767,15 +782,7 @@ export function App() {
               </section>}
             </div>
           </section>
-        ) : (
-          <section className="future-card">
-            <span className="calendar-icon" aria-hidden="true">◷</span>
-            <div>
-              <h2>Your events are coming soon</h2>
-              <p>Event discovery and attendance tools will appear here in the next Sprint.</p>
-            </div>
-          </section>
-        )}
+        ) : null}
         </div>
       </main>
     );
