@@ -89,11 +89,13 @@ test("TEST-F06-15: Participant cancels, keeps history after reload, and re-regis
   const firstCard = myRegistrations.locator(".event-card").filter({ hasText: title });
   const cancelButton = firstCard.getByRole("button", { name: `Cancel registration for ${title}` });
   await expect(cancelButton).toBeVisible();
+  await expect(firstCard).not.toContainText("Loading attendance...");
+  await expect(firstCard).not.toContainText("Attendance unavailable");
   await cancelButton.focus();
   await expect(cancelButton).toBeFocused();
   page.once("dialog", dialog => dialog.accept());
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("region", { name: "Discover published events" }).getByRole("status")).toContainText("Registration cancelled.");
+  await expect(page.getByRole("region", { name: "My Registrations" }).getByRole("status")).toContainText("Registration cancelled.");
   await expect(firstCard).toContainText("CANCELLED");
 
   const prisma = new PrismaClient({ datasources: { db: { url: isolatedDatabaseUrl() } } });
