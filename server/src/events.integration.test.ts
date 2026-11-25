@@ -6,16 +6,17 @@ import { hashPassword } from "./security.js";
 import { prisma } from "./auth.js";
 import { isIsolatedTestDatabase } from "./test-database.js";
 
-const organizerALogin = "f02-organizer-a@example.test";
-const organizerBLogin = "f02-organizer-b@example.test";
-const organizerCLogin = "f02-organizer-c@example.test";
-const participantLogin = "f02-participant@example.test";
+const runId = `f02-${crypto.randomUUID()}`;
+const organizerALogin = `${runId}-organizer-a@example.test`;
+const organizerBLogin = `${runId}-organizer-b@example.test`;
+const organizerCLogin = `${runId}-organizer-c@example.test`;
+const participantLogin = `${runId}-participant@example.test`;
 const fixturePassword = "f02-fixture-password";
 const origin = { Origin: "http://localhost:5173" };
 const isolatedDatabase = isIsolatedTestDatabase();
 
 const validPayload = (suffix: string) => ({
-  title: `University Event ${suffix}`,
+  title: `${runId} University Event ${suffix}`,
   description: "A synthetic EventCheck event for integration verification.",
   location: "Engineering Building 1",
   startAt: "2026-11-20T09:00:00+07:00",
@@ -29,10 +30,13 @@ async function login(loginIdentifier: string) {
   return response.headers["set-cookie"];
 }
 
+async function ownedFixtureCount() {
+  return prisma.event.count({ where: { title: { startsWith: runId } } });
+}
+
 describe.skipIf(!isolatedDatabase)("F-02 event publishing API against isolated PostgreSQL", () => {
   beforeAll(async () => {
     if (!isIsolatedTestDatabase()) throw new Error("Integration tests require DATABASE_URL pointing exactly to the isolated eventcheck_test database");
-    await prisma.user.deleteMany({ where: { loginIdentifier: { in: [organizerALogin, organizerBLogin, organizerCLogin, participantLogin] } } });
     const passwordHash = await hashPassword(fixturePassword);
     await prisma.user.createMany({
       data: [
@@ -45,18 +49,21 @@ describe.skipIf(!isolatedDatabase)("F-02 event publishing API against isolated P
   });
 
   afterAll(async () => {
+    const ownedEvents = await prisma.event.findMany({ where: { title: { startsWith: runId } }, select: { id: true } });
+    await prisma.registration.deleteMany({ where: { eventId: { in: ownedEvents.map(event => event.id) } } });
+    await prisma.event.deleteMany({ where: { id: { in: ownedEvents.map(event => event.id) } } });
     await prisma.user.deleteMany({ where: { loginIdentifier: { in: [organizerALogin, organizerBLogin, organizerCLogin, participantLogin] } } });
     await prisma.$disconnect();
   });
 
   it("TEST-F02-02/07/13: creates one owned published event and retrieves it from a fresh database client", async () => {
     const organizerCookie = await login(organizerALogin);
-    const before = await prisma.event.count();
+    const before = await ownedFixtureCount();
     const created = await request(app).post("/api/v1/events").set(origin).set("Cookie", organizerCookie).send(validPayload("persistence"));
 
     expect(created.status).toBe(201);
     expect(created.body.data.event).toMatchObject({
-      title: "University Event persistence",
+      title: `${runId} University Event persistence`,
       capacity: 1,
       publicationState: "PUBLISHED",
     });
@@ -64,9 +71,9 @@ describe.skipIf(!isolatedDatabase)("F-02 event publishing API against isolated P
     expect(created.body.data.event.endAt).toBe("2026-11-20T05:00:00.000Z");
 
     const eventId = created.body.data.event.id as string;
-    expect(await prisma.event.count()).toBe(before + 1);
+    expect(await ownedFixtureCount()).toBe(before + 1);
     const stored = await prisma.event.findUnique({ where: { id: eventId } });
-    expect(stored).toMatchObject({ organizerId: expect.any(String), title: "University Event persistence", capacity: 1, publicationState: "PUBLISHED" });
+    expect(stored).toMatchObject({ organizerId: expect.any(String), title: `${runId} University Event persistence`, capacity: 1, publicationState: "PUBLISHED" });
 
     const freshClient = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL! } } });
     try {
@@ -101,21 +108,21 @@ describe.skipIf(!isolatedDatabase)("F-02 event publishing API against isolated P
     ];
 
     for (const testCase of cases) {
-      const before = await prisma.event.count();
+      const before = await ownedFixtureCount();
       const response = await request(app).post("/api/v1/events").set(origin).set("Cookie", organizerCookie).send(testCase.payload);
       expect(response.status, testCase.name).toBe(422);
       expect(response.body.error.code, testCase.name).toBe("VALIDATION_ERROR");
-      expect(await prisma.event.count(), testCase.name).toBe(before);
+      expect(await ownedFixtureCount(), testCase.name).toBe(before);
     }
 
-    const beforeMalformed = await prisma.event.count();
+    const beforeMalformed = await ownedFixtureCount();
     const malformed = await request(app).post("/api/v1/events").set(origin).set("Cookie", organizerCookie).set("Content-Type", "application/json").send('{"title":');
     expect(malformed.status).toBe(400);
-    expect(await prisma.event.count()).toBe(beforeMalformed);
+    expect(await ownedFixtureCount()).toBe(beforeMalformed);
   });
 
   it("TEST-F02-06: rejects anonymous and Participant publication without mutation", async () => {
-    const before = await prisma.event.count();
+    const before = await ownedFixtureCount();
     const csrfRejected = await request(app).post("/api/v1/events").send(validPayload("csrf"));
     expect(csrfRejected.status).toBe(403);
     const anonymous = await request(app).post("/api/v1/events").set(origin).send(validPayload("anonymous"));
@@ -124,17 +131,17 @@ describe.skipIf(!isolatedDatabase)("F-02 event publishing API against isolated P
     const participantCookie = await login(participantLogin);
     const participant = await request(app).post("/api/v1/events").set(origin).set("Cookie", participantCookie).send(validPayload("participant"));
     expect(participant.status).toBe(403);
-    expect(await prisma.event.count()).toBe(before);
+    expect(await ownedFixtureCount()).toBe(before);
   });
 
   it("TEST-F02-07: rejects a client owner override before persistence", async () => {
     const organizerCookie = await login(organizerALogin);
-    const before = await prisma.event.count();
+    const before = await ownedFixtureCount();
     const response = await request(app).post("/api/v1/events").set(origin).set("Cookie", organizerCookie).send({ ...validPayload("owner-override"), organizerId: "spoofed-owner" });
 
     expect(response.status).toBe(422);
     expect(response.body.error.details).toEqual(expect.arrayContaining([expect.objectContaining({ field: "organizerId" })]));
-    expect(await prisma.event.count()).toBe(before);
+    expect(await ownedFixtureCount()).toBe(before);
   });
 
   it("TEST-F02-08/09: filters lists and protects cross-owner, wrong-role, and visitor detail access", async () => {
@@ -166,28 +173,29 @@ describe.skipIf(!isolatedDatabase)("F-02 event publishing API against isolated P
     expect(visitorDetail.status).toBe(401);
   });
 
-  it("TEST-F02-10: does not support Sprint 1 event edits or mutate the stored event", async () => {
+  it("TEST-F02-10: rejects edits after the event has started without mutating the stored event", async () => {
     const organizerCookie = await login(organizerALogin);
     const created = await request(app).post("/api/v1/events").set(origin).set("Cookie", organizerCookie).send(validPayload("immutable"));
     const eventId = created.body.data.event.id as string;
     const before = await prisma.event.findUniqueOrThrow({ where: { id: eventId } });
 
     const update = await request(app).patch(`/api/v1/organizer/events/${eventId}`).set(origin).set("Cookie", organizerCookie).send({ capacity: 99 });
-    expect(update.status).toBe(404);
+    expect(update.status).toBe(409);
+    expect(update.body.error.code).toBe("EVENT_MODIFICATION_CLOSED");
     const after = await prisma.event.findUniqueOrThrow({ where: { id: eventId } });
     expect(after).toMatchObject({ title: before.title, capacity: before.capacity, startAt: before.startAt, endAt: before.endAt });
   });
 
   it("TEST-F02-12: returns a safe failure and leaves the database unchanged when the transaction fails", async () => {
     const organizerCookie = await login(organizerALogin);
-    const before = await prisma.event.count();
+    const before = await ownedFixtureCount();
     const transactionSpy = vi.spyOn(prisma as any, "$transaction").mockRejectedValueOnce(new Error("synthetic event insert failure"));
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     try {
       const response = await request(app).post("/api/v1/events").set(origin).set("Cookie", organizerCookie).send(validPayload("failed-write"));
       expect(response.status).toBe(500);
       expect(response.body.error.code).toBe("INTERNAL_SERVER_ERROR");
-      expect(await prisma.event.count()).toBe(before);
+      expect(await ownedFixtureCount()).toBe(before);
     } finally {
       transactionSpy.mockRestore();
       errorSpy.mockRestore();

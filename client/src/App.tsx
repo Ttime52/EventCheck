@@ -15,9 +15,10 @@ type PublishedEvent = {
   endAt: string;
   capacity: number;
   publicationState: "PUBLISHED";
+  registrationDeadline?: string | null;
 };
 
-type PublicEvent = Omit<PublishedEvent, "publicationState"> & { remainingPlaces: number; registrationAvailable: boolean };
+type PublicEvent = Omit<PublishedEvent, "publicationState"> & { remainingPlaces: number; registrationAvailable: boolean; registrationOpen: boolean };
 type Registration = { id: string; eventId: string; status: "ACTIVE" | "CANCELLED"; registeredAt: string; event: Pick<PublicEvent, "id" | "title" | "description" | "location" | "startAt" | "endAt"> };
 type OrganizerRegistration = { id: string; participantId: string; participantDisplayName: string; status: "ACTIVE" | "CANCELLED"; registeredAt: string };
 
@@ -46,11 +47,22 @@ const isPublishedEvent = (value: unknown): value is PublishedEvent => {
   );
 };
 
-function toBangkokIso(value: string) {
+export function toBangkokIso(value: string) {
   if (!value) return value;
+  if (/[zZ]|[+-]\d{2}:\d{2}$/.test(value)) {
+    const explicit = new Date(value);
+    return Number.isNaN(explicit.getTime()) ? value : explicit.toISOString();
+  }
   const withSeconds = value.length === 16 ? `${value}:00` : value;
   const parsed = new Date(`${withSeconds}+07:00`);
   return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+}
+
+export function toBangkokDateTimeLocal(value: string | null | undefined) {
+  if (!value) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(value));
+  const get = (type: string) => parts.find(part => part.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")==="24" ? "00" : get("hour")}:${get("minute")}`;
 }
 
 function formatBangkokDate(value: string) {
@@ -81,7 +93,7 @@ function errorMessage(body: unknown, fallback: string) {
 const isPublicEvent = (value: unknown): value is PublicEvent => {
   if (!value || typeof value !== "object") return false;
   const item = value as Record<string, unknown>;
-  return typeof item.id === "string" && typeof item.title === "string" && typeof item.description === "string" && typeof item.location === "string" && typeof item.startAt === "string" && typeof item.endAt === "string" && typeof item.capacity === "number" && typeof item.remainingPlaces === "number" && typeof item.registrationAvailable === "boolean";
+  return typeof item.id === "string" && typeof item.title === "string" && typeof item.description === "string" && typeof item.location === "string" && typeof item.startAt === "string" && typeof item.endAt === "string" && typeof item.capacity === "number" && typeof item.remainingPlaces === "number" && typeof item.registrationAvailable === "boolean" && typeof item.registrationOpen === "boolean" && (item.registrationDeadline === undefined || item.registrationDeadline === null || typeof item.registrationDeadline === "string");
 };
 
 const isOrganizerRegistration = (value: unknown): value is OrganizerRegistration => {
@@ -144,6 +156,7 @@ function PublicEventsPanel({ user, onSessionExpired }: { user: User | null; onSe
       if (response.status === 401) return onSessionExpired();
       if (response.status === 409 && body?.error?.code === "REGISTRATION_DUPLICATE") { await refreshAvailability(event.id); setMessage("You are already registered for this event."); }
       else if (response.status === 409 && body?.error?.code === "EVENT_FULL") { await refreshAvailability(event.id); setMessage("This event is full."); }
+      else if (response.status === 409 && body?.error?.code === "REGISTRATION_CLOSED") { await refreshAvailability(event.id); setMessage("Registration is closed for this event."); }
       else if (!response.ok) setMessage(errorMessage(body, "Unable to register for this event"));
       else { await loadEvents(); if (selected?.id === event.id) await viewDetail(event.id); await loadRegistrations(); setConfirmationId(body?.data?.registration?.id ?? "available"); setMessage("Registration confirmed."); }
     } catch { setMessage("Unable to register for this event. Try again."); }
@@ -196,7 +209,7 @@ function PublicEventsPanel({ user, onSessionExpired }: { user: User | null; onSe
     <div className="section-heading"><p className="eyebrow">University Events</p><h2 id="public-events-heading">Discover published events</h2><p className="section-intro">Browse public event details and availability. Dates are shown in Asia/Bangkok (UTC+7).</p></div>
     {user?.role === "PARTICIPANT" && <div className="tab-list" role="tablist" aria-label="Participant dashboard sections"><button type="button" role="tab" aria-selected={activeTab === "discover"} className={`dashboard-tab${activeTab === "discover" ? " is-active" : ""}`} onClick={() => switchTab("discover")}>Discover Events</button><button type="button" role="tab" aria-selected={activeTab === "registrations"} className={`dashboard-tab${activeTab === "registrations" ? " is-active" : ""}`} onClick={() => switchTab("registrations")}>My Registrations</button></div>}
     {message && <div className="status-text" role="status" aria-live="polite"><span>{message}</span>{confirmationId && <button type="button" className="button button-secondary confirmation-action" onClick={() => switchTab("registrations")}>View My Registrations</button>}</div>}
-    {(!user || user.role !== "PARTICIPANT" || activeTab === "discover") && (detailLoading ? <p className="empty-state" role="status">Loading event details...</p> : selected ? <div className="public-detail-card" role="region" aria-label="Public event details"><button type="button" className="back-button" onClick={() => setSelected(null)}>Back to events</button><h3 ref={detailHeadingRef} tabIndex={-1}>{selected.title}</h3><p>{selected.description}</p><dl className="event-meta"><div><dt>Location</dt><dd>{selected.location}</dd></div><div><dt>When</dt><dd>{formatBangkokDate(selected.startAt)} – {formatBangkokDate(selected.endAt)}</dd></div><div><dt>Capacity</dt><dd>{selected.capacity} ({selected.remainingPlaces} remaining)</dd></div><div><dt>Availability</dt><dd>{selected.registrationAvailable ? "Available" : "Full"}</dd></div></dl><div className="event-card-actions">{user?.role === "PARTICIPANT" && (registrations.some((registration) => registration.eventId === selected.id) ? <button type="button" className="button button-secondary view-event-button" disabled>Registered</button> : selected.registrationAvailable && <button type="button" className="button button-primary view-event-button" onClick={() => void register(selected)} disabled={busyId === selected.id}>{busyId === selected.id ? "Registering..." : "Register"}</button>)}{!user && <span className="sign-in-hint">Sign in as a Participant to register</span>}</div></div> : loading ? <p className="empty-state" role="status">Loading published events...</p> : events.length === 0 ? <p className="empty-state">No published events are available.</p> : <ul className="event-list">
+    {(!user || user.role !== "PARTICIPANT" || activeTab === "discover") && (detailLoading ? <p className="empty-state" role="status">Loading event details...</p> : selected ? <div className="public-detail-card" role="region" aria-label="Public event details"><button type="button" className="back-button" onClick={() => setSelected(null)}>Back to events</button><h3 ref={detailHeadingRef} tabIndex={-1}>{selected.title}</h3><p>{selected.description}</p><dl className="event-meta"><div><dt>Location</dt><dd>{selected.location}</dd></div><div><dt>When</dt><dd>{formatBangkokDate(selected.startAt)} – {formatBangkokDate(selected.endAt)}</dd></div><div><dt>Capacity</dt><dd>{selected.capacity} ({selected.remainingPlaces} remaining)</dd></div><div><dt>Availability</dt><dd>{selected.registrationOpen ? selected.registrationAvailable ? "Available" : "Full" : "Closed"}</dd></div><div><dt>Registration deadline</dt><dd>{formatBangkokDate(selected.registrationDeadline ?? selected.startAt)}{selected.registrationDeadline ? "" : " (at event start)"}</dd></div></dl><div className="event-card-actions">{user?.role === "PARTICIPANT" && (registrations.some((registration) => registration.eventId === selected.id) ? <button type="button" className="button button-secondary view-event-button" disabled>Registered</button> : selected.registrationAvailable && selected.registrationOpen && <button type="button" className="button button-primary view-event-button" onClick={() => void register(selected)} disabled={busyId === selected.id}>{busyId === selected.id ? "Registering..." : "Register"}</button>)}{!user && <span className="sign-in-hint">Sign in as a Participant to register</span>}</div></div> : loading ? <p className="empty-state" role="status">Loading published events...</p> : events.length === 0 ? <p className="empty-state">No published events are available.</p> : <ul className="event-list">
       {events.map((event) => <li className="event-card" key={event.id}><div className="event-card-heading"><h3>{event.title}</h3><span className="published-badge">{event.registrationAvailable ? `${event.remainingPlaces} places` : "Full"}</span></div><p>{event.description}</p><dl className="event-meta"><div><dt>Location</dt><dd>{event.location}</dd></div><div><dt>When</dt><dd>{formatBangkokDate(event.startAt)} – {formatBangkokDate(event.endAt)}</dd></div><div><dt>Capacity</dt><dd>{event.capacity} ({event.remainingPlaces} remaining)</dd></div></dl><div className="event-card-actions"><button type="button" className="button button-secondary view-event-button" onClick={() => void viewDetail(event.id)}>View details</button>{!user && <span className="sign-in-hint">Sign in as a Participant to register</span>}</div></li>)}
     </ul>)}
     {activeTab === "registrations" && <>{registrationDetailLoading && <p className="detail-status" role="status">Loading registration details...</p>}
@@ -368,7 +381,9 @@ export function App() {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventSubmitting, setEventSubmitting] = useState(false);
   const [eventsMessage, setEventsMessage] = useState("");
+  const [eventSettingsMessages, setEventSettingsMessages] = useState<Record<string, string>>({});
   const [eventErrors, setEventErrors] = useState<Record<string, string>>({});
+  const [eventSavingId, setEventSavingId] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<PublishedEvent | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [eventDetailLoading, setEventDetailLoading] = useState(false);
@@ -563,6 +578,35 @@ export function App() {
     }
   }
 
+  async function updateEvent(eventId: string, formEvent: FormEvent<HTMLFormElement>) {
+    formEvent.preventDefault();
+    const values = new FormData(formEvent.currentTarget);
+    const rawDeadline = String(values.get("registrationDeadline") ?? "");
+    const current = events.find(item => item.id === eventId);
+    if (!current) return;
+    const nextCapacity = Number(values.get("capacity"));
+    const nextDeadline = rawDeadline ? toBangkokIso(rawDeadline) : null;
+    const payload: Record<string, unknown> = {};
+    if (nextCapacity !== current.capacity) payload.capacity = nextCapacity;
+    if ((current.registrationDeadline ?? null) !== nextDeadline) payload.registrationDeadline = nextDeadline;
+    if (Object.keys(payload).length === 0) { setEventSettingsMessages(current => ({ ...current, [eventId]: "No changes to save" })); return; }
+    setEventSavingId(eventId);
+    setEventSettingsMessages(current => ({ ...current, [eventId]: "Saving event settings..." }));
+    try {
+      const response = await fetch(`/api/v1/organizer/events/${encodeURIComponent(eventId)}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const body = await response.json().catch(() => null);
+      if (response.status === 401) return handleSessionExpired();
+      if (!response.ok || !isPublishedEvent(body?.data?.event)) {
+        setEventSettingsMessages(current => ({ ...current, [eventId]: errorMessage(body, "Unable to save event settings") }));
+        return;
+      }
+      setEvents(current => current.map(item => item.id === eventId ? body.data.event : item));
+      setEventSettingsMessages(current => ({ ...current, [eventId]: "Event settings saved" }));
+    } catch {
+      setEventSettingsMessages(current => ({ ...current, [eventId]: "Unable to save event settings. Try again." }));
+    } finally { setEventSavingId(null); }
+  }
+
   async function logout() {
     if (busy) return;
     setBusy(true);
@@ -694,8 +738,18 @@ export function App() {
                           <div><dt>Location</dt><dd>{event.location}</dd></div>
                           <div><dt>When</dt><dd>{formatBangkokDate(event.startAt)} – {formatBangkokDate(event.endAt)}</dd></div>
                           <div><dt>Capacity</dt><dd>{event.capacity}</dd></div>
+                          <div><dt>Registration deadline</dt><dd>{event.registrationDeadline ? formatBangkokDate(event.registrationDeadline) : "At event start"}</dd></div>
                           <div><dt>Event ID</dt><dd className="event-id">{event.id}</dd></div>
                         </dl>
+                        <form key={`settings-${event.id}-${event.capacity}-${event.registrationDeadline ?? "none"}`} className="event-settings-form" onSubmit={(formEvent) => void updateEvent(event.id, formEvent)} aria-label={`Edit ${event.title}`}>
+                          <div className="event-settings-heading"><h4>Event Settings</h4><p>Manage registration capacity and deadline for this event.</p></div>
+                          <div className="event-settings-fields">
+                            <div className="event-settings-field"><label htmlFor={`capacity-${event.id}`}>Capacity</label><input id={`capacity-${event.id}`} name="capacity" type="number" min="1" step="1" defaultValue={event.capacity} disabled={eventSavingId === event.id} /></div>
+                            <div className="event-settings-field"><label htmlFor={`deadline-${event.id}`}>Registration deadline (optional)</label><input id={`deadline-${event.id}`} name="registrationDeadline" type="datetime-local" aria-describedby={`deadline-help-${event.id}`} defaultValue={toBangkokDateTimeLocal(event.registrationDeadline)} disabled={eventSavingId === event.id} /><span id={`deadline-help-${event.id}`} className="field-help">Leave blank to close registration at event start.</span></div>
+                          </div>
+                          <div className="event-settings-actions"><button type="submit" className="button button-secondary" disabled={eventSavingId === event.id}>{eventSavingId === event.id ? "Saving..." : "Save settings"}</button></div>
+                          {eventSettingsMessages[event.id] && <p role="status" aria-live="polite">{eventSettingsMessages[event.id]}</p>}
+                        </form>
                         <div className="event-card-actions">
                           <button
                             type="button"

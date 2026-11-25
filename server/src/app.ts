@@ -7,6 +7,15 @@ import { PublicationState, RegistrationStatus, Role } from "@prisma/client";
 import { eventView, publicEventView, validateCreateEventInput } from "./events.js";
 
 export const app = express();
+let nowProvider = () => new Date();
+export function setNowProvider(provider: () => Date) { nowProvider = provider; }
+
+const offsetDateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
+function validOffsetDateTime(value: unknown): value is string {
+  if (typeof value !== "string" || !offsetDateTimePattern.test(value) || Number.isNaN(Date.parse(value))) return false;
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).getUTCFullYear() === year && new Date(Date.UTC(year, month - 1, day)).getUTCMonth() === month - 1 && new Date(Date.UTC(year, month - 1, day)).getUTCDate() === day;
+}
 
 app.use(express.json());
 app.use(csrfGuard);
@@ -54,6 +63,8 @@ export async function createRegistration(eventId: string, participantId: string,
     if (locked.length === 0) throw Object.assign(new Error("EVENT_NOT_FOUND"), { code: "EVENT_NOT_FOUND" });
     const event = await transaction.event.findUnique({ where: { id: eventId } });
     if (!event || event.publicationState !== PublicationState.PUBLISHED) throw Object.assign(new Error("EVENT_NOT_FOUND"), { code: "EVENT_NOT_FOUND" });
+    const effectiveDeadline = event.registrationDeadline ?? event.startAt;
+    if (nowProvider() >= effectiveDeadline) throw Object.assign(new Error("REGISTRATION_CLOSED"), { code: "REGISTRATION_CLOSED" });
     const duplicate = await transaction.registration.findFirst({ where: { eventId, participantId, status: RegistrationStatus.ACTIVE } });
     if (duplicate) throw Object.assign(new Error("REGISTRATION_DUPLICATE"), { code: "REGISTRATION_DUPLICATE" });
     const activeCount = await transaction.registration.count({ where: { eventId, status: RegistrationStatus.ACTIVE } });
@@ -80,6 +91,7 @@ app.post("/api/v1/events/:eventId/registrations", requireAuth, requireRole(Role.
     if (code === "EVENT_NOT_FOUND") return response.status(404).json({ error: { code, message: "Event not found" } });
     if (code === "REGISTRATION_DUPLICATE") return response.status(409).json({ error: { code, message: "Participant is already registered for this event" } });
     if (code === "EVENT_FULL") return response.status(409).json({ error: { code, message: "Event is full" } });
+    if (code === "REGISTRATION_CLOSED") return response.status(409).json({ error: { code, message: "Registration is closed" } });
     if ((error as { code?: string }).code === "P2002") return response.status(409).json({ error: { code: "REGISTRATION_DUPLICATE", message: "Participant is already registered for this event" } });
     return next(error);
   }
@@ -214,8 +226,50 @@ app.get("/api/v1/organizer/events/:eventId/registrations", requireAuth, requireR
   }
 });
 
-app.patch("/api/v1/organizer/events/:eventId", requireAuth, requireRole(Role.ORGANIZER), (_request, response) => {
-  return response.status(404).json({ error: { code: "UNSUPPORTED_OPERATION", message: "Event updates are not available in Sprint 1" } });
+app.patch("/api/v1/organizer/events/:eventId", requireAuth, requireRole(Role.ORGANIZER), async (request, response, next) => {
+  const organizerId = (request as AuthenticatedRequest).user!.id;
+  const eventId = Array.isArray(request.params.eventId) ? request.params.eventId[0] : request.params.eventId;
+  const body = request.body;
+  if (!body || typeof body !== "object" || Array.isArray(body)) return response.status(422).json({ error: { code: "VALIDATION_ERROR", message: "Request must be an object", details: [{ field: "body", message: "Request must be a JSON object" }] } });
+  const keys = Object.keys(body);
+  const recognized = keys.filter(key => key === "capacity" || key === "registrationDeadline");
+  if (recognized.length === 0 || keys.some(key => !["capacity", "registrationDeadline"].includes(key))) {
+    const details = keys.length === 0 ? [{ field: "body", message: "At least one update field is required" }] : keys.filter(key => !["capacity", "registrationDeadline"].includes(key)).map(field => ({ field, message: `${field} is not accepted` }));
+    return response.status(422).json({ error: { code: "VALIDATION_ERROR", message: "At least one recognized update field is required", details } });
+  }
+  const capacity = (body as any).capacity;
+  if (keys.includes("capacity") && (typeof capacity !== "number" || !Number.isInteger(capacity) || capacity <= 0)) {
+    return response.status(422).json({ error: { code: "VALIDATION_ERROR", message: "capacity must be a positive integer", details: [{ field: "capacity", message: "capacity must be a positive integer" }] } });
+  }
+  let deadline: Date | null | undefined;
+  if (keys.includes("registrationDeadline")) {
+    if ((body as any).registrationDeadline === null) deadline = null;
+    else if (!validOffsetDateTime((body as any).registrationDeadline)) return response.status(422).json({ error: { code: "VALIDATION_ERROR", message: "registrationDeadline must be an offset-aware ISO date-time or null", details: [{ field: "registrationDeadline", message: "registrationDeadline must include Z or an explicit timezone offset" }] } });
+    else deadline = new Date((body as any).registrationDeadline);
+  }
+  try {
+    const updated = await prisma.$transaction(async transaction => {
+      await transaction.$queryRaw`SELECT "id" FROM "Event" WHERE "id" = ${eventId} FOR UPDATE`;
+      const event = await transaction.event.findFirst({ where: { id: eventId, organizerId, publicationState: PublicationState.PUBLISHED } });
+      if (!event) throw Object.assign(new Error("EVENT_NOT_FOUND"), { code: "EVENT_NOT_FOUND" });
+      if (nowProvider() >= event.startAt) throw Object.assign(new Error("EVENT_MODIFICATION_CLOSED"), { code: "EVENT_MODIFICATION_CLOSED" });
+      const nextDeadline = keys.includes("registrationDeadline") ? deadline! : event.registrationDeadline;
+      if (nextDeadline && nextDeadline > event.startAt) throw Object.assign(new Error("VALIDATION_ERROR"), { code: "VALIDATION_ERROR" });
+      if (keys.includes("capacity")) {
+        const active = await transaction.registration.count({ where: { eventId, status: RegistrationStatus.ACTIVE } });
+        if (capacity < active) throw Object.assign(new Error("CAPACITY_BELOW_ACTIVE_COUNT"), { code: "CAPACITY_BELOW_ACTIVE_COUNT" });
+      }
+      return transaction.event.update({ where: { id: eventId }, data: { ...(keys.includes("capacity") ? { capacity } : {}), ...(keys.includes("registrationDeadline") ? { registrationDeadline: nextDeadline } : {}) } });
+    });
+    return response.json({ data: { event: eventView(updated) } });
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === "EVENT_NOT_FOUND") return response.status(404).json({ error: { code, message: "Event not found" } });
+    if (code === "EVENT_MODIFICATION_CLOSED") return response.status(409).json({ error: { code, message: "Event modifications are closed" } });
+    if (code === "CAPACITY_BELOW_ACTIVE_COUNT") return response.status(409).json({ error: { code, message: "Capacity cannot be below active registrations" } });
+    if (code === "VALIDATION_ERROR") return response.status(422).json({ error: { code, message: "registrationDeadline must not be after event start", details: [{ field: "registrationDeadline", message: "registrationDeadline must not be after event start" }] } });
+    return next(error);
+  }
 });
 
 app.get("/health", (_request, response) => {

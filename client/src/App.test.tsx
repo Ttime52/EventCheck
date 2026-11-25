@@ -1,9 +1,25 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { App } from "./App";
+import { App, toBangkokDateTimeLocal, toBangkokIso } from "./App";
 
 const user = { id: "u1", displayName: "Test Participant", role: "PARTICIPANT" };
 function response(body: unknown, ok = true, status = ok ? 200 : 401) { return Promise.resolve({ ok, status, json: () => Promise.resolve(body) } as Response); }
+
+describe("F-05 timezone conversion", () => {
+  it("converts UTC deadlines to Bangkok datetime-local values", () => {
+    expect(toBangkokDateTimeLocal("2026-11-26T09:00:00.000Z")).toBe("2026-11-26T16:00");
+  });
+
+  it("round-trips Bangkok input to the same UTC instant", () => {
+    expect(toBangkokIso("2026-11-26T16:00")).toBe("2026-11-26T09:00:00.000Z");
+    expect(toBangkokIso("2026-11-26T16:00+07:00")).toBe("2026-11-26T09:00:00.000Z");
+  });
+
+  it("distinguishes an unset deadline from an explicit value", () => {
+    expect(toBangkokDateTimeLocal(null)).toBe("");
+    expect(toBangkokDateTimeLocal("2026-11-26T09:00:00Z")).not.toBe("");
+  });
+});
 
 describe("F-01 authentication UI (TEST-F01-12)", () => {
   beforeEach(() => { vi.restoreAllMocks(); vi.stubGlobal("fetch", vi.fn().mockImplementation(() => response(null, false, 401))); });
@@ -211,7 +227,7 @@ describe("F-02 organizer event publishing UI", () => {
 });
 
 describe("F-03 participant discovery UI", () => {
-  const publicEvent = { id: "event-1", title: "University Workshop", description: "Public workshop", location: "Main Hall", startAt: "2026-12-01T02:00:00.000Z", endAt: "2026-12-01T04:00:00.000Z", capacity: 2, remainingPlaces: 2, registrationAvailable: true };
+  const publicEvent = { id: "event-1", title: "University Workshop", description: "Public workshop", location: "Main Hall", startAt: "2026-12-01T02:00:00.000Z", endAt: "2026-12-01T04:00:00.000Z", capacity: 2, remainingPlaces: 2, registrationAvailable: true, registrationOpen: true, registrationDeadline: null };
 
   it("TEST-F03-01/02/03: loads public events with empty and accessible states", async () => {
     const fetchMock = vi.mocked(fetch);
