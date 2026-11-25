@@ -3,10 +3,10 @@
 **Issue:** #47 — Contract task: Capacity & Registration Deadline Management
 
 **Contract version:** 0.6
-**Status:** Accepted — Team Reviewed implementation baseline; implementation and release evidence pending.
+**Status:** Accepted — Team Reviewed implementation baseline; implementation verified locally, formal release approval pending.
 **Approval evidence:** Teammate approval was explicitly supplied in the Issue #48 task context. Reviewer identity, date, and approval URL are not available in this repository and must be recorded by the project owner.
 **Sprint:** 2
-**Updated:** 2026-11-24
+**Updated:** 2026-11-25
 
 This contract extends the accepted Sprint 1 Event, Registration, session, ownership, and concurrency baseline. It does not change Sprint 1 behavior: published capacity remains fixed there, and Sprint 1 registration has no time-based closure.
 
@@ -154,9 +154,9 @@ Issue #47 contract work is complete for review when Sections A–F are internall
 | Requirements and dependency links | Documented |
 | AC/TEST mapping and draft API/schema details | Documented; final contract review required |
 | Q-01, Q-02, Q-03 | Team-reviewed policy recorded in F-05 v0.3 and synchronized to the SRS |
-| `registrationAvailable` / `registrationOpen` meanings | Accepted — Team Reviewed; implementation evidence pending |
+| `registrationAvailable` / `registrationOpen` meanings | Accepted — Team Reviewed; verified locally |
 | Issue #47 coordination | F-05 v0.4 carried forward without rewriting its reviewed history; v0.6 records the accepted implementation baseline |
-| Contract completion/review | Accepted baseline; implementation and evidence pending |
+| Contract completion/review | Accepted baseline; implementation evidence recorded, formal PR/release review pending |
 
 ## H. Future F-05 Feature Implementation Definition of Done
 
@@ -165,11 +165,11 @@ F-05 implementation is not Done until the accepted Q-01, Q-02, and Q-03 policies
 | Item | Status |
 | --- | --- |
 | Q-01, Q-02, Q-03 policy acceptance | Team Reviewed; recorded in F-05 v0.3 and synchronized to the SRS |
-| `registrationAvailable` / `registrationOpen` field semantics | Accepted — Team Reviewed; implementation evidence pending |
-| v0.6 API/data contract approval | Accepted — Team Reviewed; implementation evidence pending |
-| Implementation, migration, and executable tests | Implemented locally; latest harness changes require macOS rerun |
-| Test evidence and release identity | Historical owner evidence recorded; latest working-tree evidence pending |
-| PR/release approval | Pending |
+| `registrationAvailable` / `registrationOpen` field semantics | Accepted — Team Reviewed; verified locally |
+| v0.6 API/data contract approval | Accepted — Team Reviewed; implementation verified locally |
+| Implementation, migration, and executable tests | Verified locally |
+| Test evidence and implementation SHA | Recorded for the final working-tree content immediately before `f88f451387faca606658c176a99a7d6a0b92a3fd` |
+| Formal PR/release approval | Pending |
 
 ### Review record
 
@@ -180,33 +180,38 @@ F-05 implementation is not Done until the accepted Q-01, Q-02, and Q-03 policies
 | 0.3 | 2026-11-24 | Draft — Pending Final Teammate Approval | Recorded teammate acceptance of Q-01, Q-02, and Q-03; aligned the public field with F-03 `registrationAvailable`, added F-01 Origin/CSRF requirements, corrected Prisma `startAt`/`endAt` naming, and clarified compatibility and STS coverage. |
 | 0.4 | 2026-11-24 | Draft — API/contract review pending | Reconciled Q-01 to Q-03 policy status with the SRS; preserved F-03 capacity-based `registrationAvailable` and proposed additive `registrationOpen`; fixed validation status semantics; specified the additive deadline check/rollback plan; clarified AC/STS and NFR-09/NFR-10 traceability. |
 | 0.5 | 2026-11-24 | Draft — field semantics Accepted — Team Reviewed; remaining contract acceptance pending | Carried forward the Issue #47 F-05 v0.4 content and history without overwriting it; recorded that `registrationAvailable` means remaining capacity and `registrationOpen` means the effective-deadline window; clarified backend-authoritative eligibility and aligned dependent F-06/F-07 contracts with the reviewed decisions. No route/schema acceptance, implementation, migration, or test execution is claimed. |
-| 0.6 | 2026-11-24 | Accepted — Team Reviewed implementation baseline | Recorded the team-reviewed PATCH API, response/error conventions, nullable `registrationDeadline` migration and constraint, rollback strategy, shared Event-row locking protocol, and backend-authoritative F-03 deadline enforcement. Reviewer/date/reference evidence is supplied by task context but not recorded locally; implementation is present, while latest working-tree test evidence remains pending. |
+| 0.6 | 2026-11-24 | Accepted — Team Reviewed implementation baseline | Recorded the team-reviewed PATCH API, response/error conventions, nullable `registrationDeadline` migration and constraint, rollback strategy, shared Event-row locking protocol, and backend-authoritative F-03 deadline enforcement. |
+| 0.7 | 2026-11-25 | Accepted — verification evidence recorded | Recorded the feature owner's macOS verification immediately before implementation commit `f88f451387faca606658c176a99a7d6a0b92a3fd`; preserved the distinction between working-tree execution and a separate post-commit rerun. |
 
 ### Related baseline
 
 ### Verification evidence
 
-The following results were supplied as verified macOS executions by the feature owner and are retained as historical evidence for the implementation revision; they were not rerun in this documentation pass:
+The following results were supplied as verified macOS executions by the feature owner on 2026-11-25 against the final implementation working-tree content immediately before commit `f88f451387faca606658c176a99a7d6a0b92a3fd`. They are recorded evidence for that content; this documentation update does not claim a separate post-commit rerun.
 
 | Check | Result | Environment/limitation |
 | --- | --- | --- |
-| Prisma migrations | 6 applied; schema up to date | Isolated `127.0.0.1:5433/eventcheck_test?schema=public` |
-| Frontend Vitest | 23/23 passed | macOS; historical result |
-| Full backend suite (`--no-file-parallelism`) | 90/90 passed | macOS; historical result |
-| F-05 PostgreSQL integration | 10/10 passed | Isolated test database; historical result |
-| Full Playwright E2E | 19/19 passed | macOS; historical result |
-| F-05 Playwright E2E | 3/3 passed (included in full suite) | macOS; historical result |
-| Actual API process restart | PASS | Owner-supplied macOS result on 2026-11-24; `npm run test:f05:restart --workspace=server`; isolated database |
+| PostgreSQL migrations | 6 applied; schema up to date | macOS; isolated `127.0.0.1:5433/eventcheck_test?schema=public` |
+| Full backend suite (`--no-file-parallelism`) | 92/92 passed; 13/13 files | `npm run test --workspace server -- --no-file-parallelism`; macOS; isolated database |
+| F-05 PostgreSQL integration | 12/12 passed (within the full server suite) | `npm run test --workspace server -- --no-file-parallelism`; macOS; guarded isolated database |
+| Frontend Vitest | 23/23 passed | `npm run test --workspace client`; macOS |
+| Full Playwright E2E | 19/19 passed | `npm run test:e2e`; macOS; isolated database |
+| F-05 Playwright E2E | 3/3 passed (within the full suite) | `npm run test:e2e` (19/19 passed); macOS; isolated database |
+| F-05 restart verification | PASS | `npm run test:f05:restart --workspace=server`; macOS; isolated database |
+| TypeScript and production build | PASS | `npm run typecheck` and `npm run build`; macOS |
+| Markdown diff check | PASS | `git diff --check`; macOS |
 
-These results were supplied by the feature owner and were not executed by Codex. The owner reported `Database: SAFE`, configured Organizer credentials, a successful build, and `F-05 restart verification passed`. The restart run was against the uncommitted working tree represented by HEAD `203ed91f71edadf66d3d185463f53c82aca5e4fa` plus the working-tree changes; no tested implementation commit SHA is claimed.
+The database target was verified as `127.0.0.1:5433/eventcheck_test?schema=public`; no development database was used. The evidence was supplied by the feature owner and is not being represented as a separate post-commit execution.
 
-This revision adds `e2e/f05-capacity-deadline.spec.ts` and expands the isolated F-05 integration suite. Those latest changes were not executed in this session because an isolated PostgreSQL target and browser run were not available; they must be rerun before feature completion. TEST-F05-13 remains a manual evidence checklist.
+TEST-F05-10 uses a dedicated PostgreSQL Event-row lock holder, captures the holder backend PID, and uses `pg_blocking_pids()` to establish that at least one relevant PostgreSQL query is blocked by the controlled holder. It does not claim that both HTTP requests were separately observed blocked simultaneously. After release, the race outcomes preserve `ACTIVE count <= capacity` and the public `remainingPlaces`/`registrationAvailable` projection.
 
-For actual process-restart verification, `npm run test:f05:restart --workspace=server` builds the API, starts it on an isolated localhost port, creates and updates a run-owned Event through HTTP, stops only that child process, starts a fresh API process against the same isolated database, verifies the persisted public/Organizer values, and removes only the created Event. The owner-supplied run passed; the latest harness changes still require a fresh macOS execution.
+TEST-F05-02 covers wrong role, missing/invalid Origin, non-owner access, expired/revoked session rejection, and confirms rejected requests do not mutate the Event. TEST-F05-04 confirms that both ACTIVE and CANCELLED Registration history is preserved during capacity updates. The Event Settings accessibility/duplicate-status Playwright failures were corrected; the final F-05 browser suite passed 3/3.
 
-Codex checks in the current session: typecheck, build, frontend tests, selected backend unit/event tests, `node --check server/scripts/f05-restart-check.mjs`, and `git diff --check` passed. PostgreSQL integration, the restart harness, and browser execution were not run in this session.
+For actual process-restart verification, `npm run test:f05:restart --workspace=server` builds the API, starts it on an isolated localhost port, creates and updates a run-owned Event through HTTP, stops only that child process, starts a fresh API process against the same isolated database, verifies the persisted public/Organizer values, and removes only the created Event. The 2026-11-25 owner-supplied run passed.
 
-Current review state: branch `feature/48-f05-capacity-deadline`, HEAD `203ed91f71edadf66d3d185463f53c82aca5e4fa`, with uncommitted F-05 implementation, migration, tests, and documentation changes. The intended base `sprint-2-staging` exists locally and at `origin/sprint-2-staging`.
+The results above are owner-supplied macOS evidence; no claim is made that Codex reran the database, restart, or browser suites in this documentation-only pass.
+
+The tested implementation identity is the working-tree content immediately before commit `f88f451387faca606658c176a99a7d6a0b92a3fd`; this documentation revision itself has not been separately tested or committed.
 
 ### TEST-F05-13 manual evidence checklist
 
@@ -215,14 +220,14 @@ Current review state: branch `feature/48-f05-capacity-deadline`, HEAD `203ed91f7
 | Requirements and AC/TEST traceability | Complete | Sections E–F map the accepted IDs. |
 | Prisma schema and additive migration | Complete | Schema/migration files are present; owner confirmed six migrations applied. |
 | API authorization, Origin/CSRF, and validation | Complete | Covered by TEST-F05-02/03; latest owner rerun evidence remains historical. |
-| Capacity invariant and PostgreSQL concurrency | Pending latest rerun | TEST-F05-10 now includes reduction-vs-registration and last-place races; rerun after this change. |
-| Deadline boundaries | Complete historically; latest rerun pending | Controlled-clock TEST-F05-06/09 exists; rerun latest suite. |
-| Controlled transaction rollback | Complete historically; latest rerun pending | Post-write callback rollback test exists. |
-| Public response semantics | Complete historically; latest rerun pending | `registrationAvailable`/`registrationOpen` assertions exist. |
-| Frontend and keyboard accessibility | Complete historically; latest rerun pending | Owner reported F-05 Playwright 3/3; rerun after fixture changes. |
-| Actual API process restart | PASS | Owner-supplied macOS result; latest harness changes require rerun. |
-| Sprint 1 regression | PASS historically | Owner supplied backend 90/90 and full Playwright 19/19. |
-| Final tested commit identity | Pending | Working tree remains uncommitted; no tested implementation SHA claimed. |
+| Capacity invariant and PostgreSQL concurrency | PASS | TEST-F05-10 lock-holder/`pg_blocking_pids()` evidence and 12/12 F-05 integration result. |
+| Deadline boundaries | PASS | Controlled-clock TEST-F05-06/09 covered by the 12/12 integration result. |
+| Controlled transaction rollback | PASS | Post-write callback rollback test covered by the 12/12 integration result. |
+| Public response semantics | PASS | `registrationAvailable`/`registrationOpen` assertions covered by integration and browser results. |
+| Frontend and keyboard accessibility | PASS | Final F-05 Playwright result 3/3 after Event Settings status/label corrections. |
+| Actual API process restart | PASS | `test:f05:restart` passed against isolated database. |
+| Sprint 1 regression | PASS | Backend 92/92 and full Playwright 19/19. |
+| Tested implementation identity | Recorded | Evidence corresponds to final working-tree content immediately before `f88f451387faca606658c176a99a7d6a0b92a3fd`; no separate post-commit rerun is claimed. |
 | Teammate PR review | Pending | Formal PR review/approval not yet recorded. |
 
 - [SRS](../../srs.md), [Feature Inventory](../../features.md), [Traceability Matrix](../../traceability.md), and [Sprint Plan](../plan.md).
