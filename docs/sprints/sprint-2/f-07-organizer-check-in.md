@@ -2,19 +2,19 @@
 
 **Issue:** 11B - Sprint 2 Feature Contracts<br>
 **Feature ID:** F-07<br>
-**Contract version:** 0.3<br>
-**Status:** Draft - Review Ready; Q-05/Q-10 Accepted — Team Reviewed; F-07 contract acceptance pending<br>
-**Updated:** 2026-11-24<br>
+**Contract version:** 0.5<br>
+**Status:** Accepted — confirmed by user on 2026-11-25; F-07 operations/UI pending, shared Attendance persistence present<br>
+**Updated:** 2026-11-25<br>
 **Author:** Issue 11B contributor (name not recorded in the repository)<br>
-**Reviewer:** Student 1 (assigned peer reviewer; review pending)<br>
+**Reviewer:** Acceptance reported by user; reviewer identity and review artifact not recorded in the repository<br>
 **Target branch:** sprint-2-staging
-**Work type:** Documentation and contract design only. No feature implementation, migration, or test execution is claimed.
+**Work type:** Accepted F-07 feature contract. Check-in/retrieval operations, UI, and F-07-specific verification remain pending and outside Issue 13.
 
 ## 1. Purpose and scope
 
-Under Accepted — Team Reviewed Q-05, only the owning Organizer records check-in for an eligible ACTIVE Registration during `[startAt, endAt)`. F-07 also lets the Organizer retrieve attendance for owned Events and a Participant retrieve attendance for their own Registration. The policy decision is recorded in the SRS; this feature contract, its routes, and schema details remain pending acceptance. The contract covers organizer and participant UI states, proposed APIs, persistent associations, role/ownership enforcement, transaction boundaries, acceptance criteria, and planned tests.
+Under Accepted — Team Reviewed Q-05, only the owning Organizer records check-in for an eligible ACTIVE Registration during `[startAt, endAt)`. F-07 also lets the Organizer retrieve attendance for owned Events and a Participant retrieve attendance for their own Registration. F-07 contract acceptance was confirmed by the user on 2026-11-25; reviewer identity and external review artifact are not recorded in this repository. The accepted contract covers organizer and participant UI states, APIs, persistent associations, role/ownership enforcement, transaction boundaries, acceptance criteria, and planned tests.
 
-This is a pre-implementation contract. The current repository has no Attendance Prisma model, Attendance migration, check-in API, or attendance UI. The System-Level SDS already defines an Attendance logical model and candidate endpoint paths, but those remain design proposals, not implementation evidence or acceptance of the F-07 feature contract.
+This contract is accepted. Issue 13 added the shared Attendance Prisma model and migration for F-06's checked-in cancellation guard, and tested the shared lock order with a storage-level writer. The F-07 check-in and attendance retrieval APIs, authorization workflow, Organizer/Participant UI, and F-07-specific acceptance tests remain pending and are outside Issue 13.
 
 ## 2. Requirement and responsibility links
 
@@ -34,16 +34,16 @@ This is a pre-implementation contract. The current repository has no Attendance 
 | F-02 | Event owner, startAt, and endAt are stored as UTC-based instants. No client-supplied event owner or timestamp grants authority. |
 | F-03 | Supplies persisted Registration identity, eventId, participantId, and ACTIVE/CANCELLED status. Only ACTIVE rows are eligible; attendance does not change capacity. |
 | F-04 | Existing GET /api/v1/organizer/events/{eventId}/registrations remains the source for the owner-scoped registration list. F-07 adds attendance data separately so the approved F-04 response need not change. |
-| F-05 | Preserve the team-reviewed Q-01 to Q-03 policy and F-05 v0.5 field meanings: `registrationAvailable` means remaining capacity; `registrationOpen` means the effective-deadline window. Both are registration information only; registration writes recheck eligibility on the backend. F-05 API/schema acceptance remains pending. Check-in eligibility itself depends on Event `startAt`/`endAt`, not on either registration field or the registration deadline. |
+| F-05 | Preserve accepted F-05 v0.6 Q-01 to Q-03 policy and field meanings: `registrationAvailable` means remaining capacity; `registrationOpen` means the effective-deadline window. Both are registration information only; registration writes recheck eligibility on the backend. F-05 API/schema and migration are integrated on the target baseline. Check-in eligibility itself depends on Event `startAt`/`endAt`, not on either registration field or the registration deadline. |
 | F-06 | A Registration with Attendance cannot be cancelled. F-06 and F-07 must use the same Event-then-Registration lock order and test their shared boundary. |
 
 ### Decision register
 
-Q-05 and Q-10 are Accepted — Team Reviewed in the PR review recorded 2026-11-24. The F-07 feature contract and its proposed API/schema details remain pending acceptance.
+Q-05 and Q-10 are Accepted — Team Reviewed in the PR review recorded 2026-11-24. F-07 contract and API/schema acceptance was confirmed by the user on 2026-11-25; reviewer identity and external review artifact are not recorded here.
 
 | Decision | Policy | Rationale | Affected features / requirements | Dependencies | Status and approval record |
 | --- | --- | --- | --- | --- | --- |
-| Q-05 | Only the owning Organizer may check in an existing ACTIVE Registration for their Event. Server time must be in [startAt, endAt): start is included and end is excluded. Do not provide QR scanning or Participant self-check-in. | Keeps attendance under the Event owner's control and gives exact, testable time boundaries without adding devices or external services. | F-07; FR-19 to FR-21; BR-16, BR-17 | F-01, F-02, F-04, F-06; D-08/Q-11 server UTC time | Accepted — Team Reviewed (PR review recorded 2026-11-24); F-07 contract acceptance pending. |
+| Q-05 | Only the owning Organizer may check in an existing ACTIVE Registration for their Event. Server time must be in [startAt, endAt): start is included and end is excluded. Do not provide QR scanning or Participant self-check-in. | Keeps attendance under the Event owner's control and gives exact, testable time boundaries without adding devices or external services. | F-07; FR-19 to FR-21; BR-16, BR-17 | F-01, F-02, F-04, F-06; D-08/Q-11 server UTC time | Accepted — Team Reviewed (PR review recorded 2026-11-24); F-07 contract accepted per user confirmation 2026-11-25. |
 | Q-10 | Retain synthetic Registration and Attendance history for the project and assessment period; do not add automatic deletion or a retention-management interface. Any real-user production policy needs separate review. | Supports assessment persistence and review of recorded attendance without asserting a production retention policy. | F-06/F-07; FR-14, FR-21 to FR-23; NFR-04 | Durable database and restrictive references | Accepted — Team Reviewed (PR review recorded 2026-11-24); real-user production policy is separate. |
 
 ## 4. Feature-level SDS
@@ -58,7 +58,7 @@ Q-05 and Q-10 are Accepted — Team Reviewed in the PR review recorded 2026-11-2
 6. The owner can retrieve all Attendance rows for one owned Event, including an explicit empty array. A Participant can retrieve only the Attendance associated with their own Registration.
 7. If the own Registration has no Attendance, the Participant response explicitly represents no record and the UI shows Not Checked In. Absence is not proof that the person attended.
 
-| Registration / Attendance state | Request / condition | Proposed result |
+| Registration / Attendance state | Request / condition | Accepted result |
 | --- | --- | --- |
 | ACTIVE, no Attendance | Owning Organizer, matching Event, startAt <= server time < endAt | Insert one Attendance and commit. |
 | ACTIVE, no Attendance | Before startAt or at/after endAt | Reject with no Attendance row. |
@@ -85,9 +85,9 @@ All controls are labelled, keyboard-operable, and have visible focus. Loading, e
 
 ### 4.3 API contract
 
-The routes below match candidate endpoint paths in the System-Level SDS. They are proposed new routes, not current server endpoints. F-04's registration-list API remains unchanged. All success and error bodies use the reviewed F-03/F-04 envelopes.
+The routes below match the accepted F-07 endpoint paths in the System-Level SDS. They are accepted new routes, not current server endpoints. F-04's registration-list API remains unchanged. All success and error bodies use the reviewed F-03/F-04 envelopes.
 
-| Method and path | Authentication and scope | Request | Proposed success response |
+| Method and path | Authentication and scope | Request | Accepted success response |
 | --- | --- | --- | --- |
 | POST /api/v1/organizer/registrations/{registrationId}/attendance | Valid Organizer session. Backend resolves the Registration/Event and verifies event.organizerId = session.userId. | JSON body with eventId identifying the Event currently selected in the UI. It is a context assertion only; ownership, participantId, actor, and time are never trusted from the body. | 201 with data.attendance containing id, registrationId, eventId, participantId, recordedByOrganizerId, and checkedInAt in UTC ISO 8601. |
 | GET /api/v1/organizer/events/{eventId}/attendance | Valid Organizer session; event owner must equal session.userId. | No request body. | 200 with data.attendances array for that Event; empty array is explicit. |
@@ -96,7 +96,7 @@ The routes below match candidate endpoint paths in the System-Level SDS. They ar
 
 The check-in POST is protected by the existing Origin-based CSRF guard. Retrieval GETs do not mutate domain state and do not require CSRF tokens. No API accepts participantId, organizerId, recordedByOrganizerId, checkInAt, status, or Attendance IDs as authority.
 
-| Condition | HTTP outcome | Proposed code / behavior |
+| Condition | HTTP outcome | Accepted code / behavior |
 | --- | --- | --- |
 | Missing, expired, revoked session | 401 | UNAUTHENTICATED |
 | Participant attempts organizer check-in | 403 | FORBIDDEN |
@@ -111,14 +111,14 @@ The check-in POST is protected by the existing Origin-based CSRF guard. Retrieva
 | Syntactically valid JSON with invalid fields | 422 | VALIDATION_ERROR with field details |
 | Unexpected persistence failure | 500 | INTERNAL_SERVER_ERROR; no false success |
 
-Exact new route details and codes remain Proposed until feature-contract review. An owner-scoped response never includes credentials, session identifiers, or unrelated user fields.
+The routes, outcomes, and codes in this section are accepted F-07 contract details. An owner-scoped response never includes credentials, session identifiers, or unrelated user fields.
 
 ### 4.4 Data and persistence
 
 | Item | Current repository state | F-07 contract requirement |
 | --- | --- | --- |
 | Registration | Existing Prisma Registration contains id, eventId, participantId, status, and registeredAt. | Reuse this row as the authoritative source of the event and participant association. Only status=ACTIVE is eligible. |
-| Attendance | No Prisma model or migration exists. System-Level SDS defines logical fields for event, registration, participant, recording Organizer, and check-in time. | Add an Attendance model with id, registrationId, eventId, participantId, recordedByOrganizerId, and checkedInAt. Derive the related IDs from the locked Registration and authenticated owner, never from untrusted identity fields. |
+| Attendance | Shared Prisma model and migration added for F-06; no F-07 check-in/retrieval operation exists. System-Level SDS defines the logical fields for event, registration, participant, recording Organizer, and check-in time. | Reuse the Attendance model with id, registrationId, eventId, participantId, recordedByOrganizerId, and checkedInAt. F-07 must derive the related IDs from the locked Registration and authenticated owner, never from untrusted identity fields. |
 | Uniqueness | No Attendance constraint exists. | Unique registrationId enforces at most one Attendance per Registration. |
 | Referential integrity | Registration foreign keys already use ON DELETE RESTRICT. | Add restrictive foreign keys from Attendance to Registration, Event, and Participant/User. Retain synthetic records during the project and assessment period under accepted Q-10. |
 | Association consistency | Ordinary foreign keys alone do not ensure that Attendance.eventId and participantId match its Registration. | Use a composite foreign key from (registrationId, eventId, participantId) to the matching Registration identity, and a composite Event-owner relation for (eventId, recordedByOrganizerId), or an equivalent reviewed database constraint. Backend checks remain required. |
@@ -186,7 +186,7 @@ Persist checkedInAt as a UTC instant from the authoritative server/database cloc
 
 ## 7. Software Test Specifications
 
-These are planned specifications only. No F-07 implementation or test execution is claimed. Test fixtures use UTC instants; user-facing time is labelled Asia/Bangkok (UTC+7).
+These are planned F-07 specifications; no F-07 endpoint/UI implementation or F-07-specific test execution is claimed. F-06 TEST-F06-13 does exercise the shared Event/Registration lock order with a storage-level check-in writer. Test fixtures use UTC instants; user-facing time is labelled Asia/Bangkok (UTC+7).
 
 ### TEST-F07-01 - Owner check-in creates one associated Attendance
 
@@ -288,8 +288,8 @@ These are planned specifications only. No F-07 implementation or test execution 
 
 F-07 implementation is Done only after every item is evidenced on the reviewed Sprint 2 release. These are future completion criteria, not claims that work is complete.
 
-- [ ] Before implementation, confirm the SRS still reflects Accepted — Team Reviewed Q-05/Q-10; obtain teammate acceptance of the remaining F-05 v0.5 API/schema details.
-- [ ] A teammate other than the author accepts this versioned contract and reviews all API/schema changes before implementation.
+- [x] Confirmed the SRS reflects Accepted — Team Reviewed Q-05/Q-10 and accepted F-05 v0.6 API/schema baseline.
+- [x] F-07 contract acceptance recorded per user confirmation on 2026-11-25; reviewer identity and external review artifact were not supplied in the repository.
 - [ ] Reviewed migration adds Attendance, uniqueness, restrictive foreign keys, association-consistency constraints, and query indexes; rollback does not rewrite applied migration history.
 - [ ] Backend derives identity and ownership from the session, validates Origin/CSRF, enforces ACTIVE status and [startAt, endAt), and samples server time after the shared Event/Registration locks.
 - [ ] F-06 and F-07 share a lock order and pass the start-boundary race; no Registration can be both CANCELLED and attended.
@@ -303,13 +303,13 @@ F-07 implementation is Done only after every item is evidenced on the reviewed S
 
 | Item | Current observation | Required treatment |
 | --- | --- | --- |
-| Q-05 policy | SRS and SDS record the owning-Organizer/ACTIVE/[startAt, endAt) rule as Accepted — Team Reviewed. | Preserve the accepted rule; F-07 contract acceptance and implementation remain pending. |
+| Q-05 policy | SRS and SDS record the owning-Organizer/ACTIVE/[startAt, endAt) rule as Accepted — Team Reviewed. | Preserve the accepted rule; F-07 contract is accepted and its implementation remains pending. |
 | Q-10 retention | SRS records synthetic history retention through the project and assessment period as Accepted — Team Reviewed. | No automatic deletion for this scope; real-user production rules need separate review. |
-| F-05 dependency status | Q-01 to Q-03 and field meanings (`registrationAvailable` capacity; `registrationOpen` deadline window) are team-reviewed. F-05 v0.5 API/schema acceptance remains pending. | Preserve both meanings; backend rechecks registration eligibility. Check-in remains governed by Q-05 and Event `startAt`/`endAt`. Obtain final F-05 acceptance before relying on its schema in implementation. |
-| Schema gap | No Attendance model or migration exists. | Review and apply additive schema changes before implementation; no migration is included here. |
+| F-05 dependency status | Q-01 to Q-03, field meanings, and F-05 v0.6 API/schema are accepted and integrated. | Preserve both meanings; backend rechecks registration eligibility. Check-in remains governed by Q-05 and Event `startAt`/`endAt`. |
+| Shared persistence | F-06 added the Attendance model/migration and verified its restrictive composite references for the checked-in guard. | F-07 still needs its check-in/retrieval routes, authorization checks, UI, and feature-specific tests; keep those outside Issue 13. |
 | Cross-entity integrity | Attendance.eventId and participantId must match the linked Registration; recording Organizer must own the Event. | Enforce with reviewed composite constraints plus backend authorization checks. |
 | F-06 race | Cancellation and check-in are mutually exclusive lifecycle outcomes. | Use one lock order and test both before-start and exact-start outcomes. |
-| Existing route proposal | System-Level SDS candidate paths are not current endpoints. | Review proposed paths/envelopes before treating them as accepted API contracts. |
+| Existing route proposal | Accepted F-07 endpoint paths are not current server endpoints. | Implement the routes and UI in a separate F-07 implementation issue; Issue 13 only shares the accepted Attendance persistence and Event/Registration lock order. |
 
 ## 10. Version and decision history
 
@@ -318,15 +318,17 @@ F-07 implementation is Done only after every item is evidenced on the reviewed S
 | 0.1 | 2026-11-24 | Draft - Review Ready; pending team review | Initial F-07 scope, workflow, candidate API/data model, AC, planned STS, DoD, shared cancellation/check-in transaction rules, and unresolved decision register. No implementation or test result recorded. |
 | 0.2 | 2026-11-24 | Draft - Review Ready; pending team review | Corrected Q-05 wording, linked Q-05 to check-in AC/STS, and synchronized the F-05 dependency status with the SRS. No policy approval, implementation, or test execution was claimed in this revision. |
 | 0.3 | 2026-11-24 | Draft - Review Ready; Q-05/Q-10 Accepted — Team Reviewed; contract acceptance pending | Recorded the PR-reviewed policies in the SRS and contract; aligned check-in AC, retention, SDS references, and the F-05 v0.5 field definitions. F-07 routes/schema, contract acceptance, implementation, migration, and test execution remain pending. |
+| 0.4 | 2026-11-25 | Accepted — user confirmation | Recorded the user's confirmation that F-07 was accepted; the repository contains no separate reviewer identity or PR artifact. Reconciled the F-05 dependency with accepted/integrated v0.6. No F-07 implementation or test execution is claimed in this history entry. |
+| 0.5 | 2026-11-25 | Accepted; shared persistence implemented under F-06 | Recorded the shared Attendance model/migration added for F-06. F-07 API/UI implementation remains outside Issue 13 and pending. |
 
 ### Review record
 
 | Review item | Status |
 | --- | --- |
-| Student 1 peer review | Pending |
+| Student 1 peer review | Acceptance reported by user; reviewer identity and review artifact not supplied in the repository |
 | Team policy confirmation for Q-05 and Q-10 | Accepted — Team Reviewed; PR review recorded 2026-11-24 |
-| Contract acceptance | Pending |
-| Implementation, migration, and test execution | Not started by this documentation change |
+| Contract acceptance | Accepted per user confirmation on 2026-11-25 |
+| Implementation, migration, and test execution | Pending; F-07 implementation remains outside Issue 13 |
 | PR/release approval | Pending |
 
 ### Related baseline

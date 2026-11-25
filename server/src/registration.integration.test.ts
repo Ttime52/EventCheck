@@ -122,7 +122,7 @@ describe.skipIf(!isolatedDatabase)("F-03 participant registration API", () => {
     expect(registration.status).toBe(201);
     const publicEvent = await request(app).get(`/api/v1/events/${eventId}`);
     expect(publicEvent.body.data.event).toMatchObject({ remainingPlaces: 1, registrationAvailable: true });
-    await prisma.registration.update({ where: { id: registration.body.data.registration.id }, data: { status: RegistrationStatus.CANCELLED } });
+    await prisma.registration.update({ where: { id: registration.body.data.registration.id }, data: { status: RegistrationStatus.CANCELLED, cancelledAt: new Date("2099-11-25T03:00:00.000Z") } });
     const reRegistered = await request(app).post(`/api/v1/events/${eventId}/registrations`).set(origin).set("Cookie", await login(logins[7])).send({});
     expect(reRegistered.status).toBe(201);
   });

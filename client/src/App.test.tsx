@@ -267,6 +267,69 @@ describe("F-03 participant discovery UI", () => {
     expect(screen.getByText("registration-1")).toBeInTheDocument();
   });
 
+  it("F-06 UI journey: confirms cancellation, retains cancelled history, and offers re-registration", async () => {
+    const participant = { id: "participant-1", displayName: "Participant", role: "PARTICIPANT" as const };
+    const registeredAt = "2026-11-20T00:00:00.000Z";
+    const cancelledAt = "2026-11-25T03:00:00.000Z";
+    let cancelled = false;
+    let active = true;
+    vi.stubGlobal("fetch", vi.fn());
+    const fetchMock = vi.mocked(fetch);
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    fetchMock.mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.endsWith("/me")) return response({ data: { user: participant } });
+      if (url.endsWith("/api/v1/events")) return response({ data: { events: [{ ...publicEvent, remainingPlaces: active ? 1 : 2 }] } });
+      if (url === "/api/v1/me/registrations/registration-1/cancel" && init?.method === "POST") {
+        cancelled = true; active = false;
+        return response({ data: { registration: { id: "registration-1", eventId: publicEvent.id, participantId: participant.id, status: "CANCELLED", registeredAt, cancelledAt } } });
+      }
+      if (url === "/api/v1/events/event-1") return response({ data: { event: publicEvent } });
+      if (url === "/api/v1/me/registrations/registration-1") return response({ data: { registration: { id: "registration-1", eventId: publicEvent.id, status: cancelled ? "CANCELLED" : "ACTIVE", registeredAt, cancelledAt: cancelled ? cancelledAt : null, event: publicEvent } } });
+      return response({ data: { registrations: cancelled ? [{ id: "registration-1", eventId: publicEvent.id, status: "CANCELLED", registeredAt, cancelledAt, event: publicEvent }] : [{ id: "registration-1", eventId: publicEvent.id, status: "ACTIVE", registeredAt, cancelledAt: null, event: publicEvent }] } });
+    });
+
+    render(<App />);
+    await screen.findByRole("tab", { name: "My Registrations" });
+    fireEvent.click(screen.getByRole("tab", { name: "My Registrations" }));
+    const cancelButton = await screen.findByRole("button", { name: "Cancel registration for University Workshop" });
+    expect(cancelButton.tabIndex).toBe(0);
+    fireEvent.click(cancelButton);
+    await waitFor(() => expect(within(screen.getByRole("region", { name: "Discover published events" })).getByRole("status")).toHaveTextContent("Registration cancelled."));
+    expect(window.confirm).toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/me/registrations/registration-1/cancel", expect.objectContaining({ method: "POST", body: "{}" }));
+    expect(screen.getByText(/Status: CANCELLED/)).toBeInTheDocument();
+    expect(screen.getByText(/Cancelled 25 Nov 2026, 10:00/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Discover Events" }));
+    fireEvent.click(await screen.findByRole("button", { name: "View details" }));
+    expect(await screen.findByRole("button", { name: "Register again" })).toBeInTheDocument();
+  });
+
+  it("F-06 UI error state: exposes an accessible registration loading error and retry", async () => {
+    const participant = { id: "participant-1", displayName: "Participant", role: "PARTICIPANT" as const };
+    let attempts = 0;
+    vi.stubGlobal("fetch", vi.fn());
+    vi.mocked(fetch).mockImplementation(input => {
+      const url = String(input);
+      if (url.endsWith("/me")) return response({ data: { user: participant } });
+      if (url.endsWith("/api/v1/events")) return response({ data: { events: [] } });
+      if (url.endsWith("/api/v1/me/registrations")) {
+        attempts += 1;
+        return attempts === 1 ? response({ error: { message: "Unable to load registrations" } }, false, 500) : response({ data: { registrations: [] } });
+      }
+      return response({ data: {} });
+    });
+    render(<App />);
+    await screen.findByRole("tab", { name: "My Registrations" });
+    fireEvent.click(screen.getByRole("tab", { name: "My Registrations" }));
+    const error = await screen.findByRole("alert");
+    expect(within(error).getByText("Unable to load registrations")).toBeInTheDocument();
+    fireEvent.click(within(error).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getByText("You have no registrations yet.")).toBeInTheDocument());
+    expect(attempts).toBe(2);
+  });
+
   it("does not show Register controls to an Organizer", async () => {
     const organizer = { id: "organizer-1", displayName: "Organizer", role: "ORGANIZER" as const };
     const fetchMock = vi.mocked(fetch);
