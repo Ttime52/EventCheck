@@ -46,11 +46,32 @@ test("TEST-F06-15: Participant cancels, keeps history after reload, and re-regis
   await page.locator("#event-start").fill(`${eventDate}T09:00`);
   await page.locator("#event-end").fill(`${eventDate}T12:00`);
   await page.getByLabel("Capacity (positive integer)", { exact: true }).fill("5");
+  const publishResponsePromise = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === "/api/v1/events" && response.request().method() === "POST";
+  });
   await page.getByRole("button", { name: "Publish event" }).click();
+  const publishResponse = await publishResponsePromise;
+  const publishBody = await publishResponse.json().catch(() => null) as { data?: { event?: { id?: unknown } } } | null;
+  if (typeof publishBody?.data?.event?.id === "string") createdEventId = publishBody.data.event.id;
+  if (!createdEventId) {
+    const cleanupClient = new PrismaClient({ datasources: { db: { url: isolatedDatabaseUrl() } } });
+    try {
+      const publishedFixture = await cleanupClient.event.findFirst({
+        where: { title, organizer: { loginIdentifier: organizerLogin } },
+        select: { id: true },
+      });
+      createdEventId = publishedFixture?.id ?? null;
+    } finally {
+      await cleanupClient.$disconnect();
+    }
+  }
+  expect(publishResponse.status()).toBe(201);
+  expect(createdEventId).toBeTruthy();
+
   await page.getByRole("tab", { name: "My Events" }).click();
   const ownedEvent = page.locator(".event-card").filter({ hasText: title });
   await expect(ownedEvent.getByRole("heading", { name: title, level: 3 })).toBeVisible();
-  createdEventId = (await ownedEvent.locator(".event-id").innerText()).replace(/^Event ID:\s*/, "").trim();
 
   await page.getByRole("button", { name: "Log out" }).click();
   await expect(page.getByRole("form", { name: "Login" })).toBeVisible();

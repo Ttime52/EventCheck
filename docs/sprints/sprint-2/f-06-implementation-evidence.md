@@ -46,8 +46,8 @@ F-06 lets a Participant cancel an eligible registration, retains the cancelled r
 | `npm.cmd run test:integration --workspace server` with the validated isolated `E2E_DATABASE_URL` assigned to `DATABASE_URL` | Passed: 68/68 PostgreSQL integration tests across F-01 to F-06 and production provisioning. The F-06 suite passed 15/15. The real API restart persistence check passed. |
 | `npm.cmd run typecheck` | Passed for server and client. |
 | `npm.cmd run build` | Passed for server and client. |
-| `npm.cmd run test:e2e -- --workers=1 --reporter=line` | Passed: 20/20 Playwright tests, including the F-06 keyboard cancellation, reload/history, and re-registration journey. The isolated database was seeded with the two synthetic demo accounts. |
-| `git diff --check` | Passed with no whitespace errors. Git reported an existing line-ending conversion warning for `docs/features.md`. |
+| `npm.cmd run test:e2e -- --workers=1 --reporter=line` | Passed: 20/20 Playwright tests, including the F-06 keyboard cancellation, reload/history, and re-registration journey. After hardening fixture cleanup, focused `TEST-F06-15` passed again (1/1). The isolated database was seeded with the two synthetic demo accounts. |
+| `git diff --check` | Passed with no whitespace errors. Git reported LF-to-CRLF conversion warnings for `docs/features.md`, this evidence file, and the F-06 Playwright spec. |
 
 The standard `npm.cmd run db:seed --workspace server` invocation could not start on this Windows host: `tsx` failed in `uv_os_get_passwd` before opening a database connection. The same repository seed policy and password-hashing functions were run through the already-built Node modules, with `DATABASE_URL` independently checked to equal the isolated `eventcheck_test/public` target. No development or production account was changed.
 
@@ -58,5 +58,7 @@ An initial Playwright run also exposed the missing synthetic accounts and the st
 **Title:** Implement F-06 registration cancellation and re-registration
 
 **Description:** Add Participant-owned cancellation before Event start with idempotent retries, persisted cancellation time, Attendance guard, and Event-then-Registration locking. Preserve cancelled rows and capacity accounting, expose cancellation history in Participant views, and reuse F-03 registration for eligibility-checked re-registration. Add the lifecycle invariant, shared Attendance persistence, integration/restart coverage, and an accessible confirmation flow. F-07 check-in and attendance retrieval operations/UI remain outside this change.
+
+**Implementation evidence:** [F-06 implementation and verification evidence](https://github.com/Ttime52/EventCheck/blob/feature/f06-registration-cancellation/docs/sprints/sprint-2/f-06-implementation-evidence.md)
 
 **Verification:** 68 PostgreSQL integration tests, 20 Playwright tests, 69 unit/component tests, typecheck, build, Prisma validation, and API restart persistence check pass on the isolated test database.
