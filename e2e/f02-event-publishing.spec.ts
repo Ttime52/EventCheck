@@ -143,7 +143,8 @@ test("TEST-F02-06/14: Participant does not receive Organizer event controls", as
   await expect(page.getByText("PARTICIPANT", { exact: true })).toBeVisible();
   await expect(page.getByRole("form", { name: "Create and publish event" })).not.toBeVisible();
   await expect(page.getByRole("button", { name: "Publish event" })).not.toBeVisible();
-  await expect(page.getByText("Your events are coming soon")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Discover published events" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "My Registrations" })).toBeVisible();
 });
 
 test("TEST-F02-06/14: expired Organizer event session returns safely to login", async ({ page }) => {

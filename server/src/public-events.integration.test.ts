@@ -80,7 +80,7 @@ describe.skipIf(!isolatedDatabase)("F-03 public event discovery", () => {
 
   it("TEST-F03-08/19: enforces one ACTIVE registration while allowing CANCELLED history", async () => {
     await expect(prisma.registration.create({ data: { eventId, participantId, status: RegistrationStatus.ACTIVE } })).rejects.toThrow();
-    const cancelled = await prisma.registration.create({ data: { eventId, participantId, status: RegistrationStatus.CANCELLED } });
+    const cancelled = await prisma.registration.create({ data: { eventId, participantId, status: RegistrationStatus.CANCELLED, cancelledAt: new Date("2099-11-25T03:00:00.000Z") } });
     expect(cancelled.status).toBe(RegistrationStatus.CANCELLED);
   });
 
@@ -90,7 +90,7 @@ describe.skipIf(!isolatedDatabase)("F-03 public event discovery", () => {
     const participant = await prisma.user.create({ data: { loginIdentifier: `f03-restrict-participant-${runId}@example.test`, displayName: "F03 Restrict Participant", role: Role.PARTICIPANT, passwordHash } });
     const restrictedEvent = await prisma.event.create({ data: { organizerId: organizer.id, title: `F03 Restrict Event ${runId}`, description: "RESTRICT fixture", location: "Room 3", startAt: new Date("2026-12-03T02:00:00.000Z"), endAt: new Date("2026-12-03T04:00:00.000Z"), capacity: 2, publicationState: PublicationState.PUBLISHED } });
     const active = await prisma.registration.create({ data: { eventId: restrictedEvent.id, participantId: participant.id, status: RegistrationStatus.ACTIVE } });
-    const cancelled = await prisma.registration.create({ data: { eventId: restrictedEvent.id, participantId: participant.id, status: RegistrationStatus.CANCELLED } });
+    const cancelled = await prisma.registration.create({ data: { eventId: restrictedEvent.id, participantId: participant.id, status: RegistrationStatus.CANCELLED, cancelledAt: new Date("2099-11-25T03:00:00.000Z") } });
     try {
       await expect(prisma.event.delete({ where: { id: restrictedEvent.id } })).rejects.toThrow();
       await expect(prisma.user.delete({ where: { id: participant.id } })).rejects.toThrow();

@@ -74,7 +74,7 @@ describe.skipIf(!isolated)("F-05 capacity and deadline API (isolated PostgreSQL)
     const event = await createEvent(2);
     const cancelledParticipant = await prisma.user.create({ data: { loginIdentifier: `${suffix}-cancelled@example.test`, displayName: "F05 Cancelled", role: Role.PARTICIPANT, passwordHash: await hashPassword(password) } });
     const active = await prisma.registration.create({ data: { eventId: event.id, participantId, status: RegistrationStatus.ACTIVE } });
-    const cancelled = await prisma.registration.create({ data: { eventId: event.id, participantId: cancelledParticipant.id, status: RegistrationStatus.CANCELLED } });
+    const cancelled = await prisma.registration.create({ data: { eventId: event.id, participantId: cancelledParticipant.id, status: RegistrationStatus.CANCELLED, cancelledAt: new Date("2099-11-25T03:00:00.000Z") } });
     try {
       const response = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", organizerCookie).send({ capacity: 4 });
       expect(response.status).toBe(200);

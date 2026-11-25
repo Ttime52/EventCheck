@@ -30,6 +30,8 @@ model User {
   sessions        Session[]
   events          Event[]
   registrations   Registration[]
+  participantAttendances Attendance[] @relation("AttendanceParticipant")
+  recordedAttendances    Attendance[] @relation("AttendanceRecorder")
   createdAt       DateTime  @default(now())
 }
 
@@ -60,9 +62,11 @@ model Event {
   publicationState PublicationState @default(PUBLISHED)
   createdAt       DateTime        @default(now())
   registrations   Registration[]
+  attendances     Attendance[]
 
   @@index([organizerId])
   @@index([publicationState, startAt])
+  @@unique([id, organizerId], map: "Event_id_organizerId_key")
 }
 
 model Registration {
@@ -71,10 +75,30 @@ model Registration {
   participantId String
   status       RegistrationStatus
   registeredAt DateTime         @default(now())
+  cancelledAt  DateTime?
   event        Event            @relation(fields: [eventId], references: [id], onDelete: Restrict)
   participant  User             @relation(fields: [participantId], references: [id], onDelete: Restrict)
+  attendance   Attendance?
 
   @@index([eventId, status])
   @@index([participantId, status])
   @@index([participantId, registeredAt])
+  @@unique([id, eventId, participantId], map: "Registration_id_eventId_participantId_key")
+}
+
+model Attendance {
+  id                    String       @id @default(uuid())
+  registrationId        String       @unique(map: "Attendance_registrationId_key")
+  eventId               String
+  participantId         String
+  recordedByOrganizerId String
+  checkedInAt           DateTime
+  registration          Registration @relation(fields: [registrationId, eventId, participantId], references: [id, eventId, participantId], onDelete: Restrict)
+  event                 Event        @relation(fields: [eventId, recordedByOrganizerId], references: [id, organizerId], onDelete: Restrict)
+  participant           User         @relation("AttendanceParticipant", fields: [participantId], references: [id], onDelete: Restrict)
+  recordedByOrganizer  User         @relation("AttendanceRecorder", fields: [recordedByOrganizerId], references: [id], onDelete: Restrict)
+
+  @@unique([registrationId, eventId, participantId], map: "Attendance_registrationId_eventId_participantId_key")
+  @@index([eventId, checkedInAt])
+  @@index([participantId, checkedInAt])
 }

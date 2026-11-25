@@ -19,7 +19,7 @@ type PublishedEvent = {
 };
 
 type PublicEvent = Omit<PublishedEvent, "publicationState"> & { remainingPlaces: number; registrationAvailable: boolean; registrationOpen: boolean };
-type Registration = { id: string; eventId: string; status: "ACTIVE" | "CANCELLED"; registeredAt: string; event: Pick<PublicEvent, "id" | "title" | "description" | "location" | "startAt" | "endAt"> };
+type Registration = { id: string; eventId: string; status: "ACTIVE" | "CANCELLED"; registeredAt: string; cancelledAt: string | null; event: Pick<PublicEvent, "id" | "title" | "description" | "location" | "startAt" | "endAt"> };
 type OrganizerRegistration = { id: string; participantId: string; participantDisplayName: string; status: "ACTIVE" | "CANCELLED"; registeredAt: string };
 
 const isUser = (value: unknown): value is User => {
@@ -109,6 +109,7 @@ function PublicEventsPanel({ user, onSessionExpired }: { user: User | null; onSe
   const detailHeadingRef = useRef<HTMLHeadingElement>(null);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [registrationsLoading, setRegistrationsLoading] = useState(user?.role === "PARTICIPANT");
+  const [registrationsError, setRegistrationsError] = useState("");
   const [selectedRegistration, setSelectedRegistration] = useState<Registration | null>(null);
   const [registrationDetailLoading, setRegistrationDetailLoading] = useState(false);
   const [registrationDetailError, setRegistrationDetailError] = useState("");
@@ -117,6 +118,7 @@ function PublicEventsPanel({ user, onSessionExpired }: { user: User | null; onSe
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"discover" | "registrations">("discover");
   const [confirmationId, setConfirmationId] = useState<string | null>(null);
   const tabHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -127,22 +129,38 @@ function PublicEventsPanel({ user, onSessionExpired }: { user: User | null; onSe
       const response = await fetch("/api/v1/events", { credentials: "include" });
       const body = await response.json().catch(() => null);
       if (!response.ok || !Array.isArray(body?.data?.events)) throw new Error(errorMessage(body, "Unable to load published events"));
-      setEvents(body.data.events.filter(isPublicEvent));
+      const publicEvents = body.data.events.filter(isPublicEvent);
+      if (publicEvents.length !== body.data.events.length) {
+        throw new Error("The API returned an unsupported event format. Check that the API and client are running from the same version.");
+      }
+      setEvents(publicEvents);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to load published events"); }
     finally { setLoading(false); }
   }
 
-  useEffect(() => { void loadEvents(); if (user?.role === "PARTICIPANT") void loadRegistrations(); }, []);
+  useEffect(() => {
+    void loadEvents();
+    if (user?.role === "PARTICIPANT") void loadRegistrations();
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void loadEvents();
+      if (user?.role === "PARTICIPANT") void loadRegistrations();
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => document.removeEventListener("visibilitychange", refreshWhenVisible);
+  }, []);
 
   async function loadRegistrations() {
     setRegistrationsLoading(true);
+    setRegistrationsError("");
     try {
       const response = await fetch("/api/v1/me/registrations", { credentials: "include" });
       const body = await response.json().catch(() => null);
       if (response.status === 401) return onSessionExpired();
       if (!response.ok || !Array.isArray(body?.data?.registrations)) throw new Error(errorMessage(body, "Unable to load registrations"));
       setRegistrations(body.data.registrations);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to load registrations"); }
+    } catch (error) { const message = error instanceof Error ? error.message : "Unable to load registrations"; setRegistrationsError(message); setMessage(message); }
     finally { setRegistrationsLoading(false); }
   }
 
@@ -161,6 +179,46 @@ function PublicEventsPanel({ user, onSessionExpired }: { user: User | null; onSe
       else { await loadEvents(); if (selected?.id === event.id) await viewDetail(event.id); await loadRegistrations(); setConfirmationId(body?.data?.registration?.id ?? "available"); setMessage("Registration confirmed."); }
     } catch { setMessage("Unable to register for this event. Try again."); }
     finally { setBusyId(null); }
+  }
+
+  async function cancelRegistration(registration: Registration) {
+    if (registration.status !== "ACTIVE" || cancellingId) return;
+    if (!window.confirm(`Cancel your registration for ${registration.event.title}? You can register again if the event is still open and has capacity.`)) return;
+    setCancellingId(registration.id);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/v1/me/registrations/${encodeURIComponent(registration.id)}/cancel`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const body = await response.json().catch(() => null);
+      if (response.status === 401) return onSessionExpired();
+      if (response.status === 409 && body?.error?.code === "REGISTRATION_CHECKED_IN") {
+        await loadRegistrations(); await loadEvents(); setMessage("This registration has been checked in and cannot be cancelled."); return;
+      }
+      if (response.status === 409 && body?.error?.code === "CANCELLATION_CLOSED") {
+        await loadRegistrations(); await loadEvents(); setMessage("Cancellation is closed because this event has started."); return;
+      }
+      if (response.status === 404 && body?.error?.code === "REGISTRATION_NOT_FOUND") {
+        await loadRegistrations(); setMessage("Registration not found. Your registrations have been refreshed."); return;
+      }
+      if (!response.ok || !body?.data?.registration) {
+        setMessage(errorMessage(body, "Unable to cancel this registration. Try again.")); return;
+      }
+      const updated = body.data.registration as Pick<Registration, "status" | "cancelledAt">;
+      setRegistrations(current => current.map(item => item.id === registration.id ? { ...item, ...updated } : item));
+      setSelectedRegistration(current => current?.id === registration.id ? { ...current, ...updated } : current);
+      await loadRegistrations();
+      await loadEvents();
+      setConfirmationId(null);
+      setMessage("Registration cancelled.");
+    } catch {
+      setMessage("Unable to cancel this registration. Try again.");
+    } finally {
+      setCancellingId(null);
+    }
   }
 
   async function refreshAvailability(eventId: string) {
@@ -209,13 +267,13 @@ function PublicEventsPanel({ user, onSessionExpired }: { user: User | null; onSe
     <div className="section-heading"><p className="eyebrow">University Events</p><h2 id="public-events-heading">Discover published events</h2><p className="section-intro">Browse public event details and availability. Dates are shown in Asia/Bangkok (UTC+7).</p></div>
     {user?.role === "PARTICIPANT" && <div className="tab-list" role="tablist" aria-label="Participant dashboard sections"><button type="button" role="tab" aria-selected={activeTab === "discover"} className={`dashboard-tab${activeTab === "discover" ? " is-active" : ""}`} onClick={() => switchTab("discover")}>Discover Events</button><button type="button" role="tab" aria-selected={activeTab === "registrations"} className={`dashboard-tab${activeTab === "registrations" ? " is-active" : ""}`} onClick={() => switchTab("registrations")}>My Registrations</button></div>}
     {message && <div className="status-text" role="status" aria-live="polite"><span>{message}</span>{confirmationId && <button type="button" className="button button-secondary confirmation-action" onClick={() => switchTab("registrations")}>View My Registrations</button>}</div>}
-    {(!user || user.role !== "PARTICIPANT" || activeTab === "discover") && (detailLoading ? <p className="empty-state" role="status">Loading event details...</p> : selected ? <div className="public-detail-card" role="region" aria-label="Public event details"><button type="button" className="back-button" onClick={() => setSelected(null)}>Back to events</button><h3 ref={detailHeadingRef} tabIndex={-1}>{selected.title}</h3><p>{selected.description}</p><dl className="event-meta"><div><dt>Location</dt><dd>{selected.location}</dd></div><div><dt>When</dt><dd>{formatBangkokDate(selected.startAt)} – {formatBangkokDate(selected.endAt)}</dd></div><div><dt>Capacity</dt><dd>{selected.capacity} ({selected.remainingPlaces} remaining)</dd></div><div><dt>Availability</dt><dd>{selected.registrationOpen ? selected.registrationAvailable ? "Available" : "Full" : "Closed"}</dd></div><div><dt>Registration deadline</dt><dd>{formatBangkokDate(selected.registrationDeadline ?? selected.startAt)}{selected.registrationDeadline ? "" : " (at event start)"}</dd></div></dl><div className="event-card-actions">{user?.role === "PARTICIPANT" && (registrations.some((registration) => registration.eventId === selected.id) ? <button type="button" className="button button-secondary view-event-button" disabled>Registered</button> : selected.registrationAvailable && selected.registrationOpen && <button type="button" className="button button-primary view-event-button" onClick={() => void register(selected)} disabled={busyId === selected.id}>{busyId === selected.id ? "Registering..." : "Register"}</button>)}{!user && <span className="sign-in-hint">Sign in as a Participant to register</span>}</div></div> : loading ? <p className="empty-state" role="status">Loading published events...</p> : events.length === 0 ? <p className="empty-state">No published events are available.</p> : <ul className="event-list">
+    {(!user || user.role !== "PARTICIPANT" || activeTab === "discover") && (detailLoading ? <p className="empty-state" role="status">Loading event details...</p> : selected ? <div className="public-detail-card" role="region" aria-label="Public event details"><button type="button" className="back-button" onClick={() => setSelected(null)}>Back to events</button><h3 ref={detailHeadingRef} tabIndex={-1}>{selected.title}</h3><p>{selected.description}</p><dl className="event-meta"><div><dt>Location</dt><dd>{selected.location}</dd></div><div><dt>When</dt><dd>{formatBangkokDate(selected.startAt)} – {formatBangkokDate(selected.endAt)}</dd></div><div><dt>Capacity</dt><dd>{selected.capacity} ({selected.remainingPlaces} remaining)</dd></div><div><dt>Availability</dt><dd>{selected.registrationOpen ? selected.registrationAvailable ? "Available" : "Full" : "Closed"}</dd></div><div><dt>Registration deadline</dt><dd>{formatBangkokDate(selected.registrationDeadline ?? selected.startAt)}{selected.registrationDeadline ? "" : " (at event start)"}</dd></div></dl><div className="event-card-actions">{user?.role === "PARTICIPANT" && (registrations.some((registration) => registration.eventId === selected.id && registration.status === "ACTIVE") ? <button type="button" className="button button-secondary view-event-button" disabled>Registered</button> : selected.registrationAvailable && selected.registrationOpen && <button type="button" className="button button-primary view-event-button" onClick={() => void register(selected)} disabled={busyId === selected.id}>{busyId === selected.id ? "Registering..." : registrations.some(registration => registration.eventId === selected.id && registration.status === "CANCELLED") ? "Register again" : "Register"}</button>)}{!user && <span className="sign-in-hint">Sign in as a Participant to register</span>}</div></div> : loading ? <p className="empty-state" role="status">Loading published events...</p> : events.length === 0 ? <p className="empty-state">No published events are available.</p> : <ul className="event-list">
       {events.map((event) => <li className="event-card" key={event.id}><div className="event-card-heading"><h3>{event.title}</h3><span className="published-badge">{event.registrationAvailable ? `${event.remainingPlaces} places` : "Full"}</span></div><p>{event.description}</p><dl className="event-meta"><div><dt>Location</dt><dd>{event.location}</dd></div><div><dt>When</dt><dd>{formatBangkokDate(event.startAt)} – {formatBangkokDate(event.endAt)}</dd></div><div><dt>Capacity</dt><dd>{event.capacity} ({event.remainingPlaces} remaining)</dd></div></dl><div className="event-card-actions"><button type="button" className="button button-secondary view-event-button" onClick={() => void viewDetail(event.id)}>View details</button>{!user && <span className="sign-in-hint">Sign in as a Participant to register</span>}</div></li>)}
     </ul>)}
     {activeTab === "registrations" && <>{registrationDetailLoading && <p className="detail-status" role="status">Loading registration details...</p>}
     {registrationDetailError && <div className="registration-detail-card" role="alert"><p>{registrationDetailError}</p>{failedRegistrationId && <button type="button" className="button button-secondary" onClick={() => void viewRegistration(failedRegistrationId)}>Retry</button>}</div>}
-    {selectedRegistration && <section className="registration-detail-card" aria-labelledby="registration-detail-heading"><button type="button" className="back-button" onClick={() => setSelectedRegistration(null)}>Back to My Registrations</button><h3 id="registration-detail-heading">Registration details</h3><dl className="event-meta"><div><dt>Registration ID</dt><dd className="event-id">{selectedRegistration.id}</dd></div><div><dt>Status</dt><dd>{selectedRegistration.status}</dd></div><div><dt>Registered</dt><dd>{formatBangkokDate(selectedRegistration.registeredAt)}</dd></div><div><dt>Event</dt><dd>{selectedRegistration.event.title}</dd></div><div><dt>Description</dt><dd>{selectedRegistration.event.description}</dd></div><div><dt>Location</dt><dd>{selectedRegistration.event.location}</dd></div><div><dt>When</dt><dd>{formatBangkokDate(selectedRegistration.event.startAt)} – {formatBangkokDate(selectedRegistration.event.endAt)}</dd></div></dl></section>}</>}
-    {user?.role === "PARTICIPANT" && activeTab === "registrations" && <section className="registrations-card" aria-labelledby="my-registrations-heading"><div className="section-heading compact-heading"><p className="eyebrow">Participant records</p><h2 id="my-registrations-heading" ref={tabHeadingRef} tabIndex={-1}>My Registrations</h2></div>{registrationsLoading ? <p className="empty-state" role="status">Loading your registrations...</p> : registrations.length === 0 ? <p className="empty-state">You have no registrations yet.</p> : <ul className="event-list">{registrations.map((registration) => <li className="event-card" key={registration.id}><h3>{registration.event.title}</h3><p>{registration.event.location} · {formatBangkokDate(registration.event.startAt)}</p><p>Status: {registration.status} · Registered {formatBangkokDate(registration.registeredAt)}</p><button type="button" className="button button-secondary view-event-button" onClick={() => void viewRegistration(registration.id)} disabled={registrationDetailLoading}>{registrationDetailLoading ? "Loading details..." : "View registration details"}</button></li>)}</ul>}</section>}
+    {selectedRegistration && <section className="registration-detail-card" aria-labelledby="registration-detail-heading"><button type="button" className="back-button" onClick={() => setSelectedRegistration(null)}>Back to My Registrations</button><h3 id="registration-detail-heading">Registration details</h3><dl className="event-meta"><div><dt>Registration ID</dt><dd className="event-id">{selectedRegistration.id}</dd></div><div><dt>Status</dt><dd>{selectedRegistration.status}</dd></div><div><dt>Registered</dt><dd>{formatBangkokDate(selectedRegistration.registeredAt)}</dd></div>{selectedRegistration.cancelledAt && <div><dt>Cancelled</dt><dd>{formatBangkokDate(selectedRegistration.cancelledAt)}</dd></div>}<div><dt>Event</dt><dd>{selectedRegistration.event.title}</dd></div><div><dt>Description</dt><dd>{selectedRegistration.event.description}</dd></div><div><dt>Location</dt><dd>{selectedRegistration.event.location}</dd></div><div><dt>When</dt><dd>{formatBangkokDate(selectedRegistration.event.startAt)} – {formatBangkokDate(selectedRegistration.event.endAt)}</dd></div></dl>{selectedRegistration.status === "ACTIVE" && new Date(selectedRegistration.event.startAt).getTime() > Date.now() && <button type="button" className="button button-secondary" onClick={() => void cancelRegistration(selectedRegistration)} disabled={cancellingId === selectedRegistration.id}>{cancellingId === selectedRegistration.id ? "Cancelling..." : `Cancel registration for ${selectedRegistration.event.title}`}</button>}</section>}</>}
+    {user?.role === "PARTICIPANT" && activeTab === "registrations" && <section className="registrations-card" aria-labelledby="my-registrations-heading"><div className="section-heading compact-heading"><p className="eyebrow">Participant records</p><h2 id="my-registrations-heading" ref={tabHeadingRef} tabIndex={-1}>My Registrations</h2></div>{registrationsLoading ? <p className="empty-state" role="status">Loading your registrations...</p> : registrationsError ? <div className="registration-detail-card" role="alert"><p>{registrationsError}</p><button type="button" className="button button-secondary" onClick={() => void loadRegistrations()}>Retry</button></div> : registrations.length === 0 ? <p className="empty-state">You have no registrations yet.</p> : <ul className="event-list">{registrations.map((registration) => <li className="event-card" key={registration.id}><h3>{registration.event.title}</h3><p>{registration.event.location} · {formatBangkokDate(registration.event.startAt)}</p><p>Status: {registration.status} · Registered {formatBangkokDate(registration.registeredAt)}{registration.cancelledAt ? ` · Cancelled ${formatBangkokDate(registration.cancelledAt)}` : ""}</p><div className="event-card-actions"><button type="button" className="button button-secondary view-event-button" onClick={() => void viewRegistration(registration.id)} disabled={registrationDetailLoading}>{registrationDetailLoading ? "Loading details..." : "View registration details"}</button>{registration.status === "ACTIVE" && new Date(registration.event.startAt).getTime() > Date.now() && <button type="button" className="button button-secondary" onClick={() => void cancelRegistration(registration)} disabled={cancellingId === registration.id}>{cancellingId === registration.id ? "Cancelling..." : `Cancel registration for ${registration.event.title}`}</button>}</div></li>)}</ul>}</section>}
   </section>;
 }
 
@@ -767,15 +825,7 @@ export function App() {
               </section>}
             </div>
           </section>
-        ) : (
-          <section className="future-card">
-            <span className="calendar-icon" aria-hidden="true">◷</span>
-            <div>
-              <h2>Your events are coming soon</h2>
-              <p>Event discovery and attendance tools will appear here in the next Sprint.</p>
-            </div>
-          </section>
-        )}
+        ) : null}
         </div>
       </main>
     );

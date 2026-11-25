@@ -5,6 +5,7 @@ import { prisma, requireAuth, csrfGuard, newSessionId, setSessionCookie, clearSe
 import { verifyPassword } from "./security.js";
 import { PublicationState, RegistrationStatus, Role } from "@prisma/client";
 import { eventView, publicEventView, validateCreateEventInput } from "./events.js";
+import { decideCancellation } from "./registration-lifecycle.js";
 
 export const app = express();
 let nowProvider = () => new Date();
@@ -97,12 +98,67 @@ app.post("/api/v1/events/:eventId/registrations", requireAuth, requireRole(Role.
   }
 });
 
-function registrationView(registration: { id: string; eventId: string; status: RegistrationStatus; registeredAt: Date; event: { id: string; title: string; description: string; location: string; startAt: Date; endAt: Date } }) {
+export async function cancelRegistration(registrationId: string, participantId: string) {
+  return prisma.$transaction(async (transaction) => {
+    const owned = await transaction.registration.findFirst({ where: { id: registrationId, participantId }, select: { eventId: true } });
+    if (!owned) throw Object.assign(new Error("REGISTRATION_NOT_FOUND"), { code: "REGISTRATION_NOT_FOUND" });
+
+    const eventLock = await transaction.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "Event" WHERE "id" = ${owned.eventId} FOR UPDATE`;
+    if (eventLock.length === 0) throw Object.assign(new Error("REGISTRATION_NOT_FOUND"), { code: "REGISTRATION_NOT_FOUND" });
+    const registrationLock = await transaction.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "Registration" WHERE "id" = ${registrationId} AND "participantId" = ${participantId} FOR UPDATE`;
+    if (registrationLock.length === 0) throw Object.assign(new Error("REGISTRATION_NOT_FOUND"), { code: "REGISTRATION_NOT_FOUND" });
+
+    const registration = await transaction.registration.findFirst({
+      where: { id: registrationId, participantId },
+      select: { id: true, eventId: true, participantId: true, status: true, registeredAt: true, cancelledAt: true, event: { select: { startAt: true } }, attendance: { select: { id: true } } },
+    });
+    if (!registration) throw Object.assign(new Error("REGISTRATION_NOT_FOUND"), { code: "REGISTRATION_NOT_FOUND" });
+
+    const decisionTime = nowProvider();
+    const decision = decideCancellation(registration.status, registration.attendance !== null, registration.event.startAt, decisionTime);
+    if (decision === "ALREADY_CANCELLED") return registration;
+    if (decision !== "CANCEL") throw Object.assign(new Error(decision), { code: decision });
+
+    const cancelledAt = decisionTime;
+    await transaction.registration.update({ where: { id: registration.id }, data: { status: RegistrationStatus.CANCELLED, cancelledAt } });
+    return { ...registration, status: RegistrationStatus.CANCELLED, cancelledAt };
+  });
+}
+
+app.post("/api/v1/me/registrations/:registrationId/cancel", requireAuth, requireRole(Role.PARTICIPANT), async (request, response, next) => {
+  const registrationId = Array.isArray(request.params.registrationId) ? request.params.registrationId[0] : request.params.registrationId;
+  const body = request.body;
+  if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length !== 0) {
+    const fields = body && typeof body === "object" && !Array.isArray(body) ? Object.keys(body).map(field => ({ field, message: `${field} is not accepted` })) : [{ field: "body", message: "Request must be an empty JSON object" }];
+    return response.status(422).json({ error: { code: "INVALID_CANCELLATION_REQUEST", message: "Cancellation request must not contain client-controlled fields", details: fields } });
+  }
+
+  try {
+    const registration = await cancelRegistration(registrationId, (request as AuthenticatedRequest).user!.id);
+    return response.status(200).json({ data: { registration: {
+      id: registration.id,
+      eventId: registration.eventId,
+      participantId: registration.participantId,
+      status: registration.status,
+      registeredAt: registration.registeredAt.toISOString(),
+      cancelledAt: registration.cancelledAt?.toISOString() ?? null,
+    } } });
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === "REGISTRATION_NOT_FOUND") return response.status(404).json({ error: { code, message: "Registration not found" } });
+    if (code === "REGISTRATION_CHECKED_IN") return response.status(409).json({ error: { code, message: "A checked-in registration cannot be cancelled" } });
+    if (code === "CANCELLATION_CLOSED") return response.status(409).json({ error: { code, message: "Cancellation is closed because the event has started" } });
+    return next(error);
+  }
+});
+
+function registrationView(registration: { id: string; eventId: string; status: RegistrationStatus; registeredAt: Date; cancelledAt: Date | null; event: { id: string; title: string; description: string; location: string; startAt: Date; endAt: Date } }) {
   return {
     id: registration.id,
     eventId: registration.eventId,
     status: registration.status,
     registeredAt: registration.registeredAt.toISOString(),
+    cancelledAt: registration.cancelledAt?.toISOString() ?? null,
     event: {
       id: registration.event.id,
       title: registration.event.title,
