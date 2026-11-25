@@ -5,8 +5,8 @@ This document records the current implementation evidence for F-07 without chang
 ## Review snapshot
 
 - Branch: `feature/51-f07-check-in-attendance`
-- Current HEAD (not claimed as the macOS tested revision): `7da4fd8b9ff97b702ece4a93d4c47d07b8dd1a5c`
-- Working tree: dirty; implementation and test changes are uncommitted.
+- Current HEAD (not claimed as the macOS tested revision): `d3c52a24e6f4e0dda728577b246141d0a979d95b`
+- Working tree at review start: clean.
 - The owner-reported macOS results below are recorded separately from this HEAD because no tested SHA was supplied.
 
 ## Evidence matrix
@@ -67,6 +67,16 @@ Reported commands were the server suite with `--no-file-parallelism`, the F-07 i
 - AC-F07-12: browser coverage now includes CANCELLED history and participant attendance persistence; empty/error/retry and complete privacy/keyboard matrix remains partial.
 
 The latest macOS results are owner-reported for the working-tree implementation; the current Codex environment did not execute PostgreSQL or browser tests. Aggregate suite totals do not convert an AC to full PASS when mandatory STS sub-scenarios are not independently asserted.
+
+## Current-session verification
+
+Executed against the current checkout (without database access):
+
+- `npm run typecheck` — PASS
+- `npm run build` — PASS
+- `npm run test --workspace client` — 29/29 PASS
+- `npx playwright test e2e/f07-check-in.spec.ts --list` — 2 tests discovered; browser execution NOT RUN because the isolated database URL was not configured
+- `git diff --check` — PASS
 
 ## Regression and API compatibility
 
