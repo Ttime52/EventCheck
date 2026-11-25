@@ -1,8 +1,8 @@
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { Role, RegistrationStatus } from "@prisma/client";
+import { PrismaClient, Role, RegistrationStatus } from "@prisma/client";
 import { app, createRegistration, setNowProvider } from "./app.js";
-import { prisma } from "./auth.js";
+import { prisma, SESSION_COOKIE } from "./auth.js";
 import { hashPassword } from "./security.js";
 import { isIsolatedTestDatabase } from "./test-database.js";
 
@@ -20,7 +20,11 @@ const isolated = isIsolatedTestDatabase();
 async function login(identifier: string) {
   const response = await request(app).post("/api/v1/auth/login").set(origin).send({ loginIdentifier: identifier, password });
   expect(response.status).toBe(200);
-  return response.headers["set-cookie"];
+  const setCookies = response.headers["set-cookie"];
+  const cookieHeaders = Array.isArray(setCookies) ? setCookies : setCookies ? [setCookies] : [];
+  const sessionCookie = cookieHeaders.find((cookie) => cookie.startsWith(`${SESSION_COOKIE}=`));
+  expect(sessionCookie).toBeDefined();
+  return sessionCookie!.split(";")[0];
 }
 
 describe.skipIf(!isolated)("F-05 capacity and deadline API (isolated PostgreSQL)", () => {
@@ -66,6 +70,23 @@ describe.skipIf(!isolated)("F-05 capacity and deadline API (isolated PostgreSQL)
     expect(publicResponse.body.data.event).toMatchObject({ remainingPlaces: 4, registrationAvailable: true, registrationOpen: true });
   });
 
+  it("TEST-F05-04: preserves ACTIVE and CANCELLED history on capacity increase", async () => {
+    const event = await createEvent(2);
+    const cancelledParticipant = await prisma.user.create({ data: { loginIdentifier: `${suffix}-cancelled@example.test`, displayName: "F05 Cancelled", role: Role.PARTICIPANT, passwordHash: await hashPassword(password) } });
+    const active = await prisma.registration.create({ data: { eventId: event.id, participantId, status: RegistrationStatus.ACTIVE } });
+    const cancelled = await prisma.registration.create({ data: { eventId: event.id, participantId: cancelledParticipant.id, status: RegistrationStatus.CANCELLED } });
+    try {
+      const response = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", organizerCookie).send({ capacity: 4 });
+      expect(response.status).toBe(200);
+      const stored = await prisma.event.findUniqueOrThrow({ where: { id: event.id } });
+      const rows = await prisma.registration.findMany({ where: { eventId: event.id }, orderBy: { id: "asc" } });
+      expect(stored.capacity).toBe(4); expect(rows.map(row => row.id)).toEqual(expect.arrayContaining([active.id, cancelled.id]));
+      expect(rows.find(row => row.id === active.id)?.status).toBe(RegistrationStatus.ACTIVE);
+      expect(rows.find(row => row.id === cancelled.id)?.status).toBe(RegistrationStatus.CANCELLED);
+      expect((await request(app).get(`/api/v1/events/${event.id}`)).body.data.event).toMatchObject({ remainingPlaces: 3, registrationAvailable: true, registrationDeadline: null });
+    } finally { await prisma.registration.deleteMany({ where: { id: { in: [active.id, cancelled.id] } } }); await prisma.user.delete({ where: { id: cancelledParticipant.id } }); }
+  });
+
   it("TEST-F05-02: rejects wrong role, missing Origin, and non-owner access", async () => {
     const event = await createEvent();
     const wrongRole = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", participantCookie).send({ capacity: 3 });
@@ -73,6 +94,17 @@ describe.skipIf(!isolated)("F-05 capacity and deadline API (isolated PostgreSQL)
     expect((await request(app).patch(`/api/v1/organizer/events/${event.id}`).set("Cookie", organizerCookie).send({ capacity: 3 })).status).toBe(403);
     expect((await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", organizerBCookie).send({ capacity: 3 })).status).toBe(404);
     expect((await request(app).patch(`/api/v1/organizer/events/${event.id}`).set({ Origin: "https://evil.example" }).set("Cookie", organizerCookie).send({ capacity: 3 })).status).toBe(403);
+    const visitor = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).send({ capacity: 3 });
+    expect(visitor.status).toBe(401); expect(visitor.body.error.code).toBe("UNAUTHENTICATED");
+    const dedicatedExpiredCookie = await login(organizerLogin);
+    const sessionId = dedicatedExpiredCookie.slice(`${SESSION_COOKIE}=`.length);
+    const dedicatedSession = await prisma.session.findUniqueOrThrow({ where: { id: sessionId } });
+    expect(dedicatedSession.userId).toBe(organizerId);
+    await prisma.session.update({ where: { id: dedicatedSession.id }, data: { invalidatedAt: new Date() } });
+    const beforeExpired = await prisma.event.findUniqueOrThrow({ where: { id: event.id } });
+    const expired = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", dedicatedExpiredCookie).send({ capacity: 3 });
+    expect(expired.status).toBe(401); expect(expired.body.error.code).toBe("UNAUTHENTICATED");
+    expect(await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({ capacity: beforeExpired.capacity });
     expect((await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", organizerCookie).send({ capacity: 3 })).status).toBe(200);
   });
 
@@ -174,15 +206,90 @@ describe.skipIf(!isolated)("F-05 capacity and deadline API (isolated PostgreSQL)
     const patchResult = reductionRace[0];
     const registrationResult = reductionRace[1];
     expect([[200, 409], [409, 201]]).toContainEqual([patchResult.status, registrationResult.status]);
-    if (patchResult.status === 200) expect(registrationResult.body.error.code).toBe("EVENT_FULL");
+    const committed = await prisma.event.findUniqueOrThrow({
+      where: { id: reductionEvent.id },
+    });
+
+    const committedActive = await prisma.registration.count({
+      where: {
+        eventId: reductionEvent.id,
+        status: RegistrationStatus.ACTIVE,
+      },
+    });
+
+    if (patchResult.status === 200) {
+      expect(registrationResult.body.error.code).toBe("EVENT_FULL");
+      expect(committed.capacity).toBe(1);
+      expect(committedActive).toBe(1);
+    } else {
+      expect(patchResult.body.error.code).toBe("CAPACITY_BELOW_ACTIVE_COUNT");
+      expect(committed.capacity).toBe(2);
+      expect(committedActive).toBe(2);
+    }
     if (registrationResult.status === 201) expect(patchResult.body.error.code).toBe("CAPACITY_BELOW_ACTIVE_COUNT");
-    const committed = await prisma.event.findUniqueOrThrow({ where: { id: reductionEvent.id } });
-    const committedActive = await prisma.registration.count({ where: { eventId: reductionEvent.id, status: RegistrationStatus.ACTIVE } });
     expect(committedActive).toBeLessThanOrEqual(committed.capacity);
     expect(await prisma.registration.count({ where: { eventId: reductionEvent.id, participantId, status: RegistrationStatus.ACTIVE } })).toBe(1);
     const publicState = await request(app).get(`/api/v1/events/${reductionEvent.id}`);
     expect(publicState.body.data.event.remainingPlaces).toBe(committed.capacity - committedActive);
     expect(publicState.body.data.event.registrationAvailable).toBe(committedActive < committed.capacity);
+  });
+
+  it("TEST-F05-10: proves PostgreSQL Event-row lock contention for reduction versus registration", async () => {
+    const event = await createEvent(2);
+    await prisma.registration.create({ data: { eventId: event.id, participantId, status: RegistrationStatus.ACTIVE } });
+    const lockClient = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
+    let holderPid = 0;
+    let release!: () => void;
+    let releasedAlready = false;
+    const released = new Promise<void>(resolve => { release = resolve; });
+    let signalReady!: () => void;
+    const ready = new Promise<void>(resolve => { signalReady = resolve; });
+    const holderTransaction = lockClient.$transaction(async tx => {
+      const pidRows = await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`;
+      holderPid = Number(pidRows[0].pid);
+      await tx.$queryRaw`SELECT "id" FROM "Event" WHERE "id" = ${event.id} FOR UPDATE`;
+      signalReady();
+      await released;
+    }, { timeout: 4000 });
+    let pendingPatch: Promise<any> | undefined;
+    let pendingRegistration: Promise<any> | undefined;
+    try {
+      let readyTimer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([ready, new Promise((_, reject) => { readyTimer = setTimeout(() => reject(new Error("lock holder did not become ready")), 1000); })]);
+      if (readyTimer) clearTimeout(readyTimer);
+      pendingPatch = Promise.resolve(request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", organizerCookie).send({ capacity: 1 }));
+      pendingRegistration = Promise.resolve(request(app).post(`/api/v1/events/${event.id}/registrations`).set(origin).set("Cookie", participantBCookie).send({}));
+      let blockers: Array<{ pid: number; blockedBy: number[]; query: string }> = [];
+      for (let attempt = 0; attempt < 40 && blockers.length === 0; attempt += 1) {
+        blockers = await prisma.$queryRaw<Array<{ pid: number; blockedBy: number[]; query: string }>>`SELECT pid, pg_blocking_pids(pid) AS "blockedBy", query FROM pg_stat_activity WHERE ${holderPid} = ANY(pg_blocking_pids(pid)) AND (query ILIKE '%FOR UPDATE%' OR query ILIKE '%"Event"%')`;
+        if (blockers.length === 0) await new Promise(resolve => setTimeout(resolve, 25));
+      }
+      expect(blockers.some(row => row.blockedBy.includes(holderPid))).toBe(true);
+      release();
+      releasedAlready = true;
+      const [patchResult, registrationResult] = await Promise.all([pendingPatch, pendingRegistration]);
+      expect([[200, 409], [409, 201]]).toContainEqual([patchResult.status, registrationResult.status]);
+      const finalEvent = await prisma.event.findUniqueOrThrow({ where: { id: event.id } });
+      const finalActive = await prisma.registration.count({ where: { eventId: event.id, status: RegistrationStatus.ACTIVE } });
+      if (patchResult.status === 200) {
+        expect(registrationResult.body.error.code).toBe("EVENT_FULL");
+        expect(finalEvent.capacity).toBe(1);
+        expect(finalActive).toBe(1);
+      } else {
+        expect(registrationResult.status).toBe(201);
+        expect(patchResult.body.error.code).toBe("CAPACITY_BELOW_ACTIVE_COUNT");
+        expect(finalEvent.capacity).toBe(2);
+        expect(finalActive).toBe(2);
+      }
+      expect(finalActive).toBeLessThanOrEqual(finalEvent.capacity);
+      expect(await prisma.registration.count({ where: { eventId: event.id, participantId, status: RegistrationStatus.ACTIVE } })).toBe(1);
+      expect((await request(app).get(`/api/v1/events/${event.id}`)).body.data.event).toMatchObject({ remainingPlaces: finalEvent.capacity - finalActive, registrationAvailable: finalActive < finalEvent.capacity });
+    } finally {
+      if (!releasedAlready) release();
+      await Promise.allSettled([pendingPatch, pendingRegistration].filter(Boolean) as Promise<unknown>[]);
+      await Promise.race([holderTransaction, new Promise(resolve => setTimeout(resolve, 4500))]);
+      await lockClient.$disconnect();
+    }
   });
 
   it("TEST-F05-11/12: preserves atomic rejection and persistence through a fresh client", async () => {

@@ -742,10 +742,12 @@ export function App() {
                           <div><dt>Event ID</dt><dd className="event-id">{event.id}</dd></div>
                         </dl>
                         <form key={`settings-${event.id}-${event.capacity}-${event.registrationDeadline ?? "none"}`} className="event-settings-form" onSubmit={(formEvent) => void updateEvent(event.id, formEvent)} aria-label={`Edit ${event.title}`}>
-                          <label htmlFor={`capacity-${event.id}`}>Capacity<input id={`capacity-${event.id}`} name="capacity" type="number" min="1" step="1" defaultValue={event.capacity} disabled={eventSavingId === event.id} /></label>
-                          <label htmlFor={`deadline-${event.id}`}>Registration deadline (optional)<input id={`deadline-${event.id}`} name="registrationDeadline" type="datetime-local" defaultValue={toBangkokDateTimeLocal(event.registrationDeadline)} disabled={eventSavingId === event.id} /></label>
-                          <button type="submit" className="button button-secondary" disabled={eventSavingId === event.id}>{eventSavingId === event.id ? "Saving..." : "Save settings"}</button>
-                          {eventSavingId === event.id && <p role="status" aria-live="polite">Saving event settings...</p>}
+                          <div className="event-settings-heading"><h4>Event Settings</h4><p>Manage registration capacity and deadline for this event.</p></div>
+                          <div className="event-settings-fields">
+                            <div className="event-settings-field"><label htmlFor={`capacity-${event.id}`}>Capacity</label><input id={`capacity-${event.id}`} name="capacity" type="number" min="1" step="1" defaultValue={event.capacity} disabled={eventSavingId === event.id} /></div>
+                            <div className="event-settings-field"><label htmlFor={`deadline-${event.id}`}>Registration deadline (optional)</label><input id={`deadline-${event.id}`} name="registrationDeadline" type="datetime-local" aria-describedby={`deadline-help-${event.id}`} defaultValue={toBangkokDateTimeLocal(event.registrationDeadline)} disabled={eventSavingId === event.id} /><span id={`deadline-help-${event.id}`} className="field-help">Leave blank to close registration at event start.</span></div>
+                          </div>
+                          <div className="event-settings-actions"><button type="submit" className="button button-secondary" disabled={eventSavingId === event.id}>{eventSavingId === event.id ? "Saving..." : "Save settings"}</button></div>
                           {eventSettingsMessages[event.id] && <p role="status" aria-live="polite">{eventSettingsMessages[event.id]}</p>}
                         </form>
                         <div className="event-card-actions">
