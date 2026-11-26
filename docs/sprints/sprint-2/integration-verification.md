@@ -43,6 +43,7 @@ The tested implementation SHA is repeated in the AC matrix. The local `npm test`
 | `npm.cmd run test:e2e -- --workers=1 --reporter=line --grep 'TEST-F06-15'` | Cross-feature publish/settings/registration/cancellation/re-registration/check-in/attendance journey | 1 passed, 0 failed, 0 skipped | PASS | `b9df85c` (focused run; included in full `107c93e` rerun) |
 | `npm.cmd run test:e2e -- --workers=1 --reporter=line --grep 'F05-08/09'` with `E2E_CAPTURE_EVIDENCE=1` | Closed-registration UI rejection and screenshot capture | 1 passed, 0 failed, 0 skipped | PASS | `b9df85c` (focused run; full `107c93e` rerun passed) |
 | `git diff --check` | Whitespace/conflict-marker check | 0 errors | PASS | `107c93e` |
+| [GitHub Actions run 45869394130](https://github.com/Ttime52/EventCheck/actions/runs/45869394130) | Backend unit/integration, frontend tests/typecheck/build, isolated-database Playwright, Docker image build | All workflow steps passed | PASS | `fda1a77` (documentation-only commit atop tested implementation `107c93e`) |
 
 The integration workflow exercised controlled failures and PostgreSQL locking. Its expected rollback test logs one deliberate error after the Attendance insert; the test asserts a safe 500 response and zero committed Attendance. This expected log is not an unresolved application failure.
 
@@ -250,7 +251,7 @@ These suites ran as part of the 87/87 PostgreSQL integration workflow and 30/30 
 |---|---|---|---|---|---|
 | I15-R1 | All F-05/F-06/F-07 ACs | Automated and API/database coverage passed on the Issue 15 test commit; no unresolved application defect found. | None | Testing branch | No defect action. Repeat full regression on the exact Issue 17 release candidate. |
 | I15-R2 | F-05/F-06/F-07 feature acceptance | Student 1 peer review and merge to `sprint-2-staging` are pending; F-05 contract also records formal release approval pending. | Release gate | Student 1 | Review the PR and record decision before integration; target before the 2026-11-29 Deliverable 2 checkpoint. |
-| I15-R3 | CI coverage | Existing CI pull-request trigger did not include `sprint-2-staging`; this branch adds that target. No remote GitHub Actions result is included in this local evidence. | Process gap addressed locally | Testing branch; reviewer to verify | Check the PR's CI run before peer approval; do not treat local runs as GitHub CI evidence. |
+| I15-R3 | CI coverage | CI trigger includes `sprint-2-staging`; GitHub Actions run 45869394130 succeeded on corrected PR head `fda1a77`, including PostgreSQL integration, Playwright and Docker image build. | Resolved | Testing branch | No remaining CI action; continue to require Student 1 review before integration. |
 | I15-R4 | Local test setup | Standard `tsx` seed command is incompatible with this host's `uv_os_get_passwd`; isolated database was seeded with repository policy/hash functions. | Environment limitation resolved for this run | Local environment | Use the documented seed command on a supported host or retain the safe Node-module workaround for this Windows environment. |
 
 - **Uncovered Sprint 2 ACs:** None in the local test matrix.
@@ -258,9 +259,9 @@ These suites ran as part of the 87/87 PostgreSQL integration workflow and 30/30 
 
 ## H. Sprint 2 Readiness and PR Preparation
 
-- **Completed verification:** 87 PostgreSQL integration tests, 44 server unit tests, 29 client tests, 30 Playwright tests, TypeScript checks, production build, Prisma validation, migration deployment, F-05/F-06/F-07 restart checks, and direct security/state assertions.
+- **Completed verification:** 87 PostgreSQL integration tests, 44 server unit tests, 29 client tests, 30 Playwright tests, TypeScript checks, production build, Prisma validation, migration deployment, F-06 restart check on implementation SHA `107c93e`, F-05/F-07 restart checks on earlier `b9df85c`, direct security/state assertions, and successful corrected-head GitHub Actions run 45869394130.
 - **Outstanding failures:** None after the test assertion and synchronization corrections described above.
-- **Remaining review gate:** Student 1 review and integration into `sprint-2-staging`; review the PR's remote GitHub Actions result separately from these local runs.
+- **Remaining review gate:** Student 1 review and integration into `sprint-2-staging`.
 - **Recommendation:** Ready for peer review of the test changes. This is not a Sprint 2 release acceptance or deployment. Issue 17 must repeat full regression on the exact integrated release candidate.
 
 **PR title:** `[Testing] Sprint 2 Integration, Regression & E2E`
