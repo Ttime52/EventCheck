@@ -317,6 +317,83 @@ describe.skipIf(!isolated)("F-06 cancellation and re-registration (isolated Post
     }
   });
 
+  it("TEST-I15-02: proves PostgreSQL contention for cancellation and capacity-limited re-registration", async () => {
+    async function startBehindEventLock(eventId: string, startRequests: () => Array<Promise<any>>, minimumBlockedRequests: number) {
+      const lockClient = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
+      let holderPid = 0;
+      let release!: () => void;
+      let hasReleased = false;
+      const released = new Promise<void>(resolve => { release = resolve; });
+      let signalReady!: () => void;
+      const ready = new Promise<void>(resolve => { signalReady = resolve; });
+      const holder = lockClient.$transaction(async transaction => {
+        const rows = await transaction.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`;
+        holderPid = Number(rows[0]?.pid ?? 0);
+        await transaction.$queryRaw`SELECT "id" FROM "Event" WHERE "id" = ${eventId} FOR UPDATE`;
+        signalReady();
+        await released;
+      }, { timeout: 15000 });
+      let pending: Promise<any>[] = [];
+      const completed: boolean[] = [];
+      try {
+        await ready;
+        pending = startRequests().map((response, index) => { completed[index] = false; return Promise.resolve(response).then(result => { completed[index] = true; return result; }); });
+        let blocked: Array<{ pid: number }> = [];
+        const deadline = Date.now() + 3000;
+        while (blocked.length < minimumBlockedRequests && Date.now() < deadline) {
+          blocked = await prisma.$queryRaw<Array<{ pid: number }>>`SELECT pid FROM pg_stat_activity WHERE datname = current_database() AND ${holderPid} = ANY(pg_blocking_pids(pid))`;
+          if (blocked.length < minimumBlockedRequests) await new Promise(resolve => setTimeout(resolve, 15));
+        }
+        expect(blocked.length).toBeGreaterThanOrEqual(minimumBlockedRequests);
+        expect(completed).toEqual(Array.from({ length: pending.length }, () => false));
+        release();
+        hasReleased = true;
+        return await Promise.all(pending);
+      } finally {
+        if (!hasReleased) release();
+        await Promise.allSettled(pending);
+        await holder.catch(() => undefined);
+        await lockClient.$disconnect();
+      }
+    }
+
+    setNowProvider(() => new Date(defaultStart.getTime() - 60 * 60_000));
+    const cancelRaceEvent = await createEvent({ capacity: 2 });
+    const cancellingRegistration = await createRegistration(cancelRaceEvent.id);
+    const otherActive = await createRegistration(cancelRaceEvent.id, { participantId: otherParticipantId });
+    const cancelRace = await startBehindEventLock(cancelRaceEvent.id, () => [
+      cancel(cancellingRegistration.id),
+      request(app).post(`/api/v1/events/${cancelRaceEvent.id}/registrations`).set(origin).set("Cookie", participantCookie).send({}),
+    ], 1);
+    expect(cancelRace[0].status).toBe(200);
+    expect(cancelRace[1].status === 201 || cancelRace[1].status === 409).toBe(true);
+    if (cancelRace[1].status === 409) expect(cancelRace[1].body.error.code).toBe("REGISTRATION_DUPLICATE");
+    const cancelRaceRows = await prisma.registration.findMany({ where: { eventId: cancelRaceEvent.id } });
+    expect(cancelRaceRows.find(row => row.id === cancellingRegistration.id)?.status).toBe(RegistrationStatus.CANCELLED);
+    expect(cancelRaceRows.find(row => row.id === otherActive.id)?.status).toBe(RegistrationStatus.ACTIVE);
+    expect(cancelRaceRows.filter(row => row.status === RegistrationStatus.ACTIVE).length).toBe(cancelRace[1].status === 201 ? 2 : 1);
+    expect(cancelRaceRows.filter(row => row.status === RegistrationStatus.ACTIVE && row.participantId === participantId).length).toBeLessThanOrEqual(1);
+    expect((await publicAvailability(cancelRaceEvent.id)).remainingPlaces).toBe(2 - cancelRaceRows.filter(row => row.status === RegistrationStatus.ACTIVE).length);
+
+    const lastSeatEvent = await createEvent({ capacity: 1 });
+    const [cancelledParticipantA, cancelledParticipantB] = await Promise.all([
+      createRegistration(lastSeatEvent.id, { status: RegistrationStatus.CANCELLED }),
+      createRegistration(lastSeatEvent.id, { participantId: otherParticipantId, status: RegistrationStatus.CANCELLED }),
+    ]);
+    const lastSeatRace = await startBehindEventLock(lastSeatEvent.id, () => [
+      request(app).post(`/api/v1/events/${lastSeatEvent.id}/registrations`).set(origin).set("Cookie", participantCookie).send({}),
+      request(app).post(`/api/v1/events/${lastSeatEvent.id}/registrations`).set(origin).set("Cookie", otherParticipantCookie).send({}),
+    ], 1);
+    expect(lastSeatRace.map(response => response.status).sort()).toEqual([201, 409]);
+    expect(lastSeatRace.find(response => response.status === 409)?.body.error.code).toBe("EVENT_FULL");
+    const lastSeatRows = await prisma.registration.findMany({ where: { eventId: lastSeatEvent.id } });
+    expect(lastSeatRows.find(row => row.id === cancelledParticipantA.id)?.status).toBe(RegistrationStatus.CANCELLED);
+    expect(lastSeatRows.find(row => row.id === cancelledParticipantB.id)?.status).toBe(RegistrationStatus.CANCELLED);
+    expect(lastSeatRows.filter(row => row.status === RegistrationStatus.ACTIVE)).toHaveLength(1);
+    expect(await prisma.registration.count({ where: { eventId: lastSeatEvent.id, status: RegistrationStatus.ACTIVE } })).toBeLessThanOrEqual(lastSeatEvent.capacity);
+    expect((await publicAvailability(lastSeatEvent.id)).remainingPlaces).toBe(0);
+  });
+
   it("TEST-F06-13: shares Event-then-Registration locking with a check-in storage writer", async () => {
     const event = await createEvent({ startAt: defaultStart });
     const registration = await createRegistration(event.id);

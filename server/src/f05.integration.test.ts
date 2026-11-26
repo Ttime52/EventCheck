@@ -1,5 +1,5 @@
 import request from "supertest";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PrismaClient, Role, RegistrationStatus } from "@prisma/client";
 import { app, createRegistration, setNowProvider } from "./app.js";
 import { prisma, SESSION_COOKIE } from "./auth.js";
@@ -89,31 +89,40 @@ describe.skipIf(!isolated)("F-05 capacity and deadline API (isolated PostgreSQL)
 
   it("TEST-F05-02: rejects wrong role, missing Origin, and non-owner access", async () => {
     const event = await createEvent();
+    const beforeDeniedRequests = await prisma.event.findUniqueOrThrow({ where: { id: event.id } });
     const wrongRole = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", participantCookie).send({ capacity: 3 });
     expect(wrongRole.status).toBe(403); expect(wrongRole.body.error.code).toBe("FORBIDDEN");
-    expect((await request(app).patch(`/api/v1/organizer/events/${event.id}`).set("Cookie", organizerCookie).send({ capacity: 3 })).status).toBe(403);
-    expect((await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", organizerBCookie).send({ capacity: 3 })).status).toBe(404);
-    expect((await request(app).patch(`/api/v1/organizer/events/${event.id}`).set({ Origin: "https://evil.example" }).set("Cookie", organizerCookie).send({ capacity: 3 })).status).toBe(403);
+    const missingOrigin = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set("Cookie", organizerCookie).send({ capacity: 3 });
+    expect(missingOrigin.status).toBe(403); expect(missingOrigin.body.error.code).toBe("CSRF_REJECTED");
+    const nonOwner = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", organizerBCookie).send({ capacity: 3 });
+    expect(nonOwner.status).toBe(404); expect(nonOwner.body.error.code).toBe("EVENT_NOT_FOUND");
+    const invalidOrigin = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set({ Origin: "https://evil.example" }).set("Cookie", organizerCookie).send({ capacity: 3 });
+    expect(invalidOrigin.status).toBe(403); expect(invalidOrigin.body.error.code).toBe("CSRF_REJECTED");
     const visitor = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).send({ capacity: 3 });
     expect(visitor.status).toBe(401); expect(visitor.body.error.code).toBe("UNAUTHENTICATED");
+    expect(await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).toEqual(beforeDeniedRequests);
     const dedicatedExpiredCookie = await login(organizerLogin);
     const sessionId = dedicatedExpiredCookie.slice(`${SESSION_COOKIE}=`.length);
     const dedicatedSession = await prisma.session.findUniqueOrThrow({ where: { id: sessionId } });
     expect(dedicatedSession.userId).toBe(organizerId);
     await prisma.session.update({ where: { id: dedicatedSession.id }, data: { invalidatedAt: new Date() } });
     const beforeExpired = await prisma.event.findUniqueOrThrow({ where: { id: event.id } });
+    expect(beforeExpired).toEqual(beforeDeniedRequests);
     const expired = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", dedicatedExpiredCookie).send({ capacity: 3 });
     expect(expired.status).toBe(401); expect(expired.body.error.code).toBe("UNAUTHENTICATED");
-    expect(await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({ capacity: beforeExpired.capacity });
+    expect(await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).toEqual(beforeDeniedRequests);
     expect((await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", organizerCookie).send({ capacity: 3 })).status).toBe(200);
   });
 
   it("TEST-F05-03/07: validates partial fields, timezone, and deadline ordering", async () => {
     const event = await createEvent();
-    for (const payload of [{}, { unknown: 1 }, { capacity: null }, { capacity: 0 }, { registrationDeadline: "2099-11-26T09:00" }, { registrationDeadline: "2099-02-30T08:00:00Z" }, { registrationDeadline: "2099-11-27T09:00:00Z" }]) {
+    for (const payload of [{}, { unknown: 1 }, { capacity: null }, { capacity: 0 }, { capacity: -1 }, { capacity: 1.5 }, { capacity: "3" }, { registrationDeadline: "2099-11-26T09:00" }, { registrationDeadline: "2099-02-30T08:00:00Z" }, { registrationDeadline: "2099-11-27T09:00:00Z" }]) {
       const response = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", organizerCookie).send(payload);
       expect(response.status).toBe(422); expect(response.body.error.details).toEqual(expect.any(Array));
     }
+    const invalidCombinedUpdate = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", organizerCookie).send({ capacity: 4, registrationDeadline: "2099-11-27T09:00:00Z" });
+    expect(invalidCombinedUpdate.status).toBe(422);
+    expect(await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({ capacity: 2, registrationDeadline: null });
     const valid = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", organizerCookie).send({ registrationDeadline: "2099-11-26T08:00:00+07:00" });
     expect(valid.status).toBe(200);
     const clear = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", organizerCookie).send({ registrationDeadline: null });
@@ -122,12 +131,16 @@ describe.skipIf(!isolated)("F-05 capacity and deadline API (isolated PostgreSQL)
 
   it("TEST-F05-05/09: rejects reductions below ACTIVE count and closed registration", async () => {
     const event = await createEvent(3);
-    await prisma.registration.createMany({ data: [{ eventId: event.id, participantId, status: RegistrationStatus.ACTIVE }, { eventId: event.id, participantId: participantBId, status: RegistrationStatus.ACTIVE }] });
+    const activeA = await prisma.registration.create({ data: { eventId: event.id, participantId, status: RegistrationStatus.ACTIVE } });
+    const activeB = await prisma.registration.create({ data: { eventId: event.id, participantId: participantBId, status: RegistrationStatus.ACTIVE } });
+    const cancelled = await prisma.registration.create({ data: { eventId: event.id, participantId, status: RegistrationStatus.CANCELLED, cancelledAt: new Date("2099-11-25T03:00:00Z") } });
     const before = await prisma.event.findUniqueOrThrow({ where: { id: event.id } });
     const reduction = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", organizerCookie).send({ capacity: 1 });
     expect(reduction.status).toBe(409); expect(reduction.body.error.code).toBe("CAPACITY_BELOW_ACTIVE_COUNT");
     expect(await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({ capacity: before.capacity });
     expect(await prisma.registration.count({ where: { eventId: event.id, status: RegistrationStatus.ACTIVE } })).toBe(2);
+    const rows = await prisma.registration.findMany({ where: { eventId: event.id } });
+    expect(rows.map(row => [row.id, row.status])).toEqual(expect.arrayContaining([[activeA.id, RegistrationStatus.ACTIVE], [activeB.id, RegistrationStatus.ACTIVE], [cancelled.id, RegistrationStatus.CANCELLED]]));
     const closedEvent = await createEvent(1, "2000-01-01T00:00:00Z");
     const closed = await request(app).post(`/api/v1/events/${closedEvent.id}/registrations`).set(origin).set("Cookie", participantCookie).send({});
     expect(closed.status).toBe(409); expect(closed.body.error.code).toBe("REGISTRATION_CLOSED");
@@ -305,5 +318,26 @@ describe.skipIf(!isolated)("F-05 capacity and deadline API (isolated PostgreSQL)
     await expect(createRegistration(event.id, participantId, () => { throw new Error("F05_CONTROLLED_FAILURE"); })).rejects.toThrow("F05_CONTROLLED_FAILURE");
     expect(await prisma.registration.count({ where: { eventId: event.id } })).toBe(0);
     expect((await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).capacity).toBe(2);
+  });
+
+  it("TEST-F05-11: rolls back capacity and deadline after a PostgreSQL Event update failure", async () => {
+    const originalDeadline = new Date("2099-11-26T01:00:00.000Z");
+    const event = await createEvent(2, originalDeadline.toISOString());
+    const functionName = `i15_f05_fail_${crypto.randomUUID().replaceAll("-", "")}`;
+    const triggerName = `${functionName}_trigger`;
+    await prisma.$executeRawUnsafe(`CREATE FUNCTION ${functionName}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'I15 controlled failure after Event UPDATE'; END $$`);
+    await prisma.$executeRawUnsafe(`CREATE TRIGGER ${triggerName} AFTER UPDATE ON "Event" FOR EACH ROW EXECUTE FUNCTION ${functionName}()`);
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const failed = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", organizerCookie).send({ capacity: 4, registrationDeadline: "2099-11-26T07:00:00+07:00" });
+      expect(failed.status).toBe(500);
+      expect(failed.body.error.code).toBe("INTERNAL_SERVER_ERROR");
+      expect(await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({ capacity: 2, registrationDeadline: originalDeadline });
+      expect(await prisma.registration.count({ where: { eventId: event.id } })).toBe(0);
+    } finally {
+      await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS ${triggerName} ON "Event"`);
+      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS ${functionName}()`);
+      errorLog.mockRestore();
+    }
   });
 });

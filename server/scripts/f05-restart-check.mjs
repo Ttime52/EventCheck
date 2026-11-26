@@ -43,7 +43,12 @@ async function start() {
   let startupError = "";
   child.stderr?.on("data", chunk => { startupError += String(chunk); });
   child.once("error", error => { startupError += error.message; });
-  await waitReady();
+  try {
+    await waitReady();
+  } catch (error) {
+    const detail = startupError.trim();
+    throw new Error(`${error instanceof Error ? error.message : "API readiness failed"}${detail ? `: ${detail}` : ": no startup output captured"}`);
+  }
   if (startupError) throw new Error(`API startup warning/error: ${startupError}`);
 }
 

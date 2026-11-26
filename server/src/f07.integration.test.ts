@@ -66,12 +66,31 @@ describe.skipIf(!isolated)("F-07 Organizer check-in and attendance retrieval", (
     expect((await request(app).post(`/api/v1/organizer/registrations/${registration.id}/attendance`).set("Cookie", organizerCookie).send({ eventId: event.id })).status).toBe(403);
   });
   it("TEST-F07-02: enforces exact check-in window boundaries", async () => {
-    const before = await createEvent(); const atEnd = await createEvent();
-    const beforeReg = await createRegistration(before.id); const endReg = await createRegistration(atEnd.id);
-    setNowProvider(() => new Date(before.startAt.getTime() - 1));
-    expect((await request(app).post(`/api/v1/organizer/registrations/${beforeReg.id}/attendance`).set(origin).set("Cookie", organizerCookie).send({ eventId: before.id })).status).toBe(409);
-    setNowProvider(() => atEnd.endAt);
-    expect((await request(app).post(`/api/v1/organizer/registrations/${endReg.id}/attendance`).set(origin).set("Cookie", organizerCookie).send({ eventId: atEnd.id })).status).toBe(409);
+    const before = await createEvent();
+    const during = await createEvent();
+    const beforeEnd = await createEvent();
+    const atEnd = await createEvent();
+    const afterEnd = await createEvent();
+    const fixtures = await Promise.all([before, during, beforeEnd, atEnd, afterEnd].map(async event => ({ event, registration: await createRegistration(event.id) })));
+    const scenarios = [
+      { fixture: fixtures[0], time: new Date(before.startAt.getTime() - 1), status: 409 },
+      { fixture: fixtures[1], time: new Date(during.startAt.getTime() + 30 * 60_000), status: 201 },
+      { fixture: fixtures[2], time: new Date(beforeEnd.endAt.getTime() - 1), status: 201 },
+      { fixture: fixtures[3], time: atEnd.endAt, status: 409 },
+      { fixture: fixtures[4], time: new Date(afterEnd.endAt.getTime() + 1), status: 409 },
+    ] as const;
+    for (const { fixture, time, status } of scenarios) {
+      setNowProvider(() => time);
+      const response = await request(app).post(`/api/v1/organizer/registrations/${fixture.registration.id}/attendance`).set(origin).set("Cookie", organizerCookie).send({ eventId: fixture.event.id });
+      expect(response.status).toBe(status);
+      if (status === 201) {
+        expect(response.body.data.attendance).toMatchObject({ registrationId: fixture.registration.id, eventId: fixture.event.id, participantId, recordedByOrganizerId: organizerId, checkedInAt: time.toISOString() });
+        expect(await prisma.attendance.count({ where: { registrationId: fixture.registration.id } })).toBe(1);
+      } else {
+        expect(response.body.error.code).toBe("CHECK_IN_WINDOW_CLOSED");
+        expect(await prisma.attendance.count({ where: { registrationId: fixture.registration.id } })).toBe(0);
+      }
+    }
   });
   it("TEST-F07-03: rejects cancelled check-ins", async () => {
     const event = await createEvent(); const cancelled = await createRegistration(event.id, otherParticipantId, RegistrationStatus.CANCELLED);
@@ -358,5 +377,114 @@ describe.skipIf(!isolated)("F-07 Organizer check-in and attendance retrieval", (
       await Promise.allSettled([checkInRequest, cancellationRequest].filter(Boolean));
       await holder.catch(() => undefined);
     }
+  });
+
+  it("TEST-I15-01: verifies publish, register, cancel, re-register, and check-in across F-05/F-06/F-07", async () => {
+    const published = await request(app).post("/api/v1/events").set(origin).set("Cookie", organizerCookie).send({
+      title: `Issue 15 lifecycle ${run}`,
+      description: "Cross-feature registration and attendance verification",
+      location: "Integration Hall",
+      startAt: start.toISOString(),
+      endAt: end.toISOString(),
+      capacity: 2,
+    });
+    expect(published.status).toBe(201);
+    const eventId = published.body.data.event.id as string;
+    eventIds.push(eventId);
+    const publishedRow = await prisma.event.findUniqueOrThrow({ where: { id: eventId } });
+    expect(publishedRow).toMatchObject({ organizerId, publicationState: PublicationState.PUBLISHED, capacity: 2 });
+
+    async function assertState(expected: { active: number; cancelled: number; checkedIn: number; notCheckedIn: number; remaining: number }) {
+      const storedEvent = await prisma.event.findUniqueOrThrow({ where: { id: eventId } });
+      const registrations = await prisma.registration.findMany({ where: { eventId } });
+      const attendances = await prisma.attendance.findMany({ where: { eventId } });
+      const active = registrations.filter(row => row.status === RegistrationStatus.ACTIVE);
+      const cancelled = registrations.filter(row => row.status === RegistrationStatus.CANCELLED);
+      const checkedIn = attendances.filter(row => active.some(registration => registration.id === row.registrationId));
+      const remaining = storedEvent.capacity - active.length;
+
+      expect(active.length).toBe(expected.active);
+      expect(cancelled.length).toBe(expected.cancelled);
+      expect(checkedIn.length).toBe(expected.checkedIn);
+      expect(active.length).toBeLessThanOrEqual(storedEvent.capacity);
+      expect(checkedIn.length).toBeLessThanOrEqual(active.length);
+      expect(attendances).toHaveLength(checkedIn.length);
+      expect(active.length - checkedIn.length).toBe(expected.notCheckedIn);
+      expect(remaining).toBe(expected.remaining);
+      expect(active.filter(row => row.participantId === participantId).length).toBeLessThanOrEqual(1);
+
+      const publicDetail = await request(app).get(`/api/v1/events/${eventId}`);
+      expect(publicDetail.status).toBe(200);
+      expect(publicDetail.body.data.event).toMatchObject({ capacity: storedEvent.capacity, remainingPlaces: remaining, registrationAvailable: remaining > 0 });
+      return { registrations, attendances };
+    }
+
+    setNowProvider(() => new Date(start.getTime() - 1));
+    const participantRegistration = await request(app).post(`/api/v1/events/${eventId}/registrations`).set(origin).set("Cookie", participantCookie).send({});
+    expect(participantRegistration.status).toBe(201);
+    const firstRegistrationId = participantRegistration.body.data.registration.id as string;
+    await assertState({ active: 1, cancelled: 0, checkedIn: 0, notCheckedIn: 1, remaining: 1 });
+
+    const secondRegistration = await request(app).post(`/api/v1/events/${eventId}/registrations`).set(origin).set("Cookie", otherParticipantCookie).send({});
+    expect(secondRegistration.status).toBe(201);
+    const secondRegistrationId = secondRegistration.body.data.registration.id as string;
+    await assertState({ active: 2, cancelled: 0, checkedIn: 0, notCheckedIn: 2, remaining: 0 });
+
+    const firstCancellation = await request(app).post(`/api/v1/me/registrations/${firstRegistrationId}/cancel`).set(origin).set("Cookie", participantCookie).send({});
+    expect(firstCancellation.status).toBe(200);
+    expect(firstCancellation.body.data.registration.status).toBe("CANCELLED");
+    const firstCancelledAt = firstCancellation.body.data.registration.cancelledAt;
+    await assertState({ active: 1, cancelled: 1, checkedIn: 0, notCheckedIn: 1, remaining: 1 });
+
+    const secondCancellation = await request(app).post(`/api/v1/me/registrations/${secondRegistrationId}/cancel`).set(origin).set("Cookie", otherParticipantCookie).send({});
+    expect(secondCancellation.status).toBe(200);
+    expect(secondCancellation.body.data.registration.status).toBe("CANCELLED");
+    await assertState({ active: 0, cancelled: 2, checkedIn: 0, notCheckedIn: 0, remaining: 2 });
+
+    const cancellationRetry = await request(app).post(`/api/v1/me/registrations/${firstRegistrationId}/cancel`).set(origin).set("Cookie", participantCookie).send({});
+    expect(cancellationRetry.status).toBe(200);
+    expect(cancellationRetry.body.data.registration.cancelledAt).toBe(firstCancelledAt);
+    await assertState({ active: 0, cancelled: 2, checkedIn: 0, notCheckedIn: 0, remaining: 2 });
+
+    const reRegistration = await request(app).post(`/api/v1/events/${eventId}/registrations`).set(origin).set("Cookie", participantCookie).send({});
+    expect(reRegistration.status).toBe(201);
+    const reRegistrationId = reRegistration.body.data.registration.id as string;
+    expect(reRegistrationId).not.toBe(firstRegistrationId);
+    const beforeCheckIn = await assertState({ active: 1, cancelled: 2, checkedIn: 0, notCheckedIn: 1, remaining: 1 });
+    expect(beforeCheckIn.registrations.find(row => row.id === firstRegistrationId)).toMatchObject({ status: RegistrationStatus.CANCELLED, cancelledAt: new Date(firstCancelledAt) });
+    expect(beforeCheckIn.registrations.find(row => row.id === secondRegistrationId)?.status).toBe(RegistrationStatus.CANCELLED);
+    expect(beforeCheckIn.registrations.find(row => row.id === reRegistrationId)?.status).toBe(RegistrationStatus.ACTIVE);
+    expect(beforeCheckIn.attendances).toHaveLength(0);
+
+    const ownerHistory = await request(app).get(`/api/v1/organizer/events/${eventId}/registrations`).set("Cookie", organizerCookie);
+    expect(ownerHistory.status).toBe(200);
+    expect(ownerHistory.body.data.registrations.map((row: { status: RegistrationStatus }) => row.status).sort()).toEqual(["ACTIVE", "CANCELLED", "CANCELLED"]);
+    const participantHistory = await request(app).get("/api/v1/me/registrations").set("Cookie", participantCookie);
+    expect(participantHistory.status).toBe(200);
+    expect(participantHistory.body.data.registrations.filter((row: { eventId: string }) => row.eventId === eventId)).toHaveLength(2);
+    const noAttendance = await request(app).get(`/api/v1/organizer/events/${eventId}/attendance`).set("Cookie", organizerCookie);
+    expect(noAttendance.status).toBe(200);
+    expect(noAttendance.body.data.attendances).toEqual([]);
+    const participantAttendanceBefore = await request(app).get(`/api/v1/me/registrations/${reRegistrationId}/attendance`).set("Cookie", participantCookie);
+    expect(participantAttendanceBefore.status).toBe(200);
+    expect(participantAttendanceBefore.body.data.attendance).toBeNull();
+
+    setNowProvider(() => start);
+    const checkIn = await request(app).post(`/api/v1/organizer/registrations/${reRegistrationId}/attendance`).set(origin).set("Cookie", organizerCookie).send({ eventId });
+    expect(checkIn.status).toBe(201);
+    const attendanceId = checkIn.body.data.attendance.id as string;
+    expect(checkIn.body.data.attendance).toMatchObject({ registrationId: reRegistrationId, eventId, participantId, recordedByOrganizerId: organizerId, checkedInAt: start.toISOString() });
+    const afterCheckIn = await assertState({ active: 1, cancelled: 2, checkedIn: 1, notCheckedIn: 0, remaining: 1 });
+    expect(afterCheckIn.attendances).toHaveLength(1);
+    expect(await prisma.attendance.findUniqueOrThrow({ where: { registrationId: reRegistrationId } })).toMatchObject({ id: attendanceId, eventId, participantId, recordedByOrganizerId: organizerId, checkedInAt: start });
+
+    const duplicateCheckIn = await request(app).post(`/api/v1/organizer/registrations/${reRegistrationId}/attendance`).set(origin).set("Cookie", organizerCookie).send({ eventId });
+    expect(duplicateCheckIn.status).toBe(409);
+    expect(duplicateCheckIn.body.error.code).toBe("ATTENDANCE_ALREADY_EXISTS");
+    const cancelAfterCheckIn = await request(app).post(`/api/v1/me/registrations/${reRegistrationId}/cancel`).set(origin).set("Cookie", participantCookie).send({});
+    expect(cancelAfterCheckIn.status).toBe(409);
+    expect(cancelAfterCheckIn.body.error.code).toBe("REGISTRATION_CHECKED_IN");
+    await assertState({ active: 1, cancelled: 2, checkedIn: 1, notCheckedIn: 0, remaining: 1 });
+    expect(await prisma.attendance.count({ where: { registrationId: reRegistrationId } })).toBe(1);
   });
 });

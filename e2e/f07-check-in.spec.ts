@@ -1,4 +1,13 @@
+import { mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import { test, expect, type Locator, type Page } from "@playwright/test";
+
+async function captureEvidence(page: Page, fileName: string) {
+  if (process.env.E2E_CAPTURE_EVIDENCE !== "1") return;
+  const evidenceDirectory = resolve("docs/evidence/sprint-2");
+  await mkdir(evidenceDirectory, { recursive: true });
+  await page.screenshot({ path: resolve(evidenceDirectory, fileName), fullPage: true });
+}
 
 async function tabUntilFocused(page: Page, target: Locator, direction: "forward" | "backward", maxTabs = 24) {
   const key = direction === "forward" ? "Tab" : "Shift+Tab";
@@ -57,20 +66,28 @@ test.describe.serial("F-07 check-in and attendance", () => {
     const activeList = page.getByRole("list", { name: "Active Registrations" });
     await expect(activeList.getByText("Not Checked In", { exact: true })).toBeVisible();
     await expect(activeList.getByRole("button", { name: "Check in participant" })).toBeEnabled();
+    const summary = page.getByLabel("Attendance summary");
+    await expect(summary.getByText("Active registrations").locator(".." ).locator("strong")).toHaveText("1");
+    await expect(summary.getByText("Cancelled registrations").locator(".." ).locator("strong")).toHaveText("2");
+    await expect(summary.getByText("Checked in", { exact: true }).locator(".." ).locator("strong")).toHaveText("0");
+    await expect(summary.getByText("Not checked in", { exact: true }).locator(".." ).locator("strong")).toHaveText("1");
+    await expect(summary.getByText("Remaining seats").locator(".." ).locator("strong")).toHaveText("4");
+    await expect(summary.getByText("Total registration records").locator(".." ).locator("strong")).toHaveText("3");
+    await captureEvidence(page, "f07-before-checkin-active-1-cancelled-2-not-checked-1.png");
     await activeList.getByRole("button", { name: "Check in participant" }).click();
     await expect(page.getByText("Attendance recorded.")).toBeVisible();
     await expect(activeList.getByText(/Checked In —/)).toBeVisible();
     await expect(activeList.getByRole("button", { name: "Check in participant" })).toHaveCount(0);
     const history = page.getByRole("list", { name: "Registration History" });
-    await expect(history.getByText("CANCELLED", { exact: true })).toBeVisible();
+    await expect(history.getByText("CANCELLED", { exact: true })).toHaveCount(2);
     await expect(history.getByRole("button", { name: /Check in participant/ })).toHaveCount(0);
-    const summary = page.getByLabel("Attendance summary");
     await expect(summary.getByText("Active registrations").locator(".." ).locator("strong")).toHaveText("1");
-    await expect(summary.getByText("Cancelled registrations").locator(".." ).locator("strong")).toHaveText("1");
+    await expect(summary.getByText("Cancelled registrations").locator(".." ).locator("strong")).toHaveText("2");
     await expect(summary.getByText("Checked in", { exact: true }).locator(".." ).locator("strong")).toHaveText("1");
     await expect(summary.getByText("Not checked in", { exact: true }).locator(".." ).locator("strong")).toHaveText("0");
     await expect(summary.getByText("Remaining seats").locator(".." ).locator("strong")).toHaveText("4");
-    await expect(summary.getByText("Total registration records").locator(".." ).locator("strong")).toHaveText("2");
+    await expect(summary.getByText("Total registration records").locator(".." ).locator("strong")).toHaveText("3");
+    await captureEvidence(page, "f07-after-checkin-active-1-cancelled-2-checked-in-1.png");
   });
 
   test("TEST-F07-12: Participant sees attendance after reload", async ({ page }) => {
@@ -85,11 +102,11 @@ test.describe.serial("F-07 check-in and attendance", () => {
     const cancelledRegistration = page.locator(".event-card").filter({ has: page.getByRole("heading", { name: eventTitle, exact: true }) }).filter({ hasText: /Status:\s*CANCELLED\b/ });
     const secondaryRegistration = page.locator(".event-card").filter({ has: page.getByRole("heading", { name: secondaryTitle, exact: true }) });
     await expect(primaryRegistration).toHaveCount(1);
-    await expect(cancelledRegistration).toHaveCount(1);
+    await expect(cancelledRegistration).toHaveCount(2);
     await expect(secondaryRegistration).toHaveCount(1);
     await expect(page.getByRole("button", { name: /Check in participant/i })).toHaveCount(0);
     await expect(primaryRegistration.getByText(/^Attendance:\s*Checked In\s·/)).toBeVisible();
-    await expect(cancelledRegistration.getByText(/^Status:\s*CANCELLED\b/)).toBeVisible();
+    await expect(cancelledRegistration.getByText(/^Status:\s*CANCELLED\b/)).toHaveCount(2);
     await expect(cancelledRegistration.getByText(/^Attendance:\s*Checked In\s·/)).toHaveCount(0);
     await expect(secondaryRegistration.getByText(/^Attendance:\s*Not Checked In$/)).toBeVisible();
     const detailsButton = primaryRegistration.getByRole("button", { name: /View event details|View registration details/i });
@@ -108,7 +125,7 @@ test.describe.serial("F-07 check-in and attendance", () => {
     await page.reload();
     await page.getByRole("tab", { name: "My Registrations" }).click();
     await expect(primaryRegistration.getByText(/^Attendance:\s*Checked In\s·/)).toBeVisible();
-    await expect(cancelledRegistration.getByText(/^Status:\s*CANCELLED\b/)).toBeVisible();
+    await expect(cancelledRegistration.getByText(/^Status:\s*CANCELLED\b/)).toHaveCount(2);
     await expect(cancelledRegistration.getByText(/^Attendance:\s*Checked In\s·/)).toHaveCount(0);
     await expect(secondaryRegistration.getByText(/^Attendance:\s*Not Checked In$/)).toBeVisible();
   });

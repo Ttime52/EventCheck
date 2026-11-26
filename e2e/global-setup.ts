@@ -90,6 +90,7 @@ export default async function globalSetup() {
     event = await prisma.event.create({ data: { organizerId: organizer.id, title: `F07 E2E Event ${run}`, description: "F07 fixture", location: "F07 Test Hall", startAt, endAt: new Date(Date.now() + 3_600_000), capacity: 5, publicationState: PublicationState.PUBLISHED }, select: { id: true, title: true } });
     registration = await prisma.registration.create({ data: { eventId: event.id, participantId: participant.id, status: RegistrationStatus.ACTIVE }, select: { id: true } });
     await prisma.registration.create({ data: { eventId: event.id, participantId: participant.id, status: RegistrationStatus.CANCELLED, cancelledAt: new Date() } });
+    await prisma.registration.create({ data: { eventId: event.id, participantId: participant.id, status: RegistrationStatus.CANCELLED, cancelledAt: new Date(Date.now() - 1_000) } });
     secondaryEvent = await prisma.event.create({ data: { organizerId: organizer.id, title: `F07 E2E Secondary ${run}`, description: "F07 secondary fixture", location: "F07 Test Hall 2", startAt, endAt: new Date(Date.now() + 3_600_000), capacity: 2, publicationState: PublicationState.PUBLISHED }, select: { id: true, title: true } });
     await prisma.registration.create({ data: { eventId: secondaryEvent.id, participantId: participant.id, status: RegistrationStatus.ACTIVE } });
     const boundaryStart = new Date(Date.now() + 10 * 60_000);
