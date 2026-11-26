@@ -317,44 +317,100 @@ describe.skipIf(!isolated)("F-06 cancellation and re-registration (isolated Post
     }
   });
 
-  it("TEST-I15-02: proves PostgreSQL contention for cancellation and capacity-limited re-registration", async () => {
-    async function startBehindEventLock(eventId: string, startRequests: () => Array<Promise<any>>, minimumBlockedRequests: number) {
+  it("TEST-I15-02: observes PostgreSQL Event-lock contention for cancellation and capacity-limited re-registration", async () => {
+    async function startBehindEventLock(eventId: string, startRequests: () => Array<Promise<any>>, minimumObservedWaiters: number) {
       const lockClient = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
       let holderPid = 0;
       let release!: () => void;
       let hasReleased = false;
       const released = new Promise<void>(resolve => { release = resolve; });
       let signalReady!: () => void;
-      const ready = new Promise<void>(resolve => { signalReady = resolve; });
+      let rejectReady!: (error: unknown) => void;
+      const ready = new Promise<void>((resolve, reject) => { signalReady = resolve; rejectReady = reject; });
       const holder = lockClient.$transaction(async transaction => {
         const rows = await transaction.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`;
         holderPid = Number(rows[0]?.pid ?? 0);
-        await transaction.$queryRaw`SELECT "id" FROM "Event" WHERE "id" = ${eventId} FOR UPDATE`;
+        const lockedRows = await transaction.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "Event" WHERE "id" = ${eventId} FOR UPDATE`;
+        if (holderPid <= 0 || lockedRows.length !== 1) throw new Error("F-06 Event lock holder failed to acquire its test Event row");
         signalReady();
         await released;
       }, { timeout: 15000 });
+      const holderCompletion = holder.then(
+        () => ({ status: "fulfilled" as const }),
+        error => {
+          rejectReady(error);
+          return { status: "rejected" as const, reason: error };
+        },
+      );
       let pending: Promise<any>[] = [];
       const completed: boolean[] = [];
+      let readinessTimer: ReturnType<typeof setTimeout> | undefined;
+      let operationFailure: unknown;
+      let operationFailed = false;
+      let responses: any[] | undefined;
+      const cleanupFailures: unknown[] = [];
+      const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          return await Promise.race([
+            promise,
+            new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(message)), timeoutMs); }),
+          ]);
+        } finally {
+          if (timer) clearTimeout(timer);
+        }
+      };
       try {
-        await ready;
+        await withTimeout(new Promise<void>((resolve, reject) => {
+          readinessTimer = setTimeout(() => reject(new Error("F-06 Event lock holder did not become ready within 5 seconds")), 5000);
+          void ready.then(resolve, reject);
+        }), 5500, "F-06 lock-holder readiness wait timed out");
+        if (readinessTimer) clearTimeout(readinessTimer);
         pending = startRequests().map((response, index) => { completed[index] = false; return Promise.resolve(response).then(result => { completed[index] = true; return result; }); });
         let blocked: Array<{ pid: number }> = [];
         const deadline = Date.now() + 3000;
-        while (blocked.length < minimumBlockedRequests && Date.now() < deadline) {
+        while (blocked.length < minimumObservedWaiters && Date.now() < deadline) {
           blocked = await prisma.$queryRaw<Array<{ pid: number }>>`SELECT pid FROM pg_stat_activity WHERE datname = current_database() AND ${holderPid} = ANY(pg_blocking_pids(pid))`;
-          if (blocked.length < minimumBlockedRequests) await new Promise(resolve => setTimeout(resolve, 15));
+          if (blocked.length < minimumObservedWaiters) await new Promise(resolve => setTimeout(resolve, 15));
         }
-        expect(blocked.length).toBeGreaterThanOrEqual(minimumBlockedRequests);
+        expect(blocked.length, "at least one PostgreSQL backend should be blocked by the test-owned Event lock").toBeGreaterThanOrEqual(minimumObservedWaiters);
+        // This proves that at least the observed backend reached PostgreSQL and waited on the held lock.
+        // The remaining HTTP promises are checked separately; their database transactions may not have started yet.
         expect(completed).toEqual(Array.from({ length: pending.length }, () => false));
         release();
         hasReleased = true;
-        return await Promise.all(pending);
+        responses = await Promise.all(pending);
+        const outcome = await holderCompletion;
+        if (outcome.status === "rejected") throw outcome.reason;
+      } catch (error) {
+        operationFailed = true;
+        operationFailure = error;
       } finally {
+        if (readinessTimer) clearTimeout(readinessTimer);
         if (!hasReleased) release();
-        await Promise.allSettled(pending);
-        await holder.catch(() => undefined);
-        await lockClient.$disconnect();
+        if (pending.length > 0) {
+          try {
+            await withTimeout(Promise.allSettled(pending).then(() => undefined), 10000, "F-06 API requests did not settle during cleanup");
+          } catch (error) {
+            cleanupFailures.push(error);
+          }
+        }
+        try {
+          const outcome = await withTimeout(holderCompletion, 5000, "F-06 lock-holder transaction did not settle during cleanup");
+          if (outcome.status === "rejected" && (!operationFailed || outcome.reason !== operationFailure)) cleanupFailures.push(outcome.reason);
+        } catch (error) {
+          cleanupFailures.push(error);
+        }
+        try {
+          await lockClient.$disconnect();
+        } catch (error) {
+          cleanupFailures.push(error);
+        }
       }
+      if (operationFailed && cleanupFailures.length > 0) throw new AggregateError([operationFailure, ...cleanupFailures], "F-06 contention test failed and cleanup reported additional errors");
+      if (operationFailed) throw operationFailure;
+      if (cleanupFailures.length > 0) throw new AggregateError(cleanupFailures, "F-06 contention test cleanup failed");
+      return responses!;
     }
 
     setNowProvider(() => new Date(defaultStart.getTime() - 60 * 60_000));

@@ -325,19 +325,36 @@ describe.skipIf(!isolated)("F-05 capacity and deadline API (isolated PostgreSQL)
     const event = await createEvent(2, originalDeadline.toISOString());
     const functionName = `i15_f05_fail_${crypto.randomUUID().replaceAll("-", "")}`;
     const triggerName = `${functionName}_trigger`;
-    await prisma.$executeRawUnsafe(`CREATE FUNCTION ${functionName}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'I15 controlled failure after Event UPDATE'; END $$`);
-    await prisma.$executeRawUnsafe(`CREATE TRIGGER ${triggerName} AFTER UPDATE ON "Event" FOR EACH ROW EXECUTE FUNCTION ${functionName}()`);
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    let testFailure: unknown;
+    let testFailed = false;
+    const cleanupFailures: unknown[] = [];
     try {
+      await prisma.$executeRawUnsafe(`CREATE FUNCTION ${functionName}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'I15 controlled failure after Event UPDATE'; END $$`);
+      await prisma.$executeRawUnsafe(`CREATE TRIGGER ${triggerName} AFTER UPDATE ON "Event" FOR EACH ROW WHEN (NEW."id" = '${event.id}') EXECUTE FUNCTION ${functionName}()`);
       const failed = await request(app).patch(`/api/v1/organizer/events/${event.id}`).set(origin).set("Cookie", organizerCookie).send({ capacity: 4, registrationDeadline: "2099-11-26T07:00:00+07:00" });
       expect(failed.status).toBe(500);
       expect(failed.body.error.code).toBe("INTERNAL_SERVER_ERROR");
       expect(await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({ capacity: 2, registrationDeadline: originalDeadline });
       expect(await prisma.registration.count({ where: { eventId: event.id } })).toBe(0);
+    } catch (error) {
+      testFailed = true;
+      testFailure = error;
     } finally {
-      await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS ${triggerName} ON "Event"`);
-      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS ${functionName}()`);
-      errorLog.mockRestore();
+      for (const cleanup of [
+        () => prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS ${triggerName} ON "Event"`),
+        () => prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS ${functionName}()`),
+        () => errorLog.mockRestore(),
+      ]) {
+        try {
+          await cleanup();
+        } catch (error) {
+          cleanupFailures.push(error);
+        }
+      }
     }
+    if (testFailed && cleanupFailures.length > 0) throw new AggregateError([testFailure, ...cleanupFailures], "F-05 rollback test failed and cleanup reported additional errors");
+    if (testFailed) throw testFailure;
+    if (cleanupFailures.length > 0) throw new AggregateError(cleanupFailures, "F-05 rollback test cleanup failed");
   });
 });
