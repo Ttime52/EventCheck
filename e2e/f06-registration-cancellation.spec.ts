@@ -35,7 +35,7 @@ async function login(page: Page, identifier: string, password: string) {
   await page.getByRole("button", { name: "Log in" }).click();
 }
 
-test("TEST-F06-15: Participant cancels, keeps history after reload, and re-registers as a new row", async ({ page }) => {
+test("TEST-F06-15/TEST-I15-E2E-01: publishes, updates, registers, cancels, re-registers, checks in, and verifies attendance", async ({ page }) => {
   const title = `Playwright Cancellation Event ${randomUUID()}`;
   const eventDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   await page.goto("/");
@@ -70,8 +70,19 @@ test("TEST-F06-15: Participant cancels, keeps history after reload, and re-regis
   expect(createdEventId).toBeTruthy();
 
   await page.getByRole("tab", { name: "My Events" }).click();
-  const ownedEvent = page.locator(".event-card").filter({ hasText: title });
+  let ownedEvent = page.locator(".event-card").filter({ hasText: title });
   await expect(ownedEvent.getByRole("heading", { name: title, level: 3 })).toBeVisible();
+  await ownedEvent.getByLabel("Capacity", { exact: true }).fill("2");
+  await ownedEvent.getByLabel("Registration deadline (optional)", { exact: true }).fill(`${eventDate}T08:00`);
+  await ownedEvent.getByRole("button", { name: "Save settings" }).click();
+  await expect(ownedEvent.getByRole("status")).toHaveText("Event settings saved");
+  await expect(ownedEvent.getByLabel("Capacity", { exact: true })).toHaveValue("2");
+  await expect(ownedEvent.getByLabel("Registration deadline (optional)", { exact: true })).toHaveValue(`${eventDate}T08:00`);
+  await page.reload();
+  await page.getByRole("tab", { name: "My Events" }).click();
+  ownedEvent = page.locator(".event-card").filter({ hasText: title });
+  await expect(ownedEvent.getByLabel("Capacity", { exact: true })).toHaveValue("2");
+  await expect(ownedEvent.getByLabel("Registration deadline (optional)", { exact: true })).toHaveValue(`${eventDate}T08:00`);
 
   await page.getByRole("button", { name: "Log out" }).click();
   await expect(page.getByRole("form", { name: "Login" })).toBeVisible();
@@ -139,13 +150,68 @@ test("TEST-F06-15: Participant cancels, keeps history after reload, and re-regis
   await expect(eventHistory).toHaveCount(2);
   await expect(eventHistory.filter({ hasText: "CANCELLED" })).toHaveCount(1);
   await expect(eventHistory.filter({ hasText: "ACTIVE" })).toHaveCount(1);
+  await expect(eventHistory.filter({ hasText: "ACTIVE" })).toContainText("Attendance: Not Checked In");
 
   const verify = new PrismaClient({ datasources: { db: { url: isolatedDatabaseUrl() } } });
   try {
     const rows = await verify.registration.findMany({ where: { eventId: createdEventId!, participantId }, orderBy: { registeredAt: "asc" } });
     expect(rows).toHaveLength(2);
     expect(rows.find(row => row.id === original!.id)).toMatchObject({ status: "CANCELLED", registeredAt: original!.registeredAt, cancelledAt: original!.cancelledAt });
-    expect(rows.filter(row => row.status === "ACTIVE")).toHaveLength(1);
+    const activeRows = rows.filter(row => row.status === "ACTIVE");
+    expect(activeRows).toHaveLength(1);
     expect(new Set(rows.map(row => row.id)).size).toBe(2);
+
+    // Move only this isolated fixture into the allowed check-in window after eligible edits and re-registration.
+    const checkInStart = new Date(Date.now() - 60_000);
+    const checkInEnd = new Date(Date.now() + 60 * 60_000);
+    await verify.event.update({ where: { id: createdEventId! }, data: { startAt: checkInStart, endAt: checkInEnd, registrationDeadline: null } });
+
+    await page.getByRole("button", { name: "Log out" }).click();
+    await expect(page.getByRole("form", { name: "Login" })).toBeVisible();
+    await login(page, organizerLogin, organizerPassword);
+    await page.getByRole("tab", { name: "My Events" }).click();
+    const refreshedOwnedEvent = page.locator(".event-card").filter({ hasText: title });
+    await refreshedOwnedEvent.getByRole("button", { name: "View details" }).click();
+    await page.getByRole("button", { name: "View registrations" }).click();
+
+    const summary = page.getByLabel("Attendance summary");
+    const metric = (name: string) => summary.getByText(name, { exact: true }).locator("..").locator("strong");
+    await expect(metric("Active registrations")).toHaveText("1");
+    await expect(metric("Cancelled registrations")).toHaveText("1");
+    await expect(metric("Checked in")).toHaveText("0");
+    await expect(metric("Not checked in")).toHaveText("1");
+    await expect(metric("Remaining seats")).toHaveText("1");
+    await expect(metric("Total registration records")).toHaveText("2");
+    const activeList = page.getByRole("list", { name: "Active Registrations" });
+    await expect(activeList.getByRole("button", { name: "Check in participant" })).toBeEnabled();
+    await activeList.getByRole("button", { name: "Check in participant" }).click();
+    await expect(page.getByText("Attendance recorded.")).toBeVisible();
+    await expect(metric("Checked in")).toHaveText("1");
+    await expect(metric("Not checked in")).toHaveText("0");
+
+    const persistedAttendance = await verify.attendance.findUnique({ where: { registrationId: activeRows[0].id } });
+    expect(persistedAttendance).toMatchObject({ eventId: createdEventId, participantId, recordedByOrganizerId: expect.any(String) });
+    await page.reload();
+    await page.getByRole("tab", { name: "My Events" }).click();
+    const reloadedOwnedEvent = page.locator(".event-card").filter({ hasText: title });
+    await reloadedOwnedEvent.getByRole("button", { name: "View details" }).click();
+    await page.getByRole("button", { name: "View registrations" }).click();
+    const reloadedSummary = page.getByLabel("Attendance summary");
+    await expect(reloadedSummary.getByText("Checked in", { exact: true }).locator("..").locator("strong")).toHaveText("1");
+    await expect(reloadedSummary.getByText("Not checked in", { exact: true }).locator("..").locator("strong")).toHaveText("0");
+
+    await page.getByRole("button", { name: "Log out" }).click();
+    await expect(page.getByRole("form", { name: "Login" })).toBeVisible();
+    await login(page, participantLogin, participantPassword);
+    await page.getByRole("tab", { name: "My Registrations" }).click();
+    let persistedHistory = page.getByRole("region", { name: "My Registrations" }).locator(".event-card").filter({ hasText: title });
+    await expect(persistedHistory).toHaveCount(2);
+    await expect(persistedHistory.filter({ hasText: "CANCELLED" })).toContainText("Attendance: Not Checked In");
+    await expect(persistedHistory.filter({ hasText: "ACTIVE" })).toContainText("Attendance: Checked In");
+    await page.reload();
+    await page.getByRole("tab", { name: "My Registrations" }).click();
+    persistedHistory = page.getByRole("region", { name: "My Registrations" }).locator(".event-card").filter({ hasText: title });
+    await expect(persistedHistory.filter({ hasText: "ACTIVE" })).toContainText("Attendance: Checked In");
+    await expect(persistedHistory.filter({ hasText: "CANCELLED" })).toContainText("Attendance: Not Checked In");
   } finally { await verify.$disconnect(); }
 });
