@@ -498,6 +498,7 @@ function OrganizerRegistrationsView({ event, onBack, onSessionExpired }: Organiz
         {message && <p className="status-text" role="status" aria-live="polite">{message}</p>}
       </div>
       {attendanceError && <div className="registration-detail-card" role="alert"><p>{attendanceError}</p><button type="button" className="button button-secondary" onClick={() => setAttempt(value => value + 1)}>Retry attendance</button></div>}
+      {loading && registrations.length > 0 && !attendanceLoaded && !attendanceError && <p className="detail-status" role="status" aria-live="polite">Loading attendance...</p>}
       {attendanceLoaded && <div className="attendance-metrics" aria-label="Attendance summary"><div><strong>{activeRegistrations.length}</strong><span>Active registrations</span></div><div><strong>{cancelledRegistrations.length}</strong><span>Cancelled registrations</span></div><div><strong>{checkedInCount}</strong><span>Checked in</span></div><div><strong>{notCheckedInCount}</strong><span>Not checked in</span></div><div><strong>{Math.max(0, event.capacity - activeRegistrations.length)}</strong><span>Remaining seats</span></div><div><strong>{registrationCount}</strong><span>Total registration records</span></div></div>}
       {loading ? <p className="detail-status" role="status">Loading registrations...</p> : listError ? (
         <div className="registration-detail-card" role="alert">

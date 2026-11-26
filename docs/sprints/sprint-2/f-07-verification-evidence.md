@@ -1,13 +1,23 @@
 # F-07 Verification Evidence
 
+## Latest owner verification — 2026-11-26, 19:24 ICT
+
+The owner executed the corrected working tree against isolated `127.0.0.1:5433/eventcheck_test?schema=public`. This run reported F-07 integration 16 passed, 0 failed; full server 128 passed, 0 failed, 0 skipped across 16/16 passing files; server/client typecheck PASS; production build PASS; TEST-F07-08 restart PASS; and `git diff --check` PASS. The deliberate TEST-F07-10 failure after Attendance INSERT is expected rollback-test output.
+
+Separate earlier successful executions after the latest corrections reported F-06 repeated cancellation 3/3 PASS, F-07 Playwright 10/10 PASS, full Playwright 30/30 PASS and all six browser boundaries PASS. Client Vitest 29/29 PASS was executed separately in Codex. These are separate runs, not one combined execution.
+
+Historical incidents are retained: full Playwright 29 passed/1 failed on F-06 before recovery; server runs with 16 skipped and with 44 passed/84 skipped arose from environment configuration and did not establish full server verification. After database configuration was restored, all 128 server tests executed successfully with zero skips in the 19:24 run. No new commit SHA is assigned to these working-tree results.
+
+Verified blocker assertions in `server/src/f07.integration.test.ts`: `TEST-F07-04: preserves associations and safe validation outcomes` uses two persisted, same-owner Events and asserts 404 `REGISTRATION_NOT_FOUND`, unchanged Registration and unchanged Attendance collection; `TEST-F07-04: rejects expired and revoked sessions on Organizer and Participant routes` preserves GET coverage and independently tests POST with an unused expired session and a revoked session, exact 401 `UNAUTHENTICATED`, and unchanged state; the denied-access matrix asserts the permitted error shape and absence of private field names, login identifier, password hash, participant ID and cookie value. F-06 browser recovery verifies heading-focus readiness, keyboard activation, confirmation dialog and HTTP 200.
+
 This document records the current implementation evidence for F-07 without changing the accepted contract or STS definitions.
 
 ## Review snapshot
 
 - Branch: `feature/51-f07-check-in-attendance`
-- Confirmed tested implementation commit: `6c50a024ee682f7b3d2fb968d663805336867ec3`
-- Working tree at review start: clean.
-- The latest confirmed macOS run below was executed at commit `6c50a024ee682f7b3d2fb968d663805336867ec3`; any later documentation-only commit is separate.
+- Current HEAD: `8298951d9b3c86cabfa3832856b92d1a6b333a1b`; working tree is dirty.
+- Historical confirmed clean-tree implementation commit: `6c50a024ee682f7b3d2fb968d663805336867ec3`.
+- Latest results belong to the corrected uncommitted working tree based on the current HEAD, not the historical clean commit or a later documentation-only commit.
 
 ## Evidence matrix
 
@@ -15,16 +25,16 @@ This document records the current implementation evidence for F-07 without chang
 |---|---|---|---|---|
 | AC-F07-01 | TEST-F07-01, TEST-F07-11 | `server/src/f07.integration.test.ts` owner check-in assertions; `e2e/f07-check-in.spec.ts` Organizer journey | PASS — confirmed macOS run | Tested at `6c50a02` |
 | AC-F07-02 | TEST-F07-01, TEST-F07-11 | API Attendance association assertions and Organizer status/timestamp assertions | PASS — confirmed macOS run | Tested at `6c50a02` |
-| AC-F07-03 | TEST-F07-02, TEST-F07-11 | Time-window API/UI boundaries | PARTIAL — API boundaries executed | Browser before/during/after eligibility and clock-skew cases are not separately evidenced |
-| AC-F07-04 | TEST-F07-03 | `server/src/f07.integration.test.ts` cancelled, unregistered, nonexistent-registration and wrong-Event assertions with no unauthorized Attendance writes | PARTIAL — latest macOS evidence | Core invalid-association cases executed; any remaining contract-specific edge case must be verified from the individual assertions |
-| AC-F07-05 | TEST-F07-04 | `server/src/f07.integration.test.ts` unauthenticated, expired/revoked-session, role, ownership and Origin/CSRF assertions | PARTIAL — latest macOS evidence | Authorization matrix executed; full STS privacy/error-response permutations are not independently documented as separate cases |
+| AC-F07-03 | TEST-F07-02 (server), TEST-F07-11 (browser) | Server boundary assertions plus six Organizer browser cases: before-start, exact-start, during-window, end-1ms, exact-end and after-end | PASS — confirmed 2026-11-26 macOS run | Browser clock is presentation-only; no claim is made that it changes server time |
+| AC-F07-04 | TEST-F07-03 | `server/src/f07.integration.test.ts`: cancelled, malformed/unregistered, nonexistent, wrong-Event and invalid-association requests; exact status/error and no-write assertions | PASS — confirmed 16/16 macOS integration run | No mandatory STS scenario remains missing |
+| AC-F07-05 | TEST-F07-04 | `server/src/f07.integration.test.ts`: unauthenticated, Participant/wrong-role, non-owner, expired/revoked session, Origin/CSRF, cross-participant privacy and no-disclosure assertions | PASS — confirmed 16/16 macOS integration run | No mandatory STS scenario remains missing |
 | AC-F07-06 | TEST-F07-05 | `server/src/f07.integration.test.ts` duplicate prevention and persisted Attendance retrieval | PASS — confirmed macOS run | Tested at `6c50a02` |
-| AC-F07-07 | TEST-F07-06, TEST-F07-11 | Multi-event scoping, ordering, empty state and ownership isolation in `server/src/f07.integration.test.ts`; Organizer retry assertions and browser journey | PARTIAL — latest macOS evidence | Aggregate browser result does not independently evidence every accepted loading/error/retry permutation |
+| AC-F07-07 | TEST-F07-06, TEST-F07-11 | Multi-event scope/order/ownership/empty API assertions plus deferred loading, 503 alert, keyboard Retry and recovery browser assertions | PASS — confirmed 10/10 F-07 and 30/30 full Playwright runs | No mandatory STS scenario remains missing |
 | AC-F07-08 | TEST-F07-07, TEST-F07-12 | Participant API retrieval plus scoped Checked In/Not Checked In assertions before and after reload | PASS — confirmed macOS run | Tested at `6c50a02` |
 | AC-F07-09 | TEST-F07-08 | Application restart persistence | PASS — TEST-F07-08 exit code 0 | Tested at `6c50a02` |
 | AC-F07-10 | TEST-F07-09 | Cancellation/check-in race and lock contention | PASS — both PostgreSQL scenarios | Tested at `6c50a02` |
 | AC-F07-11 | TEST-F07-10 | API transaction rollback and recovery | PASS — confirmed macOS run | Tested at `6c50a02` |
-| AC-F07-12 | TEST-F07-11, TEST-F07-12 | Organizer/Participant browser assertions, including CANCELLED history, exact ACTIVE/CANCELLED card scoping, absence of Participant check-in controls, Checked In/Not Checked In persistence after reload, keyboard focus and status feedback | PARTIAL — confirmed macOS run | Empty/error/retry and complete privacy/accessibility matrix are not all independently evidenced |
+| AC-F07-12 | TEST-F07-11, TEST-F07-12 | Organizer/Participant journeys, ACTIVE/CANCELLED history, no self-check-in, persistence, keyboard traversal, loading/error/retry and accessible feedback | PASS — confirmed 2026-11-26 macOS run | No additional mandatory STS scenario remains unexecuted |
 
 ## Historical macOS verification
 
@@ -73,7 +83,7 @@ The owner executed this regression from a clean working tree at
 | `npm run build` | PASS |
 | `git show --check --oneline HEAD` | PASS |
 
-This is the latest tested implementation revision. Any subsequent documentation-only commit must not be represented as the tested implementation SHA.
+This is a historical clean-commit verification. Later working-tree runs are recorded separately; a subsequent documentation-only commit is not a tested implementation SHA.
 
 ## Latest owner-reported macOS verification (2026-11-25)
 
@@ -92,25 +102,43 @@ The feature owner previously reported the following run against isolated `127.0.
 
 These results are historical owner-provided evidence and are superseded for commit identity by the confirmed `6c50a02` run above.
 
-Reported commands were the server suite with `--no-file-parallelism`, the F-07 integration run, `node server/scripts/f07-restart-check.mjs`, `npm run test --workspace client`, `npm run test:e2e`, typecheck, build and `git diff --check`. The owner also reported the two F-07 browser cases individually passing within the full browser run.
+Reported commands were the server suite with `--no-file-parallelism`, the F-07 integration run, `node server/scripts/f07-restart-check.mjs`, `npm run test --workspace client`, `npm run test:e2e`, typecheck, build and `git diff --check`. The owner also reported the historical two F-07 browser cases individually passing within the full browser run.
+
+## Historical macOS boundary run — 2026-11-26
+
+The first execution of the six newly added browser boundary scenarios reported 4 passed, 1 failed and 5 not run. The failure was the before-start case because the original `page.clock.install({ time })` clock advanced during navigation; this was a test-clock defect. The subsequent corrected run using `setFixedTime(timestamp)` passed, as recorded below.
+
+## Confirmed macOS Verification — 2026-11-26 corrected boundary run
+
+The owner subsequently executed the corrected working-tree tests against isolated `127.0.0.1:5433/eventcheck_test?schema=public`:
+
+- F-07 PostgreSQL integration: 16/16 PASS
+- F-07 Playwright: 10/10 PASS, including all six browser boundary scenarios
+- Full Playwright E2E: 30/30 PASS
+- Restart verification: PASS
+- Server and client typecheck: PASS
+- Production build: PASS
+- `git diff --check`: PASS
+
+The six passing TEST-F07-11 browser scenarios assert: before start (Upcoming/disabled), exact start (Ongoing/enabled), during window (Ongoing/enabled), end-1ms (Ongoing/enabled), exact end (Ended/disabled), and after end (Ended/disabled). These are browser presentation checks; server-authoritative boundary enforcement remains evidenced by TEST-F07-02 integration tests using the controlled server clock. The run was against the working tree and is not attributed to an older clean commit.
 
 ## Remaining coverage gaps
 
-- AC-F07-03: executable API boundary coverage is present, but separate browser eligibility checks for before-start, in-window, and at/after-end behavior are not individually evidenced.
-- AC-F07-04: the newly executed invalid-association and nonexistent-registration assertions are recorded; any additional STS edge case not represented by those assertions remains open.
-- AC-F07-05: expired/revoked-session and authorization assertions were executed; remaining gap is independent evidence for every required protected-information/error permutation.
-- AC-F07-07: multi-event scoping, ordering, ownership isolation and retry assertions were executed; every documented loading/error variant is not independently mapped.
-- AC-F07-12: browser coverage now includes CANCELLED history and participant attendance persistence; empty/error/retry and complete privacy/keyboard matrix remains partial.
+- AC-F07-03: all six server-authoritative and browser presentation boundaries now have passing evidence; the browser clock is not treated as server-clock manipulation.
+- AC-F07-04: all mandatory invalid/cancelled/association scenarios in TEST-F07-03 were executed in the 16/16 integration run.
+- AC-F07-05: all mandatory authentication, authorization, CSRF and privacy scenarios in TEST-F07-04 were executed in the 16/16 integration run.
+- AC-F07-07: multi-event scope/order/ownership/empty API cases and loading/error/retry/recovery UI cases were executed in the reported integration and 10/10 browser runs.
+- AC-F07-12: Organizer/Participant journeys, CANCELLED history, persistence, keyboard and loading/error/retry assertions passed in the corrected 30/30 run.
 
-Historical uncommitted working-tree results are kept separate from the confirmed clean-tree macOS run at `6c50a02`. The current Codex environment did not execute PostgreSQL or browser tests. Aggregate suite totals do not convert an AC to full PASS when mandatory STS sub-scenarios are not independently asserted.
+Historical uncommitted working-tree results are kept separate from the confirmed clean-tree macOS run at `6c50a02`. The current Codex environment did not execute PostgreSQL or browser tests; PASS statuses for the latest additions are owner-reported from 2026-11-26.
 
 ## Assertion-level audit for PR #60
 
-- **AC-F07-03:** `TEST-F07-02: enforces exact check-in window boundaries` covers before-start and exact-end rejection, while `TEST-F07-02: accepts check-in exactly at Event start` covers the start boundary. Browser before/during/after button eligibility and clock-skew behavior are not independently asserted; PARTIAL remains.
-- **AC-F07-04:** `TEST-F07-03: rejects cancelled check-ins`, `TEST-F07-04: preserves associations and safe validation outcomes`, and the nonexistent-registration assertion in the authorization matrix cover cancelled, mismatched Event, malformed/unregistered and nonexistent IDs with no Attendance writes. Any additional response-code permutation remains PARTIAL.
-- **AC-F07-05:** `TEST-F07-01`, the unauthenticated/wrong-role/non-owner/CSRF matrix, and `TEST-F07-04: rejects expired and revoked sessions...` cover the required authorization paths. The complete STS response/privacy permutation is not independently enumerated; PARTIAL remains.
-- **AC-F07-07:** `TEST-F07-06: scopes Organizer attendance retrieval by Event with stable ordering` covers multi-event scope, deterministic ordering, empty Event and ownership isolation. `TEST-F07 attendance loading error preserves registrations and exposes retry` covers frontend retry. Other UI loading/error permutations are not all separately executed; PARTIAL remains.
-- **AC-F07-12:** `TEST-F07-11` and `TEST-F07-12` cover Organizer check-in, CANCELLED history, scoped attendance persistence after reload and focus assertions. The updated Participant journey additionally asserts exact fixture-card identity, absence of Participant self-check-in controls, and keyboard focus on the selected card; these additions passed in the confirmed `6c50a02` run. Empty/error/retry and complete privacy/keyboard matrix is not independently covered; PARTIAL remains.
+- **AC-F07-03:** `TEST-F07-02` covers server-authoritative boundaries and six `TEST-F07-11` browser scenarios cover the corresponding presentation states; both passed in the 2026-11-26 owner run.
+- **AC-F07-04:** `TEST-F07-03` and the explicit invalid-association assertions cover every accepted cancelled, malformed/unregistered, nonexistent and wrong-Event case; all passed in the 16/16 integration run.
+- **AC-F07-05:** `TEST-F07-04` covers unauthenticated, wrong-role, non-owner, expired/revoked, CSRF and cross-participant privacy; all passed in the 16/16 integration run.
+- **AC-F07-07:** `TEST-F07-06` covers multi-event scope/order/empty/ownership, while the F07 browser loading/error/retry tests cover deferred loading, 503 alert, keyboard Retry and recovery; all passed in the reported runs.
+- **AC-F07-12:** `TEST-F07-11` and `TEST-F07-12` cover Organizer check-in, CANCELLED history, scoped attendance persistence after reload, loading/error/retry and keyboard assertions; these passed in the 2026-11-26 owner run.
 
 ## Current-session verification
 
@@ -119,18 +147,22 @@ Executed against the current checkout (without database access):
 - `npm run typecheck` — PASS
 - `npm run build` — PASS
 - `npm run test --workspace client` — 29/29 PASS
-- `npx playwright test e2e/f07-check-in.spec.ts --list` — 2 tests discovered; browser execution NOT RUN because the isolated database URL was not configured
+- `npx playwright test e2e/f07-check-in.spec.ts --list` — 10 tests discovered in this environment; owner executed all 10 on macOS
 - `git diff --check` — PASS
 
-Database-backed and browser execution was **NOT RUN** in this environment because both `DATABASE_URL` and `E2E_DATABASE_URL` were unset; no database target could be verified safely. The 16/16, 128/128 and 22/22 results above remain owner-reported for the clean-tree commit `6c50a02`.
+Database-backed and browser execution was **NOT RUN** in this environment because both `DATABASE_URL` and `E2E_DATABASE_URL` were unset; no database target could be verified safely. The latest 16/16, 30/30 and 24/24 results are owner-reported for the 2026-11-26 working-tree run.
 
-The previously uncommitted Playwright additions are included in the confirmed `6c50a02` run; no current uncommitted test result is being claimed here.
+The previously uncommitted Playwright additions are not part of the historical `6c50a02` run; their successful execution is recorded in the separate 2026-11-26 working-tree run above.
+
+The six deterministic `TEST-F07-11` browser boundary cases passed in the owner-executed 2026-11-26 macOS run.
 
 ## Historical macOS Playwright Verification — Previous Working Tree
 
 The owner previously executed the updated `TEST-F07-12` registration-card locators against an uncommitted working tree. That run is retained as historical evidence; the clean-tree `6c50a02` run above is authoritative for the latest verification.
 
-The current uncommitted Playwright change replaces programmatic focus with keyboard `Enter` activation and Back navigation assertions in `e2e/f07-check-in.spec.ts`; it requires a fresh macOS browser run and is not counted as PASS here.
+The previously uncommitted Playwright change replaced programmatic focus with keyboard `Enter` activation and Back navigation assertions; it is included in the corrected 2026-11-26 owner run above.
+
+The additional `TEST-F07-11` loading/error/retry cases were included in the corrected 10/10 owner run; they were not executed in this Codex environment.
 
 | Command / check | Result |
 |---|---|

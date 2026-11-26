@@ -125,6 +125,16 @@ describe.skipIf(!isolated)("F-07 Organizer check-in and attendance retrieval", (
     setNowProvider(() => new Date("2099-11-26T10:00:00.000Z"));
     const mismatch = await request(app).post(`/api/v1/organizer/registrations/${registration.id}/attendance`).set(origin).set("Cookie", organizerCookie).send({ eventId: crypto.randomUUID() });
     expect(mismatch.status).toBe(404);
+    const otherEvent = await createEvent();
+    expect(otherEvent.id).not.toBe(event.id);
+    expect(await prisma.event.count({ where: { id: { in: [event.id, otherEvent.id] } } })).toBe(2);
+    const before = await prisma.registration.findUniqueOrThrow({ where: { id: registration.id } });
+    const attendanceBefore = await prisma.attendance.findMany({ where: { eventId: { in: [event.id, otherEvent.id] } } });
+    const existingMismatch = await request(app).post(`/api/v1/organizer/registrations/${registration.id}/attendance`).set(origin).set("Cookie", organizerCookie).send({ eventId: otherEvent.id });
+    expect(existingMismatch.status).toBe(404);
+    expect(existingMismatch.body).toEqual({ error: { code: "REGISTRATION_NOT_FOUND", message: "Registration not found" } });
+    expect(await prisma.registration.findUniqueOrThrow({ where: { id: registration.id } })).toEqual(before);
+    expect(await prisma.attendance.findMany({ where: { eventId: { in: [event.id, otherEvent.id] } } })).toEqual(attendanceBefore);
     const invalid = await request(app).post(`/api/v1/organizer/registrations/${registration.id}/attendance`).set(origin).set("Cookie", organizerCookie).send({ participantId });
     expect(invalid.status).toBe(422);
     expect(await prisma.attendance.count({ where: { eventId: event.id } })).toBe(0);
@@ -148,6 +158,14 @@ describe.skipIf(!isolated)("F-07 Organizer check-in and attendance retrieval", (
     expect(otherParticipant.status).toBe(404);
     expect(nonexistent.status).toBe(404);
     expect(crossOwnerRetrieval.status).toBe(404);
+    const privateUser = await prisma.user.findUniqueOrThrow({ where: { id: participantId } });
+    for (const denied of [unauthenticated, participant, nonOwner, csrf, otherParticipant, nonexistent, crossOwnerRetrieval]) {
+      expect(Object.keys(denied.body)).toEqual(["error"]);
+      expect(Object.keys(denied.body.error).sort()).toEqual(["code", "message"]);
+      const serialized = JSON.stringify(denied.body);
+      for (const value of [participantId, privateUser.loginIdentifier, privateUser.passwordHash, participantCookie]) expect(serialized).not.toContain(value);
+      for (const field of ["participantId", "loginIdentifier", "passwordHash", "sessionId", "token"]) expect(serialized).not.toContain(`"${field}"`);
+    }
     expect(JSON.stringify([unauthenticated.body, participant.body, nonOwner.body, csrf.body, otherParticipant.body, nonexistent.body, crossOwnerRetrieval.body])).not.toContain(registration.id);
     expect(await prisma.attendance.count({ where: { registrationId: registration.id } })).toBe(0);
   });
@@ -156,20 +174,33 @@ describe.skipIf(!isolated)("F-07 Organizer check-in and attendance retrieval", (
     const event = await createEvent();
     const registration = await createRegistration(event.id);
     const expiredId = crypto.randomUUID();
+    const expiredPostId = crypto.randomUUID();
     const revokedId = crypto.randomUUID();
     await prisma.session.createMany({ data: [
       { id: expiredId, userId: organizerId, absoluteExpiry: new Date(Date.now() - 1000) },
-      { id: revokedId, userId: participantId, absoluteExpiry: new Date(Date.now() + 3600000) },
+      { id: expiredPostId, userId: organizerId, absoluteExpiry: new Date(Date.now() - 1000) },
+      { id: revokedId, userId: organizerId, absoluteExpiry: new Date(Date.now() + 3600000) },
     ] });
     try {
+      setNowProvider(() => new Date(event.startAt.getTime() + 1));
+      const before = await prisma.registration.findUniqueOrThrow({ where: { id: registration.id } });
+      const attendanceBefore = await prisma.attendance.findMany({ where: { eventId: event.id } });
       const expired = await request(app).get(`/api/v1/organizer/events/${event.id}/attendance`).set("Cookie", `${SESSION_COOKIE}=${expiredId}`);
       await prisma.session.delete({ where: { id: revokedId } });
       const revoked = await request(app).get(`/api/v1/me/registrations/${registration.id}/attendance`).set("Cookie", `${SESSION_COOKIE}=${revokedId}`);
+      expect((await prisma.session.findUniqueOrThrow({ where: { id: expiredPostId } })).invalidatedAt).toBeNull();
+      for (const sessionId of [expiredPostId, revokedId]) {
+        const rejected = await request(app).post(`/api/v1/organizer/registrations/${registration.id}/attendance`).set(origin).set("Cookie", `${SESSION_COOKIE}=${sessionId}`).send({ eventId: event.id });
+        expect(rejected.status).toBe(401);
+        expect(rejected.body).toEqual({ error: { code: "UNAUTHENTICATED", message: "Authentication required" } });
+      }
+      expect(await prisma.registration.findUniqueOrThrow({ where: { id: registration.id } })).toEqual(before);
+      expect(await prisma.attendance.findMany({ where: { eventId: event.id } })).toEqual(attendanceBefore);
       expect(expired.status).toBe(401);
       expect(revoked.status).toBe(401);
       expect(JSON.stringify([expired.body, revoked.body])).not.toContain(registration.id);
     } finally {
-      await prisma.session.deleteMany({ where: { id: { in: [expiredId, revokedId] } } });
+      await prisma.session.deleteMany({ where: { id: { in: [expiredId, expiredPostId, revokedId] } } });
     }
   });
   it("TEST-F07-03: cancellation remains mutually exclusive with Attendance", async () => {

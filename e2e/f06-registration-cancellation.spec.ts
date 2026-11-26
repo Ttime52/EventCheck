@@ -91,12 +91,21 @@ test("TEST-F06-15: Participant cancels, keeps history after reload, and re-regis
   await expect(cancelButton).toBeVisible();
   await expect(firstCard).not.toContainText("Loading attendance...");
   await expect(firstCard).not.toContainText("Attendance unavailable");
+  // Tab navigation is stable only after the tab-switch focus effect has run.
+  await expect(myRegistrations.getByRole("heading", { name: "My Registrations", exact: true })).toBeFocused();
   const detailsButton = firstCard.getByRole("button", { name: "View registration details" });
   await expect(detailsButton).toBeVisible();
   await detailsButton.press("Tab");
   await expect(cancelButton).toBeFocused();
-  page.once("dialog", dialog => dialog.accept());
+  const confirmation = page.waitForEvent("dialog");
+  const cancellationResponse = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/cancel"));
+  const acceptConfirmation = confirmation.then(async dialog => {
+    expect(dialog.message()).toContain(title);
+    await dialog.accept();
+  });
   await page.keyboard.press("Enter");
+  await acceptConfirmation;
+  expect((await cancellationResponse).status()).toBe(200);
   await expect(page.getByRole("region", { name: "My Registrations" }).getByRole("status")).toContainText("Registration cancelled.");
   await expect(firstCard).toContainText("CANCELLED");
 
