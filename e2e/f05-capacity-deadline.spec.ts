@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
 
 const organizerLogin = process.env.E2E_ORGANIZER_LOGIN!;
@@ -27,6 +29,13 @@ async function login(page: import("@playwright/test").Page) {
   await page.getByLabel("Password", { exact: true }).fill(organizerPassword);
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page.getByText("Welcome, Demo Organizer")).toBeVisible();
+}
+
+async function captureEvidence(page: import("@playwright/test").Page, fileName: string) {
+  if (process.env.E2E_CAPTURE_EVIDENCE !== "1") return;
+  const evidenceDirectory = resolve("docs/evidence/sprint-2");
+  await mkdir(evidenceDirectory, { recursive: true });
+  await page.screenshot({ path: resolve(evidenceDirectory, fileName), fullPage: true });
 }
 
 async function createEvent(page: import("@playwright/test").Page, title: string) {
@@ -128,4 +137,5 @@ test("TEST-F05-08/09: Participant sees closed registration and no Register actio
   await page.locator(".event-card").filter({ hasText: title }).getByRole("button", { name: "View details" }).click();
   await expect(page.getByText("Closed", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Register" })).not.toBeVisible();
+  await captureEvidence(page, "f05-closed-registration-no-register.png");
 });
