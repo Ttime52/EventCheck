@@ -2,6 +2,12 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { randomBytes, randomUUID, scrypt as nodeScrypt } from "node:crypto";
+import { promisify } from "node:util";
+import { PrismaClient, PublicationState, RegistrationStatus, Role } from "@prisma/client";
+
+const scrypt = promisify(nodeScrypt);
+async function hashPassword(password: string) { const salt = randomBytes(16); const derived = await scrypt(password, salt, 64) as Buffer; return `scrypt$${salt.toString("hex")}$${derived.toString("hex")}`; }
 
 function isolatedDatabaseUrl() {
   const value = process.env.E2E_DATABASE_URL;
@@ -51,10 +57,55 @@ export default async function globalSetup() {
   const webPort = Number(process.env.E2E_WEB_PORT ?? "5178");
   await assertFreePort(apiPort);
   await assertFreePort(webPort);
-
+  const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
+  const run = randomUUID();
+  const password = `f07-e2e-${randomUUID()}`;
+  let organizer: { id: string; loginIdentifier: string } | undefined;
+  let participant: { id: string; loginIdentifier: string } | undefined;
+  let event: { id: string; title: string } | undefined;
+  let secondaryEvent: { id: string; title: string } | undefined;
+  let boundaryEvent: { id: string; title: string; startAt: Date; endAt: Date } | undefined;
+  let registration: { id: string } | undefined;
   let api: ChildProcess | undefined;
   let web: ChildProcess | undefined;
+  const cleanup = async () => {
+    await stop(web);
+    await stop(api);
+    for (const ownedEvent of [event, secondaryEvent, boundaryEvent]) if (ownedEvent) {
+      await prisma.attendance.deleteMany({ where: { eventId: ownedEvent.id } });
+      await prisma.registration.deleteMany({ where: { eventId: ownedEvent.id } });
+      await prisma.event.deleteMany({ where: { id: ownedEvent.id } });
+    }
+    const userIds = [organizer?.id, participant?.id].filter((id): id is string => Boolean(id));
+    if (userIds.length) {
+      await prisma.session.deleteMany({ where: { userId: { in: userIds } } });
+      await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+    }
+  };
   try {
+    const passwordHash = await hashPassword(password);
+    organizer = await prisma.user.create({ data: { loginIdentifier: `f07-e2e-organizer-${run}@example.test`, displayName: "F07 E2E Organizer", role: Role.ORGANIZER, passwordHash }, select: { id: true, loginIdentifier: true } });
+    participant = await prisma.user.create({ data: { loginIdentifier: `f07-e2e-participant-${run}@example.test`, displayName: "F07 E2E Participant", role: Role.PARTICIPANT, passwordHash }, select: { id: true, loginIdentifier: true } });
+    const startAt = new Date(Date.now() - 60_000);
+    event = await prisma.event.create({ data: { organizerId: organizer.id, title: `F07 E2E Event ${run}`, description: "F07 fixture", location: "F07 Test Hall", startAt, endAt: new Date(Date.now() + 3_600_000), capacity: 5, publicationState: PublicationState.PUBLISHED }, select: { id: true, title: true } });
+    registration = await prisma.registration.create({ data: { eventId: event.id, participantId: participant.id, status: RegistrationStatus.ACTIVE }, select: { id: true } });
+    await prisma.registration.create({ data: { eventId: event.id, participantId: participant.id, status: RegistrationStatus.CANCELLED, cancelledAt: new Date() } });
+    secondaryEvent = await prisma.event.create({ data: { organizerId: organizer.id, title: `F07 E2E Secondary ${run}`, description: "F07 secondary fixture", location: "F07 Test Hall 2", startAt, endAt: new Date(Date.now() + 3_600_000), capacity: 2, publicationState: PublicationState.PUBLISHED }, select: { id: true, title: true } });
+    await prisma.registration.create({ data: { eventId: secondaryEvent.id, participantId: participant.id, status: RegistrationStatus.ACTIVE } });
+    const boundaryStart = new Date(Date.now() + 10 * 60_000);
+    const boundaryEnd = new Date(boundaryStart.getTime() + 10 * 60_000);
+    boundaryEvent = await prisma.event.create({ data: { organizerId: organizer.id, title: `F07 E2E Boundary ${run}`, description: "F07 boundary fixture", location: "F07 Boundary Hall", startAt: boundaryStart, endAt: boundaryEnd, capacity: 2, publicationState: PublicationState.PUBLISHED }, select: { id: true, title: true, startAt: true, endAt: true } });
+    await prisma.registration.create({ data: { eventId: boundaryEvent.id, participantId: participant.id, status: RegistrationStatus.ACTIVE } });
+    process.env.E2E_F07_ORGANIZER_LOGIN = organizer.loginIdentifier;
+    process.env.E2E_F07_PARTICIPANT_LOGIN = participant.loginIdentifier;
+    process.env.E2E_F07_ORGANIZER_PASSWORD = password;
+    process.env.E2E_F07_PARTICIPANT_PASSWORD = password;
+    process.env.E2E_F07_EVENT_TITLE = event.title;
+    process.env.E2E_F07_SECONDARY_EVENT_TITLE = secondaryEvent.title;
+    process.env.E2E_F07_BOUNDARY_EVENT_TITLE = boundaryEvent.title;
+    process.env.E2E_F07_BOUNDARY_START_AT = boundaryEvent.startAt.toISOString();
+    process.env.E2E_F07_BOUNDARY_END_AT = boundaryEvent.endAt.toISOString();
+    process.env.E2E_F07_REGISTRATION_ID = registration.id;
     api = spawn(process.execPath, [resolve("server/dist/index.js")], {
       cwd: process.cwd(),
       env: { ...process.env, DATABASE_URL: databaseUrl, CLIENT_ORIGIN: `http://127.0.0.1:${webPort}`, SERVER_PORT: String(apiPort) },
@@ -70,13 +121,12 @@ export default async function globalSetup() {
     });
     await waitForHealth(web, `http://127.0.0.1:${webPort}/`);
   } catch (error) {
-    await stop(web);
-    await stop(api);
+    try { await cleanup(); } catch (cleanupError) { console.error("F07 fixture cleanup also failed during setup:", cleanupError); }
+    await prisma.$disconnect();
     throw error;
   }
 
   return async () => {
-    await stop(web);
-    await stop(api);
+    try { await cleanup(); } finally { await prisma.$disconnect(); }
   };
 }

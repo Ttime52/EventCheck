@@ -248,6 +248,7 @@ describe("F-03 participant discovery UI", () => {
       if (url.endsWith("/api/v1/events")) return response({ data: { events: [{ ...publicEvent, remainingPlaces: registered ? 1 : 2 }] } });
       if (url.includes("/api/v1/events/") && !url.includes("/registrations")) return response({ data: { event: publicEvent } });
       if (url.includes("/registrations") && init?.method === "POST") { registered = true; return response({ data: { registration: { id: "registration-1" } } }, true, 201); }
+      if (url.endsWith("/attendance")) return response({ data: { attendance: null } });
       if (url.includes("/me/registrations/")) return response({ data: { registration: { id: "registration-1", eventId: "event-1", status: "ACTIVE", registeredAt: "2026-12-01T00:00:00.000Z", event: publicEvent } } });
       return response({ data: { registrations: registered ? [{ id: "registration-1", eventId: "event-1", status: "ACTIVE", registeredAt: "2026-12-01T00:00:00.000Z", event: publicEvent }] : [] } });
     });
@@ -263,8 +264,37 @@ describe("F-03 participant discovery UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "View My Registrations" }));
     await waitFor(() => expect(screen.getByRole("tab", { name: "My Registrations" })).toHaveAttribute("aria-selected", "true"));
     fireEvent.click(screen.getByRole("button", { name: "View registration details" }));
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Registration details" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("heading", { name: "University Workshop" })).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "View registration details" })).not.toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toHaveAttribute("id", "registration-detail-heading"));
+    expect(screen.getByText("Not Checked In")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Technical details"));
     expect(screen.getByText("registration-1")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back to My Registrations" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "View registration details" })).toBeInTheDocument());
+    await waitFor(() => expect(document.activeElement).toHaveAttribute("id", "public-events-heading"));
+  });
+
+  it("F-07 participant detail shows checked-in attendance in the focused detail view", async () => {
+    const participant = { id: "participant-1", displayName: "Participant", role: "PARTICIPANT" as const };
+    const registration = { id: "registration-checked", eventId: "event-1", status: "ACTIVE", registeredAt: "2026-12-01T00:00:00.000Z", event: publicEvent, attendance: { checkedInAt: "2026-12-01T03:00:00.000Z" } };
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/me")) return response({ data: { user: participant } });
+      if (url.endsWith("/api/v1/events")) return response({ data: { events: [publicEvent] } });
+      if (url.endsWith("/api/v1/me/registrations")) return response({ data: { registrations: [registration] } });
+      if (url.endsWith("/attendance")) return response({ data: { attendance: registration.attendance } });
+      if (url.includes("/me/registrations/")) return response({ data: { registration } });
+      return response(null, false, 404);
+    });
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("tab", { name: "My Registrations" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "My Registrations" }));
+    fireEvent.click(await screen.findByRole("button", { name: "View registration details" }));
+    await waitFor(() => expect(screen.getByText("Checked In")).toBeInTheDocument());
+    expect(screen.getByText("1 Dec 2026, 10:00")).toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toHaveAttribute("id", "registration-detail-heading"));
   });
 
   it("F-06 UI journey: confirms cancellation, retains cancelled history, and offers re-registration", async () => {
@@ -285,6 +315,7 @@ describe("F-03 participant discovery UI", () => {
         return response({ data: { registration: { id: "registration-1", eventId: publicEvent.id, participantId: participant.id, status: "CANCELLED", registeredAt, cancelledAt } } });
       }
       if (url === "/api/v1/events/event-1") return response({ data: { event: publicEvent } });
+      if (url.endsWith("/attendance")) return response({ data: { attendance: null } });
       if (url === "/api/v1/me/registrations/registration-1") return response({ data: { registration: { id: "registration-1", eventId: publicEvent.id, status: cancelled ? "CANCELLED" : "ACTIVE", registeredAt, cancelledAt: cancelled ? cancelledAt : null, event: publicEvent } } });
       return response({ data: { registrations: cancelled ? [{ id: "registration-1", eventId: publicEvent.id, status: "CANCELLED", registeredAt, cancelledAt, event: publicEvent }] : [{ id: "registration-1", eventId: publicEvent.id, status: "ACTIVE", registeredAt, cancelledAt: null, event: publicEvent }] } });
     });
@@ -295,7 +326,7 @@ describe("F-03 participant discovery UI", () => {
     const cancelButton = await screen.findByRole("button", { name: "Cancel registration for University Workshop" });
     expect(cancelButton.tabIndex).toBe(0);
     fireEvent.click(cancelButton);
-    await waitFor(() => expect(within(screen.getByRole("region", { name: "Discover published events" })).getByRole("status")).toHaveTextContent("Registration cancelled."));
+    await waitFor(() => expect(within(screen.getAllByRole("region", { name: "My Registrations" })[0]!).getByRole("status")).toHaveTextContent("Registration cancelled."));
     expect(window.confirm).toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/me/registrations/registration-1/cancel", expect.objectContaining({ method: "POST", body: "{}" }));
     expect(screen.getByText(/Status: CANCELLED/)).toBeInTheDocument();
@@ -393,7 +424,7 @@ describe("F-03 participant discovery UI", () => {
 
 describe("F-04 Organizer registration management UI", () => {
   const organizer = { id: "organizer-1", displayName: "Demo Organizer", role: "ORGANIZER" as const };
-  const event = { id: "event-1", title: "University Workshop", description: "A persisted workshop.", location: "Engineering Building 1", startAt: "2026-11-20T02:00:00.000Z", endAt: "2026-11-20T05:00:00.000Z", capacity: 25, publicationState: "PUBLISHED" as const };
+  const event = { id: "event-1", title: "University Workshop", description: "A persisted workshop.", location: "Engineering Building 1", startAt: "2026-01-01T02:00:00.000Z", endAt: "2099-11-26T05:00:00.000Z", capacity: 25, publicationState: "PUBLISHED" as const };
 
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -407,6 +438,61 @@ describe("F-04 Organizer registration management UI", () => {
     await screen.findByRole("form", { name: "Event details" });
     fireEvent.click(screen.getByRole("button", { name: "View registrations" }));
   }
+
+  it("TEST-F07 metrics exclude cancelled history from active attendance", async () => {
+    const registrations = [
+      { id: "active-1", participantId: "p1", participantDisplayName: "Active Participant", status: "ACTIVE", registeredAt: "2026-11-20T00:00:00.000Z", cancelledAt: null },
+      { id: "cancelled-1", participantId: "p2", participantDisplayName: "Cancelled Participant", status: "CANCELLED", registeredAt: "2026-11-19T00:00:00.000Z", cancelledAt: "2026-11-21T00:00:00.000Z" },
+      { id: "cancelled-2", participantId: "p2", participantDisplayName: "Cancelled Participant", status: "CANCELLED", registeredAt: "2026-11-18T00:00:00.000Z", cancelledAt: "2026-11-22T00:00:00.000Z" },
+    ];
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v1/me")) return response({ data: { user: organizer } });
+      if (url.endsWith("/api/v1/organizer/events")) return response({ data: { events: [{ ...event, capacity: 5 }] } });
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}`)) return response({ data: { event: { ...event, capacity: 5 } } });
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}/registrations`)) return response({ data: { registrations } });
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}/attendance`)) return response({ data: { attendances: [] } });
+      return response(null, false, 404);
+    });
+    render(<App />);
+    await openRegistrationList();
+    await screen.findByText("Active registrations");
+    const metrics = screen.getByLabelText("Attendance summary");
+    expect(within(metrics).getByText("Active registrations").previousElementSibling).toHaveTextContent("1");
+    expect(within(metrics).getByText("Cancelled registrations").previousElementSibling).toHaveTextContent("2");
+    expect(within(metrics).getByText("Checked in").previousElementSibling).toHaveTextContent("0");
+    expect(within(metrics).getByText("Not checked in").previousElementSibling).toHaveTextContent("1");
+    expect(within(metrics).getByText("Remaining seats").previousElementSibling).toHaveTextContent("4");
+    expect(within(metrics).getByText("Total registration records").previousElementSibling).toHaveTextContent("3");
+    expect(screen.getByRole("list", { name: "Active Registrations" }).querySelectorAll(":scope > li")).toHaveLength(1);
+    expect(screen.getByRole("list", { name: "Active Registrations" })).toHaveTextContent("Active Participant");
+    expect(screen.getByRole("list", { name: "Registration History" }).querySelectorAll(":scope > li")).toHaveLength(2);
+    expect(screen.getByRole("list", { name: "Registration History" })).toHaveTextContent("Cancelled Participant");
+    expect(screen.getByRole("list", { name: "Registration History" })).toHaveTextContent("Registered");
+    expect(screen.getByRole("list", { name: "Registration History" })).toHaveTextContent("Registration cancelled");
+  });
+
+  it("TEST-F07 attendance loading error preserves registrations and exposes retry", async () => {
+    let attendanceAttempts = 0;
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/api/v1/me")) return response({ data: { user: organizer } });
+      if (url.endsWith("/api/v1/organizer/events")) return response({ data: { events: [event] } });
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}`)) return response({ data: { event } });
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}/registrations`)) return response({ data: { registrations: [{ id: "active", participantId: "p1", participantDisplayName: "Participant", status: "ACTIVE", registeredAt: "2026-11-20T00:00:00.000Z" }] } });
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}/attendance`)) { attendanceAttempts += 1; return attendanceAttempts === 1 ? response({ error: { message: "offline" } }, false, 503) : response({ data: { attendances: [] } }); }
+      return response(null, false, 404);
+    });
+    render(<App />);
+    await openRegistrationList();
+    expect(await screen.findByRole("alert")).toHaveTextContent("offline");
+    expect(screen.getByRole("list", { name: "Active Registrations" })).toHaveTextContent("Participant");
+    expect(screen.getByRole("list", { name: "Active Registrations" })).toHaveTextContent("Attendance unavailable");
+    expect(attendanceAttempts).toBe(1);
+    fireEvent.click(screen.getByRole("button", { name: "Retry attendance" }));
+    await waitFor(() => expect(screen.getByText("Not checked in")).toBeInTheDocument());
+    expect(attendanceAttempts).toBe(2);
+  });
 
   it("TEST-F04-02/10: follows owned event navigation and renders approved registration fields in Bangkok time", async () => {
     const registration = {
@@ -424,7 +510,7 @@ describe("F-04 Organizer registration management UI", () => {
       if (url.endsWith("/api/v1/me")) return response({ data: { user: organizer } });
       if (url.endsWith("/api/v1/organizer/events")) return response({ data: { events: [event] } });
       if (url.endsWith(`/api/v1/organizer/events/${event.id}`)) return response({ data: { event } });
-      return response(null, false, 404);
+      return url.includes("/attendance") ? response({ data: url.includes("/organizer/") ? { attendances: [] } : { attendance: null } }) : response(null, false, 404);
     });
 
     render(<App />);
@@ -450,7 +536,7 @@ describe("F-04 Organizer registration management UI", () => {
       if (url.endsWith("/api/v1/me")) return response({ data: { user: organizer } });
       if (url.endsWith("/api/v1/organizer/events")) return response({ data: { events: [event] } });
       if (url.endsWith(`/api/v1/organizer/events/${event.id}`)) return response({ data: { event } });
-      return response(null, false, 404);
+      return url.includes("/attendance") ? response({ data: url.includes("/organizer/") ? { attendances: [] } : { attendance: null } }) : response(null, false, 404);
     });
 
     render(<App />);
@@ -471,7 +557,7 @@ describe("F-04 Organizer registration management UI", () => {
       if (url.endsWith("/api/v1/me")) return response({ data: { user: organizer } });
       if (url.endsWith("/api/v1/organizer/events")) return response({ data: { events: [event] } });
       if (url.endsWith(`/api/v1/organizer/events/${event.id}`)) return response({ data: { event } });
-      return response(null, false, 404);
+      return url.includes("/attendance") ? response({ data: url.includes("/organizer/") ? { attendances: [] } : { attendance: null } }) : response(null, false, 404);
     });
 
     render(<App />);
@@ -493,7 +579,7 @@ describe("F-04 Organizer registration management UI", () => {
       if (url.endsWith("/api/v1/me")) return response({ data: { user: organizer } });
       if (url.endsWith("/api/v1/organizer/events")) return response({ data: { events: [event] } });
       if (url.endsWith(`/api/v1/organizer/events/${event.id}`)) return response({ data: { event } });
-      return response(null, false, 404);
+      return url.includes("/attendance") ? response({ data: url.includes("/organizer/") ? { attendances: [] } : { attendance: null } }) : response(null, false, 404);
     });
 
     render(<App />);
@@ -515,12 +601,43 @@ describe("F-04 Organizer registration management UI", () => {
       if (url.endsWith("/api/v1/me")) return response({ data: { user: organizer } });
       if (url.endsWith("/api/v1/organizer/events")) return response({ data: { events: [event] } });
       if (url.endsWith(`/api/v1/organizer/events/${event.id}`)) return response({ data: { event } });
-      return response(null, false, 404);
+      return url.includes("/attendance") ? response({ data: url.includes("/organizer/") ? { attendances: [] } : { attendance: null } }) : response(null, false, 404);
     });
 
     render(<App />);
     await openRegistrationList();
     expect(await screen.findByRole("form", { name: "Login" })).toBeInTheDocument();
     expect(screen.queryByText("Demo Participant")).not.toBeInTheDocument();
+  });
+
+  it("TEST-F07-11: checks in an Organizer registration and announces success", async () => {
+    const registration = { id: "registration-1", participantId: "participant-1", participantDisplayName: "Demo Participant", status: "ACTIVE", registeredAt: "2026-11-15T10:00:00.000Z" };
+    const attendance = { id: "attendance-1", registrationId: registration.id, eventId: event.id, participantId: registration.participantId, recordedByOrganizerId: organizer.id, checkedInAt: "2026-11-26T03:00:00.000Z" };
+    const fetchMock = vi.mocked(fetch);
+    let checkedIn = false;
+    let releaseCheckIn!: () => void;
+    const pendingCheckIn = new Promise<Response>(resolve => { releaseCheckIn = () => resolve(response({ data: { attendance } }, true, 201)); });
+    fetchMock.mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.endsWith("/api/v1/me")) return response({ data: { user: organizer } });
+      if (url.endsWith("/api/v1/organizer/events")) return response({ data: { events: [event] } });
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}`)) return response({ data: { event } });
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}/registrations`)) return response({ data: { registrations: [registration] } });
+      if (url.endsWith(`/api/v1/organizer/events/${event.id}/attendance`)) return response({ data: { attendances: checkedIn ? [attendance] : [] } });
+      if (url.endsWith(`/api/v1/organizer/registrations/${registration.id}/attendance`) && init?.method === "POST") { checkedIn = true; return pendingCheckIn; }
+      return response(null, false, 404);
+    });
+    render(<App />);
+    await openRegistrationList();
+    const checkIn = await screen.findByRole("button", { name: "Check in participant" });
+    fireEvent.click(checkIn);
+    fireEvent.click(checkIn);
+    expect(fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith(`/api/v1/organizer/registrations/${registration.id}/attendance`) && init?.method === "POST")).toHaveLength(1);
+    releaseCheckIn();
+    expect(await screen.findByText("Attendance recorded.")).toBeInTheDocument();
+    expect(await screen.findByText("Checked In — 26 Nov 2026, 10:00")).toBeInTheDocument();
+    const postCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith(`/api/v1/organizer/registrations/${registration.id}/attendance`) && init?.method === "POST");
+    expect(postCalls).toHaveLength(1);
+    expect(JSON.parse(String(postCalls[0]?.[1]?.body))).toEqual({ eventId: event.id });
   });
 });

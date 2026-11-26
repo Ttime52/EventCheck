@@ -114,8 +114,9 @@ test("TEST-F03-16/TEST-F04-01/02/03/10: Organizer and Participant share one pers
   const myRegistrations = page.getByRole("region", { name: "My Registrations" });
   await expect(myRegistrations.getByText(title, { exact: true })).toBeVisible();
   await myRegistrations.locator(".event-card").filter({ hasText: title }).getByRole("button", { name: "View registration details" }).click();
-  const participantDetail = page.getByRole("region", { name: "Registration details" });
+  const participantDetail = page.getByRole("region", { name: title });
   await expect(participantDetail).toContainText("ACTIVE");
+  await participantDetail.getByText("Technical details").click();
   const registrationId = await participantDetail.locator(".event-id").innerText();
   await capture(page, "05-participant-saved-registration");
 

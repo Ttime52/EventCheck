@@ -63,7 +63,7 @@ test("TEST-F03-01/04/06/07: participant discovers, registers, and views My Regis
   const myRegistrations = page.getByRole("region", { name: "My Registrations" });
   await expect(myRegistrations.getByText(title, { exact: true })).toBeVisible();
   await myRegistrations.locator(".event-card").filter({ hasText: title }).getByRole("button", { name: "View registration details" }).click();
-  const registrationDetail = page.getByRole("region", { name: "Registration details" });
+  const registrationDetail = page.getByRole("region", { name: title });
   await expect(registrationDetail).toContainText("ACTIVE");
   await expect(registrationDetail).toContainText(title);
   await expect(registrationDetail).toContainText(/Registration ID/);

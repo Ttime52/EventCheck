@@ -10,6 +10,8 @@ import { decideCancellation } from "./registration-lifecycle.js";
 export const app = express();
 let nowProvider = () => new Date();
 export function setNowProvider(provider: () => Date) { nowProvider = provider; }
+let attendanceFailureInjector: (() => void) | null = null;
+export function setAttendanceFailureInjector(injector: (() => void) | null) { attendanceFailureInjector = injector; }
 
 const offsetDateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 function validOffsetDateTime(value: unknown): value is string {
@@ -150,6 +152,68 @@ app.post("/api/v1/me/registrations/:registrationId/cancel", requireAuth, require
     if (code === "CANCELLATION_CLOSED") return response.status(409).json({ error: { code, message: "Cancellation is closed because the event has started" } });
     return next(error);
   }
+});
+
+function attendanceView(attendance: { id: string; registrationId: string; eventId: string; participantId: string; recordedByOrganizerId: string; checkedInAt: Date }) {
+  return { ...attendance, checkedInAt: attendance.checkedInAt.toISOString() };
+}
+
+app.post("/api/v1/organizer/registrations/:registrationId/attendance", requireAuth, requireRole(Role.ORGANIZER), async (request, response, next) => {
+  const organizerId = (request as AuthenticatedRequest).user!.id;
+  const registrationId = Array.isArray(request.params.registrationId) ? request.params.registrationId[0] : request.params.registrationId;
+  const body = request.body;
+  if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).some(key => key !== "eventId") || typeof body.eventId !== "string") {
+    return response.status(422).json({ error: { code: "VALIDATION_ERROR", message: "eventId is required", details: [{ field: "eventId", message: "eventId is required" }] } });
+  }
+  try {
+    const attendance = await prisma.$transaction(async transaction => {
+      const owned = await transaction.registration.findUnique({ where: { id: registrationId }, select: { id: true, eventId: true, participantId: true } });
+      if (!owned || owned.eventId !== body.eventId) throw Object.assign(new Error("REGISTRATION_NOT_FOUND"), { code: "REGISTRATION_NOT_FOUND" });
+      const lockedEvent = await transaction.$queryRaw<Array<{ id: string; organizerId: string; startAt: Date; endAt: Date }>>`SELECT "id", "organizerId", "startAt", "endAt" FROM "Event" WHERE "id" = ${owned.eventId} FOR UPDATE`;
+      if (!lockedEvent[0] || lockedEvent[0].organizerId !== organizerId) throw Object.assign(new Error("REGISTRATION_NOT_FOUND"), { code: "REGISTRATION_NOT_FOUND" });
+      const lockedRegistration = await transaction.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "Registration" WHERE "id" = ${registrationId} FOR UPDATE`;
+      if (!lockedRegistration[0]) throw Object.assign(new Error("REGISTRATION_NOT_FOUND"), { code: "REGISTRATION_NOT_FOUND" });
+      const registration = await transaction.registration.findUnique({ where: { id: registrationId }, select: { status: true, participantId: true } });
+      if (!registration || registration.status !== RegistrationStatus.ACTIVE) throw Object.assign(new Error("REGISTRATION_NOT_ACTIVE"), { code: "REGISTRATION_NOT_ACTIVE" });
+      const existing = await transaction.attendance.findUnique({ where: { registrationId } });
+      if (existing) throw Object.assign(new Error("ATTENDANCE_ALREADY_EXISTS"), { code: "ATTENDANCE_ALREADY_EXISTS", existing });
+      const now = nowProvider();
+      if (now < lockedEvent[0].startAt || now >= lockedEvent[0].endAt) throw Object.assign(new Error("CHECK_IN_WINDOW_CLOSED"), { code: "CHECK_IN_WINDOW_CLOSED" });
+      const created = await transaction.attendance.create({ data: { registrationId, eventId: owned.eventId, participantId: registration.participantId, recordedByOrganizerId: organizerId, checkedInAt: now } });
+      attendanceFailureInjector?.();
+      return created;
+    });
+    return response.status(201).json({ data: { attendance: attendanceView(attendance) } });
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === "REGISTRATION_NOT_FOUND") return response.status(404).json({ error: { code, message: "Registration not found" } });
+    if (code === "REGISTRATION_NOT_ACTIVE") return response.status(409).json({ error: { code, message: "Registration is not active" } });
+    if (code === "CHECK_IN_WINDOW_CLOSED") return response.status(409).json({ error: { code, message: "Check-in window is closed" } });
+    if (code === "ATTENDANCE_ALREADY_EXISTS" || code === "P2002") return response.status(409).json({ error: { code: "ATTENDANCE_ALREADY_EXISTS", message: "Registration is already checked in" } });
+    return next(error);
+  }
+});
+
+app.get("/api/v1/organizer/events/:eventId/attendance", requireAuth, requireRole(Role.ORGANIZER), async (request, response, next) => {
+  const organizerId = (request as AuthenticatedRequest).user!.id;
+  const eventId = Array.isArray(request.params.eventId) ? request.params.eventId[0] : request.params.eventId;
+  try {
+    const event = await prisma.event.findFirst({ where: { id: eventId, organizerId }, select: { id: true } });
+    if (!event) return response.status(404).json({ error: { code: "EVENT_NOT_FOUND", message: "Event not found" } });
+    const rows = await prisma.attendance.findMany({ where: { eventId }, orderBy: [{ checkedInAt: "asc" }, { id: "asc" }] });
+    return response.json({ data: { attendances: rows.map(attendanceView) } });
+  } catch (error) { return next(error); }
+});
+
+app.get("/api/v1/me/registrations/:registrationId/attendance", requireAuth, requireRole(Role.PARTICIPANT), async (request, response, next) => {
+  const participantId = (request as AuthenticatedRequest).user!.id;
+  const registrationId = Array.isArray(request.params.registrationId) ? request.params.registrationId[0] : request.params.registrationId;
+  try {
+    const registration = await prisma.registration.findFirst({ where: { id: registrationId, participantId }, select: { id: true } });
+    if (!registration) return response.status(404).json({ error: { code: "REGISTRATION_NOT_FOUND", message: "Registration not found" } });
+    const attendance = await prisma.attendance.findUnique({ where: { registrationId } });
+    return response.json({ data: { attendance: attendance ? attendanceView(attendance) : null } });
+  } catch (error) { return next(error); }
 });
 
 function registrationView(registration: { id: string; eventId: string; status: RegistrationStatus; registeredAt: Date; cancelledAt: Date | null; event: { id: string; title: string; description: string; location: string; startAt: Date; endAt: Date } }) {

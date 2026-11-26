@@ -19,8 +19,10 @@ type PublishedEvent = {
 };
 
 type PublicEvent = Omit<PublishedEvent, "publicationState"> & { remainingPlaces: number; registrationAvailable: boolean; registrationOpen: boolean };
-type Registration = { id: string; eventId: string; status: "ACTIVE" | "CANCELLED"; registeredAt: string; cancelledAt: string | null; event: Pick<PublicEvent, "id" | "title" | "description" | "location" | "startAt" | "endAt"> };
-type OrganizerRegistration = { id: string; participantId: string; participantDisplayName: string; status: "ACTIVE" | "CANCELLED"; registeredAt: string };
+type Registration = { id: string; eventId: string; status: "ACTIVE" | "CANCELLED"; registeredAt: string; cancelledAt: string | null; event: Pick<PublicEvent, "id" | "title" | "description" | "location" | "startAt" | "endAt">; attendance?: Attendance | null };
+type OrganizerRegistration = { id: string; participantId: string; participantDisplayName: string; status: "ACTIVE" | "CANCELLED"; registeredAt: string; cancelledAt?: string | null };
+type Attendance = { id: string; registrationId: string; eventId: string; participantId: string; recordedByOrganizerId: string; checkedInAt: string };
+type AttendanceState = { status: "loading" | "success" | "error"; value?: Attendance | null };
 
 const isUser = (value: unknown): value is User => {
   if (!value || typeof value !== "object") return false;
@@ -108,6 +110,10 @@ function PublicEventsPanel({ user, onSessionExpired }: { user: User | null; onSe
   const [detailLoading, setDetailLoading] = useState(false);
   const detailHeadingRef = useRef<HTMLHeadingElement>(null);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [registrationAttendance, setRegistrationAttendance] = useState<Record<string, Attendance | null>>({});
+  const [attendanceStates, setAttendanceStates] = useState<Record<string, AttendanceState>>({});
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceError, setAttendanceError] = useState("");
   const [registrationsLoading, setRegistrationsLoading] = useState(user?.role === "PARTICIPANT");
   const [registrationsError, setRegistrationsError] = useState("");
   const [selectedRegistration, setSelectedRegistration] = useState<Registration | null>(null);
@@ -115,6 +121,7 @@ function PublicEventsPanel({ user, onSessionExpired }: { user: User | null; onSe
   const [registrationDetailError, setRegistrationDetailError] = useState("");
   const [failedRegistrationId, setFailedRegistrationId] = useState<string | null>(null);
   const registrationRequestRef = useRef(0);
+  const attendanceRequestRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -152,16 +159,49 @@ function PublicEventsPanel({ user, onSessionExpired }: { user: User | null; onSe
   }, []);
 
   async function loadRegistrations() {
+    const requestId = attendanceRequestRef.current + 1;
+    attendanceRequestRef.current = requestId;
     setRegistrationsLoading(true);
     setRegistrationsError("");
+    setAttendanceLoading(true);
+    setAttendanceError("");
     try {
       const response = await fetch("/api/v1/me/registrations", { credentials: "include" });
       const body = await response.json().catch(() => null);
       if (response.status === 401) return onSessionExpired();
       if (!response.ok || !Array.isArray(body?.data?.registrations)) throw new Error(errorMessage(body, "Unable to load registrations"));
-      setRegistrations(body.data.registrations);
-    } catch (error) { const message = error instanceof Error ? error.message : "Unable to load registrations"; setRegistrationsError(message); setMessage(message); }
-    finally { setRegistrationsLoading(false); }
+      const nextRegistrations = body.data.registrations as Registration[];
+      if (requestId !== attendanceRequestRef.current) return;
+      setRegistrations(nextRegistrations);
+      setAttendanceStates(Object.fromEntries(nextRegistrations.map(registration => [registration.id, { status: "loading" as const }] )));
+      setRegistrationsLoading(false);
+      try {
+        const results = await Promise.all(nextRegistrations.map(async registration => {
+          const attendanceResponse = await fetch(`/api/v1/me/registrations/${encodeURIComponent(registration.id)}/attendance`, { credentials: "include" });
+          const attendanceBody = await attendanceResponse.json().catch(() => null);
+          if (attendanceResponse.status === 401) { onSessionExpired(); throw new Error("Session expired"); }
+          if (!attendanceResponse.ok || !(attendanceBody?.data?.attendance === null || typeof attendanceBody?.data?.attendance === "object")) throw new Error(errorMessage(attendanceBody, "Unable to load attendance"));
+          return [registration.id, attendanceBody.data.attendance as Attendance | null] as const;
+        }));
+        if (requestId === attendanceRequestRef.current) {
+          setRegistrationAttendance(Object.fromEntries(results));
+          setAttendanceStates(Object.fromEntries(results.map(([id, value]) => [id, { status: "success" as const, value }])));
+        }
+      } catch (error) {
+        if (requestId === attendanceRequestRef.current) {
+          setAttendanceError(error instanceof Error ? error.message : "Unable to load attendance");
+          setAttendanceStates(current => Object.fromEntries(Object.keys(current).map(id => [id, { status: "error" as const }])));
+          setMessage("Unable to load attendance. Retry to refresh attendance.");
+        }
+      } finally {
+        if (requestId === attendanceRequestRef.current) setAttendanceLoading(false);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to load registrations";
+      if (requestId === attendanceRequestRef.current) { setRegistrationsError(message); setRegistrationsLoading(false); setAttendanceLoading(false); setMessage(message); }
+    } finally {
+      if (requestId === attendanceRequestRef.current) setRegistrationsLoading(false);
+    }
   }
 
   async function register(event: PublicEvent) {
@@ -209,7 +249,7 @@ function PublicEventsPanel({ user, onSessionExpired }: { user: User | null; onSe
       }
       const updated = body.data.registration as Pick<Registration, "status" | "cancelledAt">;
       setRegistrations(current => current.map(item => item.id === registration.id ? { ...item, ...updated } : item));
-      setSelectedRegistration(current => current?.id === registration.id ? { ...current, ...updated } : current);
+      setSelectedRegistration(null);
       await loadRegistrations();
       await loadEvents();
       setConfirmationId(null);
@@ -258,13 +298,22 @@ function PublicEventsPanel({ user, onSessionExpired }: { user: User | null; onSe
       const body = await response.json().catch(() => null);
       if (response.status === 401) return onSessionExpired();
       if (!response.ok || !body?.data?.registration) throw new Error(errorMessage(body, "Unable to load registration details"));
-      if (requestId === registrationRequestRef.current) setSelectedRegistration(body.data.registration);
+      const attendanceResponse = await fetch(`/api/v1/me/registrations/${encodeURIComponent(registrationId)}/attendance`, { credentials: "include" });
+      const attendanceBody = await attendanceResponse.json().catch(() => null);
+      if (attendanceResponse.status === 401) return onSessionExpired();
+      if (!attendanceResponse.ok || !(attendanceBody?.data?.attendance === null || typeof attendanceBody?.data?.attendance === "object")) throw new Error(errorMessage(attendanceBody, "Unable to load attendance"));
+      if (requestId === registrationRequestRef.current) setSelectedRegistration({ ...body.data.registration, attendance: attendanceBody.data.attendance });
     } catch (error) { if (requestId === registrationRequestRef.current) { setFailedRegistrationId(registrationId); setRegistrationDetailError(error instanceof Error ? error.message : "Unable to load registration details"); } }
     finally { if (requestId === registrationRequestRef.current) setRegistrationDetailLoading(false); }
   }
 
+  useEffect(() => {
+    if (selectedRegistration) window.setTimeout(() => document.getElementById("registration-detail-heading")?.focus(), 0);
+    else if (activeTab === "registrations") window.setTimeout(() => tabHeadingRef.current?.focus(), 0);
+  }, [selectedRegistration, activeTab]);
+
   return <section className="public-events-panel" aria-labelledby="public-events-heading">
-    <div className="section-heading"><p className="eyebrow">University Events</p><h2 id="public-events-heading">Discover published events</h2><p className="section-intro">Browse public event details and availability. Dates are shown in Asia/Bangkok (UTC+7).</p></div>
+    <div className="section-heading"><p className="eyebrow">{user?.role === "PARTICIPANT" && activeTab === "registrations" ? "Participant records" : "University Events"}</p><h2 id="public-events-heading" ref={tabHeadingRef} tabIndex={-1}>{user?.role === "PARTICIPANT" && activeTab === "registrations" ? "My Registrations" : "Discover published events"}</h2><p className="section-intro">{user?.role === "PARTICIPANT" && activeTab === "registrations" ? "Review your event registration and attendance history." : "Browse public event details and availability. Dates are shown in Asia/Bangkok (UTC+7)."}</p></div>
     {user?.role === "PARTICIPANT" && <div className="tab-list" role="tablist" aria-label="Participant dashboard sections"><button type="button" role="tab" aria-selected={activeTab === "discover"} className={`dashboard-tab${activeTab === "discover" ? " is-active" : ""}`} onClick={() => switchTab("discover")}>Discover Events</button><button type="button" role="tab" aria-selected={activeTab === "registrations"} className={`dashboard-tab${activeTab === "registrations" ? " is-active" : ""}`} onClick={() => switchTab("registrations")}>My Registrations</button></div>}
     {message && <div className="status-text" role="status" aria-live="polite"><span>{message}</span>{confirmationId && <button type="button" className="button button-secondary confirmation-action" onClick={() => switchTab("registrations")}>View My Registrations</button>}</div>}
     {(!user || user.role !== "PARTICIPANT" || activeTab === "discover") && (detailLoading ? <p className="empty-state" role="status">Loading event details...</p> : selected ? <div className="public-detail-card" role="region" aria-label="Public event details"><button type="button" className="back-button" onClick={() => setSelected(null)}>Back to events</button><h3 ref={detailHeadingRef} tabIndex={-1}>{selected.title}</h3><p>{selected.description}</p><dl className="event-meta"><div><dt>Location</dt><dd>{selected.location}</dd></div><div><dt>When</dt><dd>{formatBangkokDate(selected.startAt)} – {formatBangkokDate(selected.endAt)}</dd></div><div><dt>Capacity</dt><dd>{selected.capacity} ({selected.remainingPlaces} remaining)</dd></div><div><dt>Availability</dt><dd>{selected.registrationOpen ? selected.registrationAvailable ? "Available" : "Full" : "Closed"}</dd></div><div><dt>Registration deadline</dt><dd>{formatBangkokDate(selected.registrationDeadline ?? selected.startAt)}{selected.registrationDeadline ? "" : " (at event start)"}</dd></div></dl><div className="event-card-actions">{user?.role === "PARTICIPANT" && (registrations.some((registration) => registration.eventId === selected.id && registration.status === "ACTIVE") ? <button type="button" className="button button-secondary view-event-button" disabled>Registered</button> : selected.registrationAvailable && selected.registrationOpen && <button type="button" className="button button-primary view-event-button" onClick={() => void register(selected)} disabled={busyId === selected.id}>{busyId === selected.id ? "Registering..." : registrations.some(registration => registration.eventId === selected.id && registration.status === "CANCELLED") ? "Register again" : "Register"}</button>)}{!user && <span className="sign-in-hint">Sign in as a Participant to register</span>}</div></div> : loading ? <p className="empty-state" role="status">Loading published events...</p> : events.length === 0 ? <p className="empty-state">No published events are available.</p> : <ul className="event-list">
@@ -272,8 +321,8 @@ function PublicEventsPanel({ user, onSessionExpired }: { user: User | null; onSe
     </ul>)}
     {activeTab === "registrations" && <>{registrationDetailLoading && <p className="detail-status" role="status">Loading registration details...</p>}
     {registrationDetailError && <div className="registration-detail-card" role="alert"><p>{registrationDetailError}</p>{failedRegistrationId && <button type="button" className="button button-secondary" onClick={() => void viewRegistration(failedRegistrationId)}>Retry</button>}</div>}
-    {selectedRegistration && <section className="registration-detail-card" aria-labelledby="registration-detail-heading"><button type="button" className="back-button" onClick={() => setSelectedRegistration(null)}>Back to My Registrations</button><h3 id="registration-detail-heading">Registration details</h3><dl className="event-meta"><div><dt>Registration ID</dt><dd className="event-id">{selectedRegistration.id}</dd></div><div><dt>Status</dt><dd>{selectedRegistration.status}</dd></div><div><dt>Registered</dt><dd>{formatBangkokDate(selectedRegistration.registeredAt)}</dd></div>{selectedRegistration.cancelledAt && <div><dt>Cancelled</dt><dd>{formatBangkokDate(selectedRegistration.cancelledAt)}</dd></div>}<div><dt>Event</dt><dd>{selectedRegistration.event.title}</dd></div><div><dt>Description</dt><dd>{selectedRegistration.event.description}</dd></div><div><dt>Location</dt><dd>{selectedRegistration.event.location}</dd></div><div><dt>When</dt><dd>{formatBangkokDate(selectedRegistration.event.startAt)} – {formatBangkokDate(selectedRegistration.event.endAt)}</dd></div></dl>{selectedRegistration.status === "ACTIVE" && new Date(selectedRegistration.event.startAt).getTime() > Date.now() && <button type="button" className="button button-secondary" onClick={() => void cancelRegistration(selectedRegistration)} disabled={cancellingId === selectedRegistration.id}>{cancellingId === selectedRegistration.id ? "Cancelling..." : `Cancel registration for ${selectedRegistration.event.title}`}</button>}</section>}</>}
-    {user?.role === "PARTICIPANT" && activeTab === "registrations" && <section className="registrations-card" aria-labelledby="my-registrations-heading"><div className="section-heading compact-heading"><p className="eyebrow">Participant records</p><h2 id="my-registrations-heading" ref={tabHeadingRef} tabIndex={-1}>My Registrations</h2></div>{registrationsLoading ? <p className="empty-state" role="status">Loading your registrations...</p> : registrationsError ? <div className="registration-detail-card" role="alert"><p>{registrationsError}</p><button type="button" className="button button-secondary" onClick={() => void loadRegistrations()}>Retry</button></div> : registrations.length === 0 ? <p className="empty-state">You have no registrations yet.</p> : <ul className="event-list">{registrations.map((registration) => <li className="event-card" key={registration.id}><h3>{registration.event.title}</h3><p>{registration.event.location} · {formatBangkokDate(registration.event.startAt)}</p><p>Status: {registration.status} · Registered {formatBangkokDate(registration.registeredAt)}{registration.cancelledAt ? ` · Cancelled ${formatBangkokDate(registration.cancelledAt)}` : ""}</p><div className="event-card-actions"><button type="button" className="button button-secondary view-event-button" onClick={() => void viewRegistration(registration.id)} disabled={registrationDetailLoading}>{registrationDetailLoading ? "Loading details..." : "View registration details"}</button>{registration.status === "ACTIVE" && new Date(registration.event.startAt).getTime() > Date.now() && <button type="button" className="button button-secondary" onClick={() => void cancelRegistration(registration)} disabled={cancellingId === registration.id}>{cancellingId === registration.id ? "Cancelling..." : `Cancel registration for ${registration.event.title}`}</button>}</div></li>)}</ul>}</section>}
+    {selectedRegistration && <section className="registration-detail-card registration-detail-view" aria-labelledby="registration-detail-heading"><button type="button" className="back-button" onClick={() => setSelectedRegistration(null)}>Back to My Registrations</button><p className="eyebrow">Selected registration</p><span className="event-status event-status-neutral">{Date.now() < new Date(selectedRegistration.event.startAt).getTime() ? "Upcoming" : Date.now() < new Date(selectedRegistration.event.endAt).getTime() ? "Ongoing" : "Ended"}</span><h3 id="registration-detail-heading" tabIndex={-1}>{selectedRegistration.event.title}</h3><div className={`attendance-status ${selectedRegistration.attendance ? "attendance-success" : "attendance-neutral"}`} role="status" aria-live="polite"><strong>{selectedRegistration.attendance ? "Checked In" : "Not Checked In"}</strong>{selectedRegistration.attendance && <span>{formatBangkokDate(selectedRegistration.attendance.checkedInAt)}</span>}</div><dl className="event-meta"><div><dt>Registration status</dt><dd>{selectedRegistration.status}</dd></div><div><dt>Registered</dt><dd>{formatBangkokDate(selectedRegistration.registeredAt)}</dd></div>{selectedRegistration.cancelledAt && <div><dt>Cancelled</dt><dd>{formatBangkokDate(selectedRegistration.cancelledAt)}</dd></div>}<div><dt>Description</dt><dd>{selectedRegistration.event.description}</dd></div><div><dt>Location</dt><dd>{selectedRegistration.event.location}</dd></div><div><dt>When</dt><dd>{formatBangkokDate(selectedRegistration.event.startAt)} – {formatBangkokDate(selectedRegistration.event.endAt)}</dd></div></dl><details className="technical-details"><summary>Technical details</summary><p><span>Registration ID</span> <code className="event-id">{selectedRegistration.id}</code></p></details>{selectedRegistration.status === "ACTIVE" && new Date(selectedRegistration.event.startAt).getTime() > Date.now() && <button type="button" className="button button-secondary" onClick={() => void cancelRegistration(selectedRegistration)} disabled={cancellingId === selectedRegistration.id}>{cancellingId === selectedRegistration.id ? "Cancelling..." : `Cancel registration for ${selectedRegistration.event.title}`}</button>}</section>}</>}
+    {user?.role === "PARTICIPANT" && activeTab === "registrations" && !selectedRegistration && <section className="registrations-card" aria-labelledby="public-events-heading"><div className="section-heading compact-heading"><p className="eyebrow">Participant records</p></div>{registrationsLoading ? <p className="empty-state" role="status">Loading your registrations...</p> : registrationsError ? <div className="registration-detail-card" role="alert"><p>{registrationsError}</p><button type="button" className="button button-secondary" onClick={() => void loadRegistrations()}>Retry</button></div> : registrations.length === 0 ? <p className="empty-state">You have no registrations yet.</p> : <>{attendanceError && <div className="registration-detail-card" role="alert"><p>{attendanceError}</p><button type="button" className="button button-secondary" onClick={() => void loadRegistrations()}>Retry attendance</button></div>}{attendanceLoading && <p className="detail-status" role="status">Loading attendance...</p>}<ul className="event-list">{registrations.map((registration) => { const state = attendanceStates[registration.id]; const attendanceText = !state || state.status === "loading" ? "Loading attendance..." : state.status === "error" ? "Attendance unavailable" : state.value ? `Checked In · ${formatBangkokDate(state.value.checkedInAt)}` : "Not Checked In"; return <li className="event-card" key={registration.id}><h3>{registration.event.title}</h3><p>{registration.event.location} · {formatBangkokDate(registration.event.startAt)}</p><p>Status: {registration.status} · Registered {formatBangkokDate(registration.registeredAt)}{registration.cancelledAt ? ` · Cancelled ${formatBangkokDate(registration.cancelledAt)}` : ""}</p><p>Attendance: {attendanceText}</p><div className="event-card-actions"><button type="button" className="button button-secondary view-event-button" onClick={() => void viewRegistration(registration.id)} disabled={registrationDetailLoading}>{registrationDetailLoading ? "Loading details..." : "View registration details"}</button>{registration.status === "ACTIVE" && new Date(registration.event.startAt).getTime() > Date.now() && <button type="button" className="button button-secondary" onClick={() => void cancelRegistration(registration)} disabled={cancellingId === registration.id}>{cancellingId === registration.id ? "Cancelling..." : `Cancel registration for ${registration.event.title}`}</button>}</div></li>; })}</ul></>}</section>}
   </section>;
 }
 
@@ -299,6 +348,7 @@ function EventDetailView({ event, loading, message, onBack, onViewRegistrations 
       </div>
       {loading ? <p className="detail-status" role="status">Loading event details...</p> : event ? (
         <>
+        {message && <p className="detail-status" role="alert">{message}</p>}
         <form className="event-detail-form" aria-label="Event details" onSubmit={(formEvent) => formEvent.preventDefault()}>
           <label htmlFor="detail-title">
             Title
@@ -352,33 +402,57 @@ type OrganizerRegistrationsViewProps = {
 
 function OrganizerRegistrationsView({ event, onBack, onSessionExpired }: OrganizerRegistrationsViewProps) {
   const [registrations, setRegistrations] = useState<OrganizerRegistration[]>([]);
+  const [attendance, setAttendance] = useState<Record<string, Attendance | null>>({});
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [checkingInId, setCheckingInId] = useState<string | null>(null);
+  const [listError, setListError] = useState("");
+  const [attendanceError, setAttendanceError] = useState("");
+  const [attendanceLoaded, setAttendanceLoaded] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [clock, setClock] = useState(() => Date.now());
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => { headingRef.current?.focus(); }, []);
+  useEffect(() => { const timer = window.setInterval(() => setClock(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
 
   useEffect(() => {
     let active = true;
+    let registrationsLoaded = false;
     setLoading(true);
-    setMessage("");
+    setListError("");
+    setAttendanceError("");
+    setAttendanceLoaded(false);
     fetch(`/api/v1/organizer/events/${encodeURIComponent(event.id)}/registrations`, { credentials: "include" })
       .then(async (response) => ({ response, body: await response.json().catch(() => null) }))
-      .then(({ response, body }) => {
+      .then(async ({ response, body }) => {
         if (!active) return;
         if (response.status === 401) {
           onSessionExpired();
           return;
         }
         if (!response.ok || !Array.isArray(body?.data?.registrations) || !body.data.registrations.every(isOrganizerRegistration)) {
-          setMessage(errorMessage(body, "Unable to load registrations for this event"));
+          setListError(errorMessage(body, "Unable to load registrations for this event"));
           return;
         }
-        setRegistrations(body.data.registrations);
+        const loadedRegistrations = body.data.registrations as OrganizerRegistration[];
+        setRegistrations(loadedRegistrations);
+        registrationsLoaded = true;
+        const attendanceResponse = await fetch(`/api/v1/organizer/events/${encodeURIComponent(event.id)}/attendance`, { credentials: "include" });
+        const attendanceBody = await attendanceResponse.json().catch(() => null);
+        if (!active) return;
+        if (attendanceResponse.status === 401) { onSessionExpired(); return; }
+        if (!attendanceResponse.ok || !Array.isArray(attendanceBody?.data?.attendances)) {
+          setAttendanceError(errorMessage(attendanceBody, "Unable to load attendance. Try again."));
+          return;
+        }
+        const byRegistration = Object.fromEntries((attendanceBody.data.attendances as Attendance[]).map(item => [item.registrationId, item]));
+        setAttendance(Object.fromEntries(loadedRegistrations.map(registration => [registration.id, byRegistration[registration.id] ?? null])));
+        setAttendanceLoaded(true);
       })
       .catch(() => {
-        if (active) setMessage("Unable to load registrations for this event. Try again.");
+        if (active && !registrationsLoaded) setListError("Unable to load registrations for this event. Try again.");
+        else if (active) setAttendanceError("Unable to load attendance. Try again.");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -386,8 +460,32 @@ function OrganizerRegistrationsView({ event, onBack, onSessionExpired }: Organiz
     return () => { active = false; };
   }, [event.id, attempt, onSessionExpired]);
 
+  async function checkIn(registration: OrganizerRegistration) {
+    if (checkingInId) return;
+    setCheckingInId(registration.id);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/v1/organizer/registrations/${encodeURIComponent(registration.id)}/attendance`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ eventId: event.id }) });
+      const body = await response.json().catch(() => null);
+      if (response.status === 401) return onSessionExpired();
+      if (!response.ok || !body?.data?.attendance) { setMessage(errorMessage(body, "Unable to check in this registration")); return; }
+      setAttendance(current => ({ ...current, [registration.id]: body.data.attendance }));
+      setMessage("Attendance recorded.");
+    } catch {
+      setMessage("Unable to check in this registration. Try again.");
+    } finally {
+      setCheckingInId(null);
+    }
+  }
+
+  const activeRegistrations = registrations.filter(registration => registration.status === "ACTIVE");
+  const cancelledRegistrations = registrations.filter(registration => registration.status === "CANCELLED");
   const registrationCount = registrations.length;
   const registrationCountLabel = `${registrationCount} ${registrationCount === 1 ? "registration" : "registrations"}`;
+  const now = clock;
+  const eventStatus = now < new Date(event.startAt).getTime() ? "Upcoming" : now < new Date(event.endAt).getTime() ? "Ongoing" : "Ended";
+  const checkedInCount = activeRegistrations.filter(registration => Boolean(attendance[registration.id])).length;
+  const notCheckedInCount = Math.max(0, activeRegistrations.length - checkedInCount);
 
   return (
     <section className="event-detail-page organizer-registrations-page" aria-labelledby="organizer-registrations-heading">
@@ -396,31 +494,41 @@ function OrganizerRegistrationsView({ event, onBack, onSessionExpired }: Organiz
         <p className="eyebrow">Event registrations</p>
         <h2 id="organizer-registrations-heading" ref={headingRef} tabIndex={-1}>Registrations for {event.title}</h2>
         <p className="section-intro">Registration times are shown in Asia/Bangkok (UTC+7).</p>
+        <div className="attendance-event-summary"><span className={`event-status event-status-${eventStatus.toLowerCase()}`}>{eventStatus}</span><span>{formatBangkokDate(event.startAt)} – {formatBangkokDate(event.endAt)}</span></div>
+        {message && <p className="status-text" role="status" aria-live="polite">{message}</p>}
       </div>
-      {loading ? <p className="detail-status" role="status">Loading registrations...</p> : message ? (
+      {attendanceError && <div className="registration-detail-card" role="alert"><p>{attendanceError}</p><button type="button" className="button button-secondary" onClick={() => setAttempt(value => value + 1)}>Retry attendance</button></div>}
+      {loading && registrations.length > 0 && !attendanceLoaded && !attendanceError && <p className="detail-status" role="status" aria-live="polite">Loading attendance...</p>}
+      {attendanceLoaded && <div className="attendance-metrics" aria-label="Attendance summary"><div><strong>{activeRegistrations.length}</strong><span>Active registrations</span></div><div><strong>{cancelledRegistrations.length}</strong><span>Cancelled registrations</span></div><div><strong>{checkedInCount}</strong><span>Checked in</span></div><div><strong>{notCheckedInCount}</strong><span>Not checked in</span></div><div><strong>{Math.max(0, event.capacity - activeRegistrations.length)}</strong><span>Remaining seats</span></div><div><strong>{registrationCount}</strong><span>Total registration records</span></div></div>}
+      {loading ? <p className="detail-status" role="status">Loading registrations...</p> : listError ? (
         <div className="registration-detail-card" role="alert">
-          <p>{message}</p>
+          <p>{listError}</p>
           <button type="button" className="button button-secondary" onClick={() => setAttempt(value => value + 1)}>Retry</button>
         </div>
       ) : (
         <>
           <p className="detail-status" role="status" aria-live="polite">{registrationCountLabel}</p>
           {registrationCount === 0 ? <p className="empty-state">No registrations for this event yet.</p> : (
-            <ul className="event-list" aria-label="Event registration list">
-              {registrations.map(registration => (
+            <>
+            <h3>Active Registrations</h3>
+            <ul className="event-list" aria-label="Active Registrations">
+              {activeRegistrations.map(registration => (
                 <li className="event-card" key={registration.id}>
                   <div className="event-card-heading">
                     <h3>{registration.participantDisplayName}</h3>
                     <span className="published-badge">{registration.status}</span>
                   </div>
                   <dl className="event-meta">
-                    <div><dt>Registration ID</dt><dd className="event-id">{registration.id}</dd></div>
-                    <div><dt>Participant ID</dt><dd className="event-id">{registration.participantId}</dd></div>
                     <div><dt>Registered (Asia/Bangkok, UTC+7)</dt><dd>{formatBangkokDate(registration.registeredAt)}</dd></div>
+                    <div><dt>Attendance</dt><dd>{!attendanceLoaded ? "Attendance unavailable" : attendance[registration.id] ? `Checked In — ${formatBangkokDate(attendance[registration.id]!.checkedInAt)}` : "Not Checked In"}</dd></div>
                   </dl>
+                  <details className="technical-details"><summary>Technical details</summary><p><span>Registration ID</span> <code className="event-id">{registration.id}</code></p><p><span>Participant ID</span> <code className="event-id">{registration.participantId}</code></p></details>
+                  {(() => { const eligible = now >= new Date(event.startAt).getTime() && now < new Date(event.endAt).getTime(); const reason = !attendanceLoaded ? "Attendance unavailable; retry to check in." : attendance[registration.id] ? "Already checked in." : !eligible ? (now < new Date(event.startAt).getTime() ? "Check-in opens at event start." : "Check-in closed after the event ended.") : ""; return <>{registration.status === "ACTIVE" && !attendance[registration.id] && <button type="button" className="button button-secondary" onClick={() => void checkIn(registration)} disabled={checkingInId !== null || !eligible || !attendanceLoaded}>{checkingInId === registration.id ? "Checking in..." : "Check in participant"}</button>}{reason && <span className="field-help">{reason}</span>}</>; })()}
                 </li>
               ))}
             </ul>
+            {cancelledRegistrations.length > 0 && <><h3>Registration History</h3><ul className="event-list" aria-label="Registration History">{cancelledRegistrations.map(registration => <li className="event-card" key={registration.id}><div className="event-card-heading"><h3>{registration.participantDisplayName}</h3><span className="published-badge">CANCELLED</span></div><p>Registered {formatBangkokDate(registration.registeredAt)}</p><p>Registration cancelled{registration.cancelledAt ? ` · ${formatBangkokDate(registration.cancelledAt)}` : ""}</p></li>)}</ul></>}
+            </>
           )}
         </>
       )}
@@ -516,7 +624,8 @@ export function App() {
   async function viewEventDetail(eventId: string) {
     setSelectedEventId(eventId);
     setSelectedEventSection("details");
-    setSelectedEvent(null);
+    const listed = events.find(event => event.id === eventId);
+    setSelectedEvent(listed ?? null);
     setEventDetailMessage("");
     setEventDetailLoading(true);
 
@@ -528,12 +637,16 @@ export function App() {
         setMessage("Session expired; sign in again");
         return;
       }
-      if (!response.ok || !isPublishedEvent(body?.data?.event)) {
+      if (!response.ok || !body?.data?.event) {
+        setSelectedEvent(null);
         setEventDetailMessage(errorMessage(body, "Unable to load event details"));
         return;
       }
-      setSelectedEvent(body.data.event);
+      const event = body.data.event;
+      const remainingPlaces = typeof event.remainingPlaces === "number" ? event.remainingPlaces : event.capacity;
+      setSelectedEvent({ ...event, remainingPlaces, registrationAvailable: typeof event.registrationAvailable === "boolean" ? event.registrationAvailable : remainingPlaces > 0, registrationOpen: typeof event.registrationOpen === "boolean" ? event.registrationOpen : new Date(event.startAt).getTime() > Date.now(), registrationDeadline: event.registrationDeadline ?? null });
     } catch {
+      setSelectedEvent(null);
       setEventDetailMessage("Unable to load event details. Try again.");
     } finally {
       setEventDetailLoading(false);
