@@ -130,6 +130,8 @@ The previously uncommitted Playwright additions are included in the confirmed `6
 
 The owner previously executed the updated `TEST-F07-12` registration-card locators against an uncommitted working tree. That run is retained as historical evidence; the clean-tree `6c50a02` run above is authoritative for the latest verification.
 
+The current uncommitted Playwright change replaces programmatic focus with keyboard `Enter` activation and Back navigation assertions in `e2e/f07-check-in.spec.ts`; it requires a fresh macOS browser run and is not counted as PASS here.
+
 | Command / check | Result |
 |---|---|
 | Targeted F-07 Playwright | 2 passed, 0 failed (`TEST-F07-11` Organizer and `TEST-F07-12` Participant) |

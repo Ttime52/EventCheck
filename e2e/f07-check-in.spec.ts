@@ -1,4 +1,13 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
+
+async function tabUntilFocused(page: Page, target: Locator, direction: "forward" | "backward", maxTabs = 24) {
+  const key = direction === "forward" ? "Tab" : "Shift+Tab";
+  for (let attempt = 0; attempt < maxTabs; attempt += 1) {
+    await page.keyboard.press(key);
+    if (await target.evaluate((element: Element) => element === document.activeElement)) return;
+  }
+  throw new Error(`Keyboard traversal did not reach target after ${maxTabs} ${direction} tabs`);
+}
 
 function isolatedE2eTarget(value: string | undefined) {
   try {
@@ -61,8 +70,19 @@ test.describe.serial("F-07 check-in and attendance", () => {
     await expect(cancelledRegistration.getByText(/^Status:\s*CANCELLED\b/)).toBeVisible();
     await expect(cancelledRegistration.getByText(/^Attendance:\s*Checked In\s·/)).toHaveCount(0);
     await expect(secondaryRegistration.getByText(/^Attendance:\s*Not Checked In$/)).toBeVisible();
-    await primaryRegistration.getByRole("button", { name: /View event details|View registration details/i }).focus();
-    await expect(primaryRegistration.getByRole("button", { name: /View event details|View registration details/i })).toBeFocused();
+    const detailsButton = primaryRegistration.getByRole("button", { name: /View event details|View registration details/i });
+    await tabUntilFocused(page, detailsButton, "forward");
+    await expect(detailsButton).toBeFocused();
+    await page.keyboard.press("Enter");
+    const registrationDetail = page.locator("section.registration-detail-view");
+    await expect(registrationDetail).toBeVisible();
+    await expect(registrationDetail.getByRole("heading", { name: eventTitle, exact: true })).toBeVisible();
+    await expect(registrationDetail.getByText(/^Registration status$/)).toBeVisible();
+    const backButton = page.getByRole("button", { name: "Back to My Registrations" });
+    await tabUntilFocused(page, backButton, "backward");
+    await expect(backButton).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("heading", { name: "My Registrations", exact: true })).toBeVisible();
     await page.reload();
     await page.getByRole("tab", { name: "My Registrations" }).click();
     await expect(primaryRegistration.getByText(/^Attendance:\s*Checked In\s·/)).toBeVisible();

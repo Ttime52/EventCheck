@@ -91,7 +91,9 @@ test("TEST-F06-15: Participant cancels, keeps history after reload, and re-regis
   await expect(cancelButton).toBeVisible();
   await expect(firstCard).not.toContainText("Loading attendance...");
   await expect(firstCard).not.toContainText("Attendance unavailable");
-  await cancelButton.focus();
+  const detailsButton = firstCard.getByRole("button", { name: "View registration details" });
+  await expect(detailsButton).toBeVisible();
+  await detailsButton.press("Tab");
   await expect(cancelButton).toBeFocused();
   page.once("dialog", dialog => dialog.accept());
   await page.keyboard.press("Enter");
