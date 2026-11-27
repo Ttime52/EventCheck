@@ -14,18 +14,35 @@ No `F-*` identifiers existed in the repository before this inventory. The IDs be
 
 ## 2. Product feature inventory
 
-| Feature ID | Feature | Concise description | Related requirements | Dependencies and prerequisites | Planned sprint |
-| --- | --- | --- | --- | --- | --- |
-| F-01 | Authentication and Session Identity | Authenticate seeded Participant and Organizer accounts; expose safe current-user identity; end and validate server-side sessions; provide the identity foundation for every protected operation. | FR-01 to FR-05; BR-04; NFR-02, NFR-03 | Seeded synthetic accounts and roles; approved D-02 and Q-09; session, cookie, CSRF, expiry, and renewal details completed in the System-Level SDS and feature contract. No feature prerequisite. | Sprint 1 |
-| F-02 | Event Publishing and Owner Management | Let an Organizer create, validate, publish, persist, and retrieve owned university events. Sprint 1 publication requires the agreed fields and fixes published capacity after publication. | FR-06 to FR-09; BR-01, BR-02, BR-05, BR-12; Sprint 1 boundary of BR-15; NFR-01, NFR-04, NFR-06, NFR-08 | F-01; persistent Event storage and ownership link; approved D-03, D-04, D-08, and Q-11; backend role and ownership enforcement. | Sprint 1 |
-| F-03 | Public Event Discovery and Participant Registration | Let visitors discover published events and view public details; let an authenticated Participant register themself, retrieve their persisted registrations, and receive safe, actionable rejection outcomes. | FR-11 to FR-14 and FR-16 for Sprint 1 behavior; BR-03 to BR-11; NFR-01, NFR-04 to NFR-08 | F-01 and F-02; approved Q-08; authoritative server identity; transactional database enforcement for duplicate and capacity rules. | Sprint 1 |
-| F-04 | Organizer Registration Management | Let an Organizer retrieve the registration list for an owned event, including only the defined event-scoped participant and registration fields. | FR-15; BR-02 to BR-04; NFR-01, NFR-04, NFR-08 | F-01 to F-03; owner-scoped registration retrieval and explicit empty state; private-data filtering. | Sprint 1 |
-| F-05 | Capacity and Registration Deadline Management | Let an owning Organizer atomically change a published event's capacity before start and optionally set a registration deadline; display and enforce the effective deadline and closed-registration outcome. | FR-10; Sprint 2 extensions of FR-12, FR-13, and FR-16; BR-02, BR-05, BR-09 to BR-11, BR-14, BR-15; NFR-01, NFR-04 to NFR-06, NFR-08 | F-01 to F-03; active-registration counts and server-authoritative time; Q-01 to Q-03 and F-05 v0.6 contract/API/schema accepted and integrated. | Sprint 2 |
-| F-06 | Registration Cancellation and Re-registration | Let a Participant cancel an eligible own registration, preserve cancellation history, release one place exactly once, see cancelled status, and register again only after all current rules pass. | Sprint 2 extension of FR-14; FR-17, FR-18; BR-03, BR-08, BR-09, BR-11, BR-13, BR-14; NFR-01, NFR-04 to NFR-06, NFR-08 | F-03 and accepted/integrated F-05; lifecycle persistence; share the checked-in guard and lock order with accepted F-07; Q-04, Q-06, and Q-10 accepted. F-06 contract acceptance was confirmed by the user on 2026-11-25. | Sprint 2 |
-| F-07 | Organizer Check-in and Attendance Retrieval | Let only the owning Organizer check in an eligible active registrant during the allowed window; prevent duplicate or invalid attendance; let authorized Organizers and Participants retrieve attendance. | FR-19 to FR-21; BR-02 to BR-04, BR-11, BR-16, BR-17; NFR-01, NFR-04 to NFR-06, NFR-08 | F-01, F-04, accepted/integrated F-05, accepted F-06; persistent Attendance records and server-authoritative time; Q-05 and Q-10 accepted. F-07 contract acceptance was confirmed by the user on 2026-11-25. | Sprint 2 |
-| F-08 | Registration and Attendance Summaries | Show an owning Organizer consistent event-level registration and attendance totals, remaining places, not-checked-in count, and attendance rate, including cancellation history and zero-denominator handling. | FR-22, FR-23; BR-02, BR-09, BR-18; NFR-01, NFR-04, NFR-06, NFR-08 | F-05 to F-07; a consistent committed data view; approve or revise proposed D-10 and BR-18 through change control before accepting the contract. | Sprint 3 |
+The approved allocation remains F-01 to F-04 in Sprint 1, F-05 to F-07 in Sprint 2, and F-08 in Sprint 3. Status is assessed from the checked-out `sprint-2-staging` baseline, not from allocation alone. See [Sprint 2 AC verification](sprints/sprint-2/ac-verification.md) for the complete F-05/F-06/F-07 matrix.
 
-## 3. Cross-cutting system responsibilities
+| Feature ID | Feature | Scope and linked requirements | Assigned sprint | Dependencies | Contract |
+| --- | --- | --- | --- | --- | --- |
+| F-01 | Authentication and Session Identity | Seeded role login, identity, logout, session validation; FR-01 to FR-05, BR-04, NFR-01 to NFR-03 | Sprint 1 | Seeded synthetic accounts; establishes identity for all protected features | [Sprint 1 contract](sprints/sprint-1/f-01-authentication.md) |
+| F-02 | Event Publishing and Owner Management | Organizer event create/publish/retrieve; FR-06 to FR-09, BR-01, BR-02, BR-05, BR-12, Sprint 1 BR-15 boundary | Sprint 1 | F-01; persistent Event ownership, validation, UTC instants | [Sprint 1 contract](sprints/sprint-1/f-02-event-publishing.md) |
+| F-03 | Public Event Discovery and Participant Registration | Public discovery/details, self-registration, personal reads and safe rejections; FR-11 to FR-14, FR-16, BR-03 to BR-11 | Sprint 1 | F-01, F-02; server identity and transactional capacity/duplicate checks | [Sprint 1 contract](sprints/sprint-1/f-03-event-registration.md) |
+| F-04 | Organizer Registration Management | Owner-scoped, private event registration list; FR-15, BR-02 to BR-04 | Sprint 1 | F-01 to F-03; event ownership and filtered registrant data | [Sprint 1 contract](sprints/sprint-1/f-04-organizer-registrations.md) |
+| F-05 | Capacity and Registration Deadline Management | Owner edits to capacity/deadline and deadline eligibility; FR-10, extensions to FR-12/13/16, BR-02, BR-05, BR-09 to BR-11, BR-14/15 | Sprint 2 | F-01 to F-03; active registration count and server time | [Accepted v0.6 contract](sprints/sprint-2/f-05-capacity-deadline.md) |
+| F-06 | Registration Cancellation and Re-registration | Cancel own eligible registration, preserve history, release a place once, re-register after current checks; FR-14, FR-17/18, BR-03, BR-08/09, BR-11, BR-13/14 | Sprint 2 | F-03 and F-05; checked-in guard/lock order shared with F-07 | [Accepted v0.5 contract](sprints/sprint-2/f-06-registration-cancellation.md) |
+| F-07 | Organizer Check-in and Attendance Retrieval | Owner check-in during the event and authorized attendance reads; FR-19 to FR-21, BR-02 to BR-04, BR-11, BR-16/17 | Sprint 2 | F-01, F-04 to F-06; Attendance persistence and server time | [Accepted v0.5 contract](sprints/sprint-2/f-07-organizer-check-in.md) |
+| F-08 | Registration and Attendance Summaries | Planned organizer totals and attendance rate, including lifecycle history and zero-active behavior; FR-22/23, BR-02/09/18 | Sprint 3 | F-05 to F-07 and a consistent committed data view; D-10/BR-18 approval is a gate | No F-08 contract found in inspected branches |
+
+## 3. Implementation, test, and acceptance status
+
+`IMPLEMENTED`, `TESTED`, and `ACCEPTED` are separate states. A test run or staging merge does not alone record feature/release acceptance. The Issue 15 implementation/test source SHA is `107c93eafbc5c2afb29527336665a6d38269c478`; the current staging HEAD is merge commit `f08177c1cf4d9820846a72ef1fc1bcff55c9b96b`. Their tree diff is documentation-only. No Git release tags are present.
+
+| Feature | Implementation status | Test execution status | Acceptance status | Actual PR / commit / release evidence | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| F-01 | IMPLEMENTED | TESTED; Sprint 1 verified 37/37 PostgreSQL integration and 16/16 E2E at the accepted candidate; Issue 15 regression included auth suites, 87/87 integration and 30/30 E2E on `107c93e` | ACCEPTED for Sprint 1 | Issue #8 / `feature/06-auth-role-access`; accepted integrated candidate `da3fa630be862955c973cc9e0c8cddcc5e1dcd6e` (PR #20); current regression: [`auth.integration.test.ts`](../server/src/auth.integration.test.ts), [`f01-auth.spec.ts`](../e2e/f01-auth.spec.ts) | No F-01-specific release gap; final release regression remains an Issue 17 gate. |
+| F-02 | IMPLEMENTED | TESTED in Sprint 1 and Issue 15 regression; see `events.integration.test.ts` and `f02-event-publishing.spec.ts` | ACCEPTED for Sprint 1 | Issue #9 / PR #17; accepted candidate `da3fa630`; regression SHA `107c93e` | Sprint 1 schema supports only `PUBLISHED`; unpublished-state negative coverage remains the recorded accepted limitation. |
+| F-03 | IMPLEMENTED | TESTED in Sprint 1 and Issue 15 regression; see public-events/registration integration suites and `f03-registration.spec.ts` | ACCEPTED for Sprint 1 | Issue #12 / PR #20; accepted candidate `da3fa630`; regression SHA `107c93e` | Unpublished Event state and quantitative NFR-07 measurement remain outside verified Sprint 1 scope. |
+| F-04 | IMPLEMENTED | TESTED in Sprint 1 and Issue 15 regression; see `organizer-registrations.integration.test.ts` and `f04-organizer-registrations.spec.ts` | ACCEPTED for Sprint 1 | Issue #11 / PR #19; accepted candidate `da3fa630`; regression SHA `107c93e` | No feature-specific gap recorded; repeat in final candidate verification. |
+| F-05 | IMPLEMENTED and integrated to `sprint-2-staging` | TESTED: all 12 automated ACs passed; AC-F05-13 evidence review recorded PASS (manual, not automated). Overall suite: Issue 15 87/87 PostgreSQL integration and 30/30 E2E on `107c93e` | Contract v0.6 ACCEPTED; Sprint 2 release acceptance not recorded | Feature PR #58; integration/test PR #61 merged at `f08177c`; test SHA `107c93e`; see [AC matrix](sprints/sprint-2/ac-verification.md) | Issue 17 must repeat full verification on its exact release candidate; no Sprint 2 release tag/deployment recorded. |
+| F-06 | IMPLEMENTED and integrated to `sprint-2-staging` | TESTED: AC-F06-01 to AC-F06-13 passed in Issue 15 evidence; test SHA `107c93e` | Contract v0.5 ACCEPTED; Sprint 2 release acceptance not recorded | Feature PR #59; integration/test PR #61 merged at `f08177c`; test SHA `107c93e`; see [AC matrix](sprints/sprint-2/ac-verification.md) | Issue 17 final-candidate verification and release acceptance remain open. |
+| F-07 | IMPLEMENTED and integrated to `sprint-2-staging` | TESTED: AC-F07-01 to AC-F07-12 passed in Issue 15 evidence; test SHA `107c93e` (restart check itself last recorded on `b9df85c`, same application code) | Contract v0.5 ACCEPTED; Sprint 2 release acceptance not recorded | Feature PR #60; integration/test PR #61 merged at `f08177c`; see [AC matrix](sprints/sprint-2/ac-verification.md) | Issue 17 final-candidate verification and release acceptance remain open. |
+| F-08 | PARTIAL; an organizer panel currently derives six lifecycle/capacity counts from F-04 registration and F-07 attendance responses | PARTIAL TESTED: `TEST-F07 metrics exclude cancelled history from active attendance` in `client/src/App.test.tsx` and the joined `TEST-I15-E2E-01` passed in the 29/29 client and 30/30 E2E runs on `107c93e`; not a formal F-08 AC/STS run | NOT ACCEPTED; D-10/BR-18 remain proposed and no F-08 contract was found | No F-08 PR or release evidence found; partial behavior is present in [`App.tsx`](../client/src/App.tsx), tested on `107c93e` | No summary API, approved consistency rule, attendance rate, zero-active N/A behavior, F-08 AC/STS, contract review, or acceptance record. |
+
+## 4. Cross-cutting system responsibilities
 
 These responsibilities are not extra user-facing features. They identify ownership for requirements that apply across several features, as permitted by Part B of the deliverable specification.
 
@@ -40,7 +57,7 @@ These responsibilities are not extra user-facing features. They identify ownersh
 
 Lab 5 is a separate course checkpoint, not a fourth sprint. Its operational work extends SR-05 without moving any product feature out of its planned sprint.
 
-## 4. Increment boundaries
+## 5. Increment boundaries
 
 The following split prevents mixed-sprint requirements from being silently completed or deferred as a whole:
 
@@ -50,19 +67,14 @@ The following split prevents mixed-sprint requirements from being silently compl
 | FR-13 | F-03 registers an authenticated Participant under the Sprint 1 eligibility rules, with no time-based closure. | F-05 applies BR-14's effective deadline in Sprint 2. |
 | FR-14 | F-03 retrieves active personal registrations and proves persistence. | F-06 exposes the cancelled lifecycle state in Sprint 2. |
 | FR-16 | F-03 explains malformed, missing, unpublished, duplicate, and full outcomes. | F-05 adds the closed-registration outcome in Sprint 2. |
-| BR-15 | F-02 treats published capacity as fixed. | F-05 adds the proposed controlled capacity-edit workflow in Sprint 2. |
+| BR-15 | F-02 treats published capacity as fixed. | F-05 adds the accepted controlled capacity-edit workflow in Sprint 2. |
 | NFR-07 | SR-06 defines the proposed performance target and reproducible method. | SR-06 performs quantitative verification in Sprint 3. |
 | NFR-11 | SR-05 proves documented local execution and deployment suitability. | Lab 5 proves container/cloud delivery; the responsibility is retained through Sprints 2 and 3. |
 
-## 5. Decision status and change control
+## 6. Decision status and change control
 
-This inventory carries forward approved SRS decisions D-02, D-03, D-04, D-08 and resolved questions Q-08, Q-09, Q-11. It does not elevate proposed policies to approved decisions.
+This inventory carries forward SRS decisions D-02 to D-09 and Q-01 to Q-06, Q-08 to Q-11 at their recorded approval level. F-05 v0.6, F-06 v0.5, and F-07 v0.5 contracts are accepted. Implementations and test outcomes are recorded separately above and in the linked evidence. The Sprint 2 PR #61 merge proves integration into staging; it does not replace Issue 17's exact-candidate release verification or formal release record.
 
-Current contract status: F-05 v0.6, F-06 v0.5, and F-07 v0.5 are accepted. F-06 implementation and verification are complete on the feature branch; see [F-06 implementation evidence](sprints/sprint-2/f-06-implementation-evidence.md). F-07 check-in/retrieval API and UI work remains pending; its shared Attendance persistence was added for the F-06 guard.
-
-Remaining policy decisions before their affected contracts are accepted:
-
-- F-08 must confirm or revise D-10 and BR-18, and address Q-10.
-- SR-06 must confirm or revise the proposed numerical targets identified by D-12.
+F-08 remains partial: approve or revise D-10 and BR-18, resolve applicable retention/reporting interpretation under Q-10 (already accepted for project synthetic data), write and review the F-08 contract/AC/STS, then complete implementation and verification. SR-06 numeric targets in D-12 also remain proposed and require review before quantitative performance verification.
 
 Q-07 remains outside the baseline: Organizer-initiated event cancellation has no feature ID or FR. This inventory does not add it. Any approved scope or policy change must update `srs.md`, this inventory, `traceability.md`, the sprint plan, and affected contracts while preserving existing IDs and recording the rationale.

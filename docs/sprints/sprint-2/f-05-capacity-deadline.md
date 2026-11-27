@@ -3,10 +3,12 @@
 **Issue:** #47 — Contract task: Capacity & Registration Deadline Management
 
 **Contract version:** 0.6
-**Status:** Accepted — Team Reviewed implementation baseline; implementation verified locally, formal release approval pending.
+**Status:** Accepted — Team Reviewed implementation baseline; implemented, tested, and staging-integrated; formal Sprint 2 release acceptance pending.
 **Approval evidence:** Teammate approval was explicitly supplied in the Issue #48 task context. Reviewer identity, date, and approval URL are not available in this repository and must be recorded by the project owner.
 **Sprint:** 2
-**Updated:** 2026-11-25
+**Contract revision:** 2026-11-25
+
+**Current implementation snapshot (2026-11-27):** F-05 is IMPLEMENTED and TESTED; its 12 automated AC results and manual AC-F05-13 review are recorded in the [Sprint 2 AC matrix](ac-verification.md) and [Issue 15 integration report](integration-verification.md). Feature PR #58 was merged to `feature/sprint-2-e2e`; PR #61 integrated the tested tree into `sprint-2-staging` at `f08177c`. Formal Sprint 2 release acceptance and current-candidate deployment evidence remain pending under Issue 17. The dated v0.6 review/history entries below retain the status as it stood when those records were written.
 
 This contract extends the accepted Sprint 1 Event, Registration, session, ownership, and concurrency baseline. It does not change Sprint 1 behavior: published capacity remains fixed there, and Sprint 1 registration has no time-based closure.
 
@@ -33,7 +35,7 @@ The backend derives the Organizer from the validated F-01 session and requires `
 3. A Participant can register only while server time is strictly before the effective deadline and while all Sprint 1 publication, duplicate, capacity, and authorization rules pass. At or after the deadline, the request is rejected without consuming a place.
 4. A rejected edit or registration leaves the previously committed Event, Registration rows, active count, and remaining places unchanged. No participant is automatically displaced when capacity is reduced.
 
-Q-01, Q-02, and Q-03 policy review is recorded in F-05 v0.3 and reflected in the SRS. The F-05 v0.4 changes from Issue #47 are preserved as the baseline. This v0.6 records the team-reviewed implementation baseline for the API and schema while retaining the reviewed semantics: `registrationAvailable` remains capacity-based and additive `registrationOpen` represents the deadline window. Implementation completion and release evidence remain pending.
+Q-01, Q-02, and Q-03 policy review is recorded in F-05 v0.3 and reflected in the SRS. The F-05 v0.4 changes from Issue #47 are preserved as the baseline. This v0.6 records the team-reviewed implementation baseline for the API and schema while retaining the reviewed semantics: `registrationAvailable` remains capacity-based and additive `registrationOpen` represents the deadline window. At the v0.6 review snapshot, implementation completion and release evidence were pending; the current implementation/test/integration status is recorded above.
 
 ## B. UI and interaction design
 
@@ -86,7 +88,7 @@ This additive `registrationOpen` field avoids changing F-03's approved `registra
 | Q-02 — reduction below active count | Reject the reduction, preserve prior capacity and every Registration, and never cancel/displace Participants automatically. | Accepted — Team Reviewed |
 | Q-03 — deadline/default | Deadline is optional; if absent, Event start is the effective deadline. An explicit deadline must be no later than start, and registration is allowed only when server time is strictly earlier. | Accepted — Team Reviewed |
 
-Acceptance rationale recorded by the teammate review: Q-01 preserves owner control while preventing edits after the event starts; Q-02 preserves the BR-09 invariant and avoids silently displacing Participants; Q-03 gives organizers an optional cutoff with a deterministic start-time default and server-authoritative boundary. The field meanings and v0.6 API/schema baseline are accepted; implementation and release evidence remain pending.
+Acceptance rationale recorded by the teammate review: Q-01 preserves owner control while preventing edits after the event starts; Q-02 preserves the BR-09 invariant and avoids silently displacing Participants; Q-03 gives organizers an optional cutoff with a deterministic start-time default and server-authoritative boundary. The field meanings and v0.6 API/schema baseline are accepted. Implementation/test evidence is now recorded in the linked AC matrix; formal release acceptance remains pending.
 
 The proposed PATCH success returns `200` with the existing Event success representation. Syntactically malformed JSON returns `400 MALFORMED_JSON`; syntactically valid but empty, unknown-only, mistyped, or invalid field values return `422 VALIDATION_ERROR` with field details. An edit at/after start returns `409 EVENT_MODIFICATION_CLOSED`; a reduction below the committed ACTIVE count returns `409 CAPACITY_BELOW_ACTIVE_COUNT`. Authentication, role, CSRF, and inaccessible Event outcomes use `401`, `403`, and privacy-preserving `404` as shown above. No request partially applies one field when the other field fails validation.
 
@@ -156,20 +158,21 @@ Issue #47 contract work is complete for review when Sections A–F are internall
 | Q-01, Q-02, Q-03 | Team-reviewed policy recorded in F-05 v0.3 and synchronized to the SRS |
 | `registrationAvailable` / `registrationOpen` meanings | Accepted — Team Reviewed; verified locally |
 | Issue #47 coordination | F-05 v0.4 carried forward without rewriting its reviewed history; v0.6 records the accepted implementation baseline |
-| Contract completion/review | Accepted baseline; implementation evidence recorded, formal PR/release review pending |
+| Contract completion/review | Accepted baseline; implementation and AC verification recorded; PR #58 and staging integration PR #61 merged; formal Sprint 2 release acceptance pending |
 
-## H. Future F-05 Feature Implementation Definition of Done
+## H. F-05 Implementation and Release Status
 
-F-05 implementation is not Done until the accepted Q-01, Q-02, and Q-03 policies and v0.6 API/schema baseline are implemented and migrated; all required tests pass against isolated `eventcheck_test/public`; and evidence identifies the tested commit.
+The implementation and tests have been completed and integrated as described in the current snapshot above. The following table separates that evidence from the remaining formal release gate; it is not an assertion that a Sprint 2 release has been accepted.
 
 | Item | Status |
 | --- | --- |
 | Q-01, Q-02, Q-03 policy acceptance | Team Reviewed; recorded in F-05 v0.3 and synchronized to the SRS |
 | `registrationAvailable` / `registrationOpen` field semantics | Accepted — Team Reviewed; verified locally |
 | v0.6 API/data contract approval | Accepted — Team Reviewed; implementation verified locally |
-| Implementation, migration, and executable tests | Verified locally |
-| Test evidence and implementation SHA | Recorded for the final working-tree content immediately before `f88f451387faca606658c176a99a7d6a0b92a3fd` |
-| Formal PR/release approval | Pending |
+| Implementation, migration, and executable tests | Implemented and tested; Issue 15 verification recorded on `107c93e` |
+| Test evidence and implementation SHA | Feature verification recorded before `f88f451`; integrated regression recorded on `107c93e`; see AC matrix for each AC and limitations |
+| Feature PR / staging integration | PR #58 merged to `feature/sprint-2-e2e`; PR #61 merged to `sprint-2-staging` at `f08177c` |
+| Formal Sprint 2 release acceptance / deployment | Pending; Issue 17 must verify and identify the exact release candidate |
 
 ### Review record
 
@@ -228,7 +231,7 @@ The tested implementation identity is the working-tree content immediately befor
 | Actual API process restart | PASS | `test:f05:restart` passed against isolated database. |
 | Sprint 1 regression | PASS | Backend 92/92 and full Playwright 19/19. |
 | Tested implementation identity | Recorded | Evidence corresponds to final working-tree content immediately before `f88f451387faca606658c176a99a7d6a0b92a3fd`; no separate post-commit rerun is claimed. |
-| Teammate PR review | Pending | Formal PR review/approval not yet recorded. |
+| Feature PR / merge | PR #58 merged to `feature/sprint-2-e2e`; PR #61 merged the tested tree to staging. | This contract does not include the reviewer identity or a substantive review summary; cite the actual PR review record in the final PDF if available. Do not infer review quality from merge alone. |
 
 - [SRS](../../srs.md), [Feature Inventory](../../features.md), [Traceability Matrix](../../traceability.md), and [Sprint Plan](../plan.md).
 - Existing Sprint 1 contracts: [F-01](../sprint-1/f-01-authentication.md), [F-02](../sprint-1/f-02-event-publishing.md), [F-03](../sprint-1/f-03-event-registration.md), and [F-04](../sprint-1/f-04-organizer-registrations.md).

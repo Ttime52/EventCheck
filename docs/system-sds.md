@@ -1,585 +1,202 @@
 # EventCheck System-Level Software Design Specification
 
-**Course:** CPE 334 — Introduction to Software Engineering in the Age of AI Agents
+**Project:** EventCheck — Event Registration and Attendance System
+**Snapshot:** 2026-11-27
+**Current target branch:** `sprint-2-staging` at `f08177c1cf4d9820846a72ef1fc1bcff55c9b96b`
+**Verified implementation/test SHA:** `107c93eafbc5c2afb29527336665a6d38269c478`
+**Release status:** Sprint 1 has an accepted candidate; Sprint 2 is implemented, tested and staging-integrated, but a formal release acceptance/deployment record is not present.
 
-**Theme:** 3 — Event Registration and Attendance System
+## 1. Purpose, scope, and status conventions
 
-**Issue:** #3 — System Architecture and System-Level SDS
+This SDS describes the system design present in the checked-out Sprint 2 staging implementation. It uses actual technology, route, model, and migration names from the repository. It distinguishes accepted requirements and contracts from implemented behavior and executed evidence. A design proposal or route in an old contract is not treated as an implemented API.
 
-**Status:** Proposed design for peer review; this document is not an implementation report.
-
-## 1. Introduction
-
-### 1.1 Purpose and scope
-
-This System-Level Software Design Specification (SDS) translates the approved EventCheck requirements into an implementable architecture for a two-student team. It covers the complete product across Sprints 1–3 and provides enough detail to implement the Sprint 1 vertical slice: authentication, event publication, public discovery, participant registration, personal retrieval, and owner registration management.
-
-The SDS describes logical components, responsibilities, data ownership, interfaces, security, transactions, deployment readiness, and verification seams. It does not claim that the application, tests, deployment, or performance measurements already exist. Exact acceptance criteria and test specifications remain the responsibility of the feature contracts.
-
-### 1.2 Relationship and audience
-
-The [SRS](srs.md) is authoritative for observable behavior, business rules, quality targets, IDs, and sprint allocation. The [Feature Inventory](features.md) groups those requirements into F-01–F-08 and SR-01–SR-06. The [Traceability Matrix](traceability.md) records coverage and open evidence gaps. The [Sprint Plan](sprints/plan.md) governs sequencing and completion gates. This SDS fills the architecture, data, API, permission, session, and deployment design gap identified by G-06.
-
-The audience is the two student developers, peer reviewers, instructor/TA, and acceptance testers. Decisions marked **Agreed - Approved** or **Accepted — Team Reviewed** are carried forward from the SRS at their recorded level; team-reviewed policy does not by itself accept a feature contract, API/schema design, or implementation. Choices marked **Proposed** require team review before being treated as implementation commitments. Open questions remain open; no implementation or stakeholder approval is inferred.
-
-## 2. Architectural Overview
-
-EventCheck uses a conventional three-layer web application with one deployable backend and one frontend application. Logical services are modules inside the backend, not separate microservices. This keeps the system understandable and testable for two students while preserving clear boundaries.
-
-```mermaid
-flowchart LR
-    B[Web browser]
-    F[Frontend application<br/>views and client state]
-    API[Backend API<br/>validation and error mapping]
-    AUTH[Authentication and<br/>session middleware]
-    ACL[Authorization and<br/>ownership checks]
-    SVC[Business services<br/>events registrations attendance reports]
-    DB[(Relational database)]
-    SS[(Server-side session store)]
-    B --> F
-    F -->|HTTPS JSON requests| API
-    API --> AUTH
-    AUTH --> SS
-    API --> ACL
-    ACL --> SVC
-    SVC --> DB
-    F -.->|public discovery only| API
-    AUTH -.->|protected requests require valid session| ACL
-```
-
-The Presentation Layer renders public and authenticated views, sends requests, displays explicit loading/empty/error/success states, and never decides authorization. The Application/API Layer validates input, resolves the authenticated identity, applies role and ownership policy, executes business transactions, and returns safe status/error responses. The Persistence Layer stores users, sessions, events, registrations, and attendance with database constraints and indexes.
-
-Public `GET` discovery/detail requests may be unauthenticated under approved Q-08. Registration, identity, event management, organizer lists, attendance, and reports require a server-validated session. Every protected request repeats authorization in the backend even when the UI hides a control.
-
-## 3. Technology Stack and Design Rationale
-
-The repository contains documentation only, but both team members confirmed the following core stack during the Issue #3 PR review. These core selections are **Approved (Team Confirmed)**; deployment services and unconfirmed tooling remain Proposed. The design remains portable to an equivalent implementation only where a later reviewed decision permits change.
-
-| Area | Technology or boundary | Responsibility and rationale | Status and constraints |
-| --- | --- | --- | --- |
-| Frontend | React + TypeScript + Vite | Accessible views, routing, form state, API client, and explicit states; familiar tooling limits custom DOM code. | Approved (Team Confirmed). Must not hold authorization state as trusted data. |
-| Backend | Node.js + Express + TypeScript | Routes, middleware, validation, services, transaction boundaries, and safe error mapping. | Approved (Team Confirmed). Keep one backend deployment and a testable service layer. |
-| API | JSON over HTTPS with resource-oriented REST-like routes | Simple browser-to-backend contract suitable for Sprint 1 and later feature contracts. | Proposed. Route names below are design candidates, not completed APIs. |
-| Database | PostgreSQL | Foreign keys, unique constraints, transactions, row locks/conditional updates, and durable state directly support BR-08–BR-11 and NFR-05. | Approved (Team Confirmed). The implementation must preserve the stated transaction guarantees. |
-| Data access | Prisma ORM with explicit transaction/constraint queries | Centralizes migrations, seed workflow, and queries while retaining explicit transaction boundaries. | Approved (Team Confirmed). No frontend or in-memory substitute may be the system of record. |
-| Sessions | Server-side session records and opaque cookie identifier | Matches approved D-02/Q-09 and supports logout invalidation and server-side expiry checks. | Approved design; cookie attributes remain deployment-configured. |
-| Testing | Vitest, Supertest, and Playwright with real-database integration | Verifies authorization, persistence, constraints, races, and selected UI journeys at the boundary where they occur. | Proposed tools; method required by the Sprint Plan. |
-| Deployment | Docker, Artifact Registry, one Cloud Run application, Cloud SQL, Secret Manager; local first | Packages frontend, backend, and migration tooling coherently while preserving Sprint 1 local reproducibility. | Proposed; Lab 5 operational verification; no deployment claimed. |
-
-## 4. Component Design
-
-Logical components are modules in the frontend, backend, or persistence layer. They do not imply separately deployed services.
-
-| Component | Purpose, inputs, outputs, and dependencies | Requirements | Sprint |
-| --- | --- | --- | --- |
-| Public Event Discovery | Requests published events/details; receives public fields, capacity, remaining places, and availability. Depends on Event Service. | FR-11, FR-12, BR-04, F-03 | 1 |
-| Login/Logout and Current Identity | Submits credentials; receives a safe identity or generic failure; starts, reads, and invalidates sessions. | FR-01–FR-05, NFR-02, NFR-03, F-01 | 1 |
-| Organizer Event Management | Validates and submits create-and-publish data; displays owned records. Owner is derived server-side. | FR-06–FR-10, BR-12, D-03, D-04, D-08, F-02 | 1/2 |
-| Participant Registration | Submits self-registration and retrieves only the current participant's records. | FR-13–FR-18, BR-06–BR-15, F-03, F-05, F-06 | 1/2 |
-| Organizer Registration List | Requests registrations for one owned event; backend filters by ownership and returns only event-scoped fields. | FR-15, BR-02, BR-03, BR-04, F-04 | 1 |
-| Check-in and Attendance Views | Future owner-operated check-in and authorized attendance retrieval. | FR-19–FR-21, BR-16, BR-17, F-07 | 2 |
-| Reporting Views | Future event-level registration/attendance summaries from committed state. | FR-22, FR-23, BR-18, F-08 | 3 |
-| Authentication/Session Module | Credential verification, session creation/lookup/expiry, cookie handling, logout invalidation, CSRF protection. | FR-01–FR-05, NFR-02, NFR-03, SR-05 | 1 |
-| Authorization Module | Role checks, ownership predicates, server-derived identity, and safe denials for event and registration operations. | FR-05, BR-01–BR-04, NFR-01, SR-01 | 1 |
-| Event Service | Event validation, publication, public projection, owner management, time/capacity rules. | FR-06–FR-12, BR-01–BR-05, BR-12, BR-14, BR-15, SR-01 | 1/2 |
-| Registration Service | Eligibility, duplicate/capacity checks, transaction-safe insert/cancel/re-register, and durable persistence. | FR-13–FR-18, BR-06–BR-15, NFR-04–NFR-06, SR-02 | 1/2 |
-| Attendance Service | Eligibility, exactly-once check-in, attendance retrieval and privacy. | FR-19–FR-21, BR-16, BR-17, SR-01, SR-02 | 2 |
-| Reporting Service | Access-controlled, consistent committed aggregates and zero-denominator behavior. | FR-22, FR-23, BR-18, SR-01, SR-02 | 3 |
-| Validation/Error Module | Shared field validation, typed error categories, safe messages, and rollback/no-partial-state handling for rejected or failed writes. | FR-07, FR-16, FR-20, NFR-06 | 1–3 |
-
-### 4.1 UI structure and navigation
-
-The frontend uses role-aware routes and shared loading, empty, validation, success, error, and conflict states. Route guards improve navigation and redirect unauthenticated users to Login, but backend authorization remains authoritative. Public event list/detail routes remain available without login under Q-08.
-
-The proposed shared visual language is documented in [`design-system.md`](design-system.md) as EventCheck Sunset. It guides frontend presentation only and does not alter requirements, permissions, or authentication/security behavior.
-
-| Screen | Purpose | Permitted roles | Key operations | Requirements/features | Sprint |
-| --- | --- | --- | --- | --- | --- |
-| Published Event List | Browse published University Events and availability. | Visitor, Participant, Organizer | List/filter public events. | FR-11, FR-12; F-03 | 1 |
-| Published Event Detail | Show public details and registration availability. | Visitor, Participant, Organizer | View details; start registration when eligible. | FR-12; F-03 | 1 |
-| Login | Authenticate seeded account and establish session. | Visitor | Submit credentials; show generic failure. | FR-01, FR-02; F-01 | 1 |
-| Participant Registration | Submit self-registration and show outcome/conflict. | Participant | Register; display validation, full, duplicate, and success states. | FR-13, FR-16; F-03 | 1 |
-| My Registrations List | Retrieve persisted personal registrations. | Participant | List own records; empty state. | FR-14; F-03 | 1 |
-| My Registration Detail | Open one personal registration. | Participant | View event, status, and registration time. | FR-14; F-03 | 1 |
-| Organizer Event List | Manage only owned events. | Organizer | List owned records; empty state. | FR-09; F-02 | 1 |
-| Create and Publish Event | Validate and publish an owned event. | Organizer | Submit fields; show field errors and success. | FR-06–FR-08; F-02 | 1 |
-| Owned Event Detail | Show management details for one owned event. | Owning Organizer | Open event management view. | FR-09; F-02 | 1 |
-| Event Registration List | Show registrations for one owned event. | Owning Organizer | Retrieve event-scoped list; empty state. | FR-15; F-04 | 1 |
-| Cancellation/Capacity/Deadline | Future lifecycle management. | Participant or owning Organizer | Cancel, edit capacity/deadline. | FR-10, FR-17, FR-18; F-05, F-06 | 2 |
-| Check-in and Attendance | Future check-in and attendance retrieval. | Owning Organizer or Participant | Check in; view own/owned attendance. | FR-19–FR-21; F-07 | 2 |
-| Summaries | Future event-level reports. | Owning Organizer | View reconciled summaries. | FR-22, FR-23; F-08 | 3 |
-
-Logout is available from authenticated Participant and Organizer navigation. Wrong-role or wrong-owner routes show a safe denial/not-found state; expired sessions clear local user state and redirect to Login with a non-sensitive notice. Controls show visible focus, keyboard order, labels, and inline validation. Loading states disable duplicate submits, empty states explain that no records exist, successes confirm persistence, and errors distinguish validation from business conflicts without leaking private data.
-
-```mermaid
-flowchart TD
-    V[Visitor] --> L[Published Event List]
-    V --> D[Published Event Detail]
-    V --> Login[Login]
-    Login -->|Participant| P[Participant navigation]
-    Login -->|Organizer| O[Organizer navigation]
-    P --> PL[My Registrations List]
-    P --> PD[My Registration Detail]
-    P --> D
-    D -->|Visitor attempts registration| Login
-    P --> PR[Participant Registration]
-    O -.->|Registration denied| Denied[Safe denial]
-    O --> OL[Organizer Event List]
-    O --> C[Create and Publish Event]
-    O --> OD[Owned Event Detail]
-    OD --> RL[Event Registration List]
-    P -.->|Sprint 2| FutureP[Cancellation and attendance]
-    O -.->|Sprint 2/3| FutureO[Capacity, check-in, summaries]
-    L --> D
-```
-
-## 5. Data Design
-
-The logical model uses stable identifiers and UTC instants for storage/comparison. User-facing date/time input and display are labelled Asia/Bangkok initially, as approved by D-08/Q-11. Database constraints, not only forms, enforce integrity.
-
-```mermaid
-erDiagram
-    USER ||--o{ EVENT : owns
-    USER ||--o{ REGISTRATION : makes
-    EVENT ||--o{ REGISTRATION : receives
-    REGISTRATION ||--o| ATTENDANCE : has
-    USER ||--o{ ATTENDANCE : records
-    USER ||--o{ SESSION : authenticates
-    USER {
-        string user_id PK
-        string login_identifier UK
-        string display_name
-        string password_hash
-        string role
-    }
-    EVENT {
-        string event_id PK
-        string organizer_id FK
-        string title
-        string description
-        string location
-        datetime start_utc
-        datetime end_utc
-        int capacity
-        string publication_state
-        datetime deadline_utc
-    }
-    REGISTRATION {
-        string registration_id PK
-        string event_id FK
-        string participant_id FK
-        datetime registered_at
-        string status
-        datetime cancelled_at
-    }
-    ATTENDANCE {
-        string attendance_id PK
-        string registration_id FK
-        string event_id FK
-        string participant_id FK
-        string recorded_by FK
-        datetime checked_in_at
-    }
-    SESSION {
-        string session_id PK
-        string user_id FK
-        datetime created_at
-        datetime last_activity_at
-        datetime expires_at
-        datetime invalidated_at
-    }
-```
-
-### 5.1 Entities and integrity
-
-- **User:** `user_id` is stable; `login_identifier` is unique; passwords are salted hashes; `role` is Participant or Organizer for seeded accounts. Self-service account administration is outside scope.
-- **Event:** every row has exactly one Organizer owner. `capacity` is a positive integer. `end_utc` is after `start_utc`. Publication state distinguishes unpublished/private from published/public. `deadline_utc` is nullable until Sprint 2 and cannot exceed start time when present.
-- **Registration:** each row belongs to one Event and Participant. An active registration consumes one place; attendance never releases capacity. A database uniqueness strategy permits at most one active row per participant/event (for example a partial unique index, or a transactionally enforced current-state table) while retaining cancelled history from Sprint 2.
-- **Attendance:** one row is associated with one registration; a unique constraint on `registration_id` prevents duplicate check-in. The service derives Event and Participant from the referenced Registration rather than trusting duplicate request fields, verifies that the authenticated recording user owns that Event, and inserts Attendance in one transaction. Foreign keys provide existence guarantees; transactional consistency and ownership checks provide the cross-entity guarantees that ordinary foreign keys alone cannot provide.
-- **Session:** the cookie carries only an opaque identifier. The server stores user association, creation/activity/expiry times, and invalidation state. Lookup rejects expired or invalidated records.
-
-Recommended indexes are unique `login_identifier`, `Event(organizer_id)`, `Event(publication_state, start_utc)`, `Registration(event_id, status)`, `Registration(participant_id, status)`, unique active participant/event, `Attendance(registration_id)`, and `Session(session_id)`.
-
-Persistence boundaries are transaction boundaries: event publication commits its validated Event; registration commits the registration and any capacity guard together; cancellation commits lifecycle state and place release together; check-in commits exactly one Attendance. Failed operations roll back all writes. A naive read-count-then-insert sequence is unsafe because two requests can observe the same free place; the concurrency design in Section 9 is mandatory.
-
-### 5.2 Database lifecycle, migrations, and fixtures
-
-With the team-approved PostgreSQL and Prisma stack, the implementable workflow is: configure `DATABASE_URL` from the environment; create versioned Prisma migrations in source control; apply migrations locally with the development command and deploy with the production-safe migration command; run a deterministic seed script that hashes synthetic passwords with a maintained password-hashing library; and use isolated fixture factories for tests. The migration, seed, and rollback design remains subject to the stated transactional safeguards.
-
-Local setup creates a database from documented environment variables, applies all migrations, and seeds only synthetic Participant/Organizer accounts and sample University Events. Tests use a disposable database or transaction-isolated schema, apply migrations from zero, load reproducible fixtures, and reset between cases; no test relies on browser storage or manual rows. Restart checks reconnect to the same database and retrieve accepted records.
-
-Production migrations run as a reviewed, backup-aware deployment step before code requiring the new schema, with additive changes first and destructive cleanup only after compatibility is verified. Sprint 2 migrations add cancellation/deadline state and attendance constraints without rewriting existing registrations; each migration is versioned, reviewed, and reversible where practical. Database URLs, passwords, and cloud credentials are environment/secret-manager values, never tracked files or client bundles. These are procedures and proposals, not claims of executed migrations or seed runs.
-
-## 6. Authentication and Session Design
-
-The following is the approved D-02/Q-09 design: server-side sessions, HttpOnly cookies, Secure cookies in HTTPS environments, 30-minute idle timeout, 8-hour absolute lifetime, server-side validation, and invalidation on logout. SameSite and CORS values are deployment-dependent but must preserve production CSRF protection and must not weaken cookie security.
-
-### 6.1 Login and session lifecycle
-
-1. The browser submits credentials over HTTPS to the login endpoint.
-2. The backend verifies the seeded account's password hash and role without revealing account-existence details.
-3. The backend creates a fresh, unpredictable session identifier, stores the user association and timestamps, and sends an HttpOnly cookie (`Secure` when HTTPS; appropriate SameSite policy).
-4. Each protected request loads the session server-side, rejects missing/expired/revoked sessions, refreshes activity only within the absolute lifetime, and derives the current user from the record.
-5. Logout invalidates the session server-side and clears the cookie. Replaying its old identifier fails.
-
-Session identifiers are generated by a cryptographically secure facility, are never placed in URLs or logs, and are rotated on login to prevent fixation. Passwords are never stored or returned in plaintext. State-changing browser requests use same-site protections plus a CSRF token or equivalent origin validation appropriate to the selected framework. CORS is explicit, narrow, and credential-aware; wildcard origins are not used with credentials.
-
-```mermaid
-sequenceDiagram
-    participant U as Browser
-    participant API as Backend API
-    participant S as Session Store
-    participant DB as Database
-    U->>API: POST /auth/login credentials
-    API->>DB: Verify login identifier and password hash
-    DB-->>API: Seeded user and role
-    API->>S: Create fresh session (30m idle, 8h absolute)
-    S-->>API: Opaque session id
-    API-->>U: 200 + Set-Cookie HttpOnly/Secure policy
-```
-
-```mermaid
-sequenceDiagram
-    participant U as Browser
-    participant API as Backend API
-    participant S as Session Store
-    participant DB as Database
-    U->>API: Protected request + session cookie
-    API->>S: Validate id, expiry, invalidation
-    S-->>API: Authenticated user or rejection
-    API->>DB: Execute authorized service operation
-    DB-->>API: Persisted result
-    API-->>U: Safe response
-```
-
-```mermaid
-sequenceDiagram
-    participant U as Browser
-    participant API as Backend API
-    participant S as Session Store
-    U->>API: POST /auth/logout + cookie
-    API->>S: Mark session invalidated
-    S-->>API: Confirm invalidation
-    API-->>U: 204 + cleared cookie
-    U->>API: Replay old session id
-    API-->>U: 401 Unauthenticated
-```
-
-## 7. Authorization and Access Control
-
-Unauthenticated Visitor is an access state, not an application role. Identity is always derived from the validated session; client-provided `owner_id` or `participant_id` is ignored or rejected.
-
-| Operation | Visitor | Participant | Owning Organizer | Non-owning Organizer |
-| --- | --- | --- | --- | --- |
-| List/view published events | Allow public fields | Allow | Allow | Allow |
-| Create new Event | Deny | Deny | Allow; owner is assigned from the authenticated session | Allow; owner is assigned from the authenticated session |
-| Publish or manage existing Event | Deny | Deny | Allow only for own event | Deny for another Organizer's event |
-| Retrieve owned event management details | Deny | Deny | Allow own records | Deny |
-| Register for event | Deny | Allow self, if eligible | Deny | Deny |
-| View own registrations | Deny | Allow own records | Deny unless Participant | Deny unless Participant |
-| View event registration list | Deny | Deny | Allow own event | Deny |
-| Cancel own registration (Sprint 2) | Deny | Allow own active record | Deny unless Participant | Deny unless Participant |
-| Change owned capacity/deadline (Sprint 2) | Deny | Deny | Allow own event | Deny |
-| Record/retrieve attendance (Sprint 2) | Deny | Retrieve own | Record/retrieve own event | Deny |
-| View owned reports (Sprint 3) | Deny | Deny | Allow own event | Deny |
-
-Role middleware checks the required role, then ownership predicates check `event.organizer_id = session.user_id` or `registration.participant_id = session.user_id`. Authorization occurs before protected data is returned. Denials use safe 401/403/404-style responses that do not reveal whether another user's private record exists. Direct API calls receive the same checks as UI actions.
-
-## 8. Key System Workflows
-
-### A. Organizer creates and publishes
-
-The Organizer logs in, submits required fields, and the backend validates nonblank text, date ordering, positive capacity, and Sprint 1 field policy. The owner is derived from the session; the client cannot assign it. The Event is persisted and published atomically. A subsequent public query returns only the public projection.
-
-```mermaid
-sequenceDiagram
-    participant O as Organizer UI
-    participant API as Backend API
-    participant A as Auth/ACL
-    participant E as Event Service
-    participant DB as Database
-    O->>API: POST create-and-publish event
-    API->>A: Validate Organizer session
-    A-->>API: Authenticated owner
-    API->>E: Validate fields and derive owner
-    E->>DB: Insert Event(public)
-    DB-->>E: Event id
-    E-->>API: Published event
-    API-->>O: 201 event summary
-```
-
-### B. Public discovery
-
-The visitor requests published events. The Event Service applies the publication predicate and returns public fields, capacity, remaining places, and availability. Registrant identities, unpublished rows, and private management data never enter this projection.
-
-### C. Participant registration
-
-The backend validates a Participant session, published Event, duplicate-active constraint, and capacity inside one transaction. It returns a persisted registration or a typed conflict; the UI display is advisory and is rechecked server-side.
-
-```mermaid
-sequenceDiagram
-    participant P as Participant UI
-    participant API as Backend API
-    participant A as Auth/ACL
-    participant R as Registration Service
-    participant DB as Database
-    P->>API: POST /events/{id}/registrations
-    API->>A: Validate Participant session
-    A-->>API: Participant identity
-    API->>R: Register self for event
-    R->>DB: Transactional eligibility and insert
-    DB-->>R: Commit or conflict
-    R-->>API: Registration or safe rejection
-    API-->>P: 201 / 409 / 422 result
-```
-
-### D. Personal and owner retrieval
-
-Personal retrieval filters by the authenticated Participant, not a URL-supplied participant identity. Owner retrieval first proves ownership of the selected Event and then returns only that Event's registrations. Both are persisted reads and survive restart.
-
-### E. Future workflows
-
-Sprint 2 adds deadline checks, controlled capacity edits, cancellation/re-registration history, and the **Accepted — Team Reviewed Q-05 check-in policy**: only the owning Organizer may check in an existing ACTIVE registration for that Event during the server-authoritative `[startAt, endAt)` window. Q-10 also accepts synthetic registration and attendance history retention through the project and assessment period without automatic deletion; real-user production policy remains separate. F-05 v0.6 records the accepted field meanings: `registrationAvailable` reports remaining capacity, while `registrationOpen` reports whether the effective-deadline window is open. These public fields are informational; backend registration writes recheck all eligibility rules. F-05 v0.6, F-06 v0.5, and F-07 v0.5 contracts are accepted; F-06 implementation evidence is complete, while F-07 check-in/retrieval operations and UI remain pending. Sprint 3 adds committed-state summaries. Each extension reuses the same authorization, UTC comparison, transaction, and safe-error boundaries; it does not move later features into Sprint 1.
-
-## 9. Concurrency and Transaction Design
-
-Registration correctness is a database invariant, not a UI feature. For a registration transaction, the service locks the Event row (or uses an equivalent atomic conditional update), checks publication and active count, checks the participant/event active uniqueness constraint, inserts only if both checks pass, and commits. A constraint violation or capacity conflict rolls back and returns a safe conflict. The implementation must use the selected database's documented transaction isolation/locking behavior; an in-memory mutex alone is insufficient across processes or instances.
-
-**Scenario 1 — last available place:** with capacity 1, requests from Participants A and B serialize on the Event row or compete in one atomic guarded update. One transaction inserts and commits; the other observes no remaining place or a failed guard and rolls back. The committed active count remains 1.
-
-**Scenario 2 — duplicate requests:** two requests from the same Participant serialize and/or hit the active participant/event unique constraint. At most one active Registration commits; the other rolls back as duplicate.
-
-```mermaid
-sequenceDiagram
-    participant A as Participant A
-    participant B as Participant B
-    participant R as Registration Service
-    participant DB as Database
-    par Concurrent requests
-        A->>R: Register Event(capacity=1)
-        B->>R: Register Event(capacity=1)
-    end
-    R->>DB: Tx A lock/guard Event, check count, insert
-    R->>DB: Tx B waits, then recheck count
-    DB-->>R: Tx A commits one active registration
-    DB-->>R: Tx B rolls back full/conflict
-    R-->>A: Success
-    R-->>B: Conflict; refresh availability
-```
-
-Capacity edits in Sprint 2 use the same Event-row guard and require the new capacity to be at least the committed active count. Repeated/concurrent cancellation uses an idempotent state predicate so one transition releases a place and repeats do not release another. Check-in uses a unique registration constraint. All failures leave the prior committed state intact. These controls implement BR-08, BR-09, BR-10, BR-11 and NFR-05.
-
-## 10. API and Interface Design
-
-The following endpoint inventory is **Proposed** until feature contracts approve exact routes and representations. All protected routes require a valid server-side session and backend authorization.
-
-### 10.1 API-wide conventions (Proposed)
-
-Candidate routes use an `/api/v1` base path, HTTPS, JSON request/response bodies, and cookie-authenticated requests. State-changing browser requests require CSRF protection and explicit credential-aware CORS configuration. Validation returns field details; success responses use a `data` envelope; errors use an `error` object with a stable code, safe message, and optional details. Typical statuses are 200/201/204 for success, 400 for malformed JSON, 422 for syntactically valid but invalid fields, 401 for missing/expired authentication, 403 for wrong role/owner, 404 for safe not-found, 409 for business conflicts, and 500 for an unexpected failure.
-
-Collection endpoints may accept bounded `limit` and opaque `cursor` parameters and return `data` plus a `page.nextCursor`; Sprint 1 does not require pagination for small seeded lists. Instants serialize as UTC ISO 8601 values; the UI labels initial display/input as Asia/Bangkok. A request/correlation ID is returned in a response header and included in server logs without credentials. Error messages never reveal passwords, session identifiers, participant lists, or unrelated-record existence. The envelope and codes remain Proposed until team review or feature contracts.
-
-Illustrative examples only (not implemented endpoint evidence):
-
-```json
-{
-  "data": {
-    "id": "example-id"
-  }
-}
-```
-
-```json
-{
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Please correct the highlighted fields.",
-    "details": [
-      {
-        "field": "capacity",
-        "message": "Capacity must be a positive integer."
-      }
-    ]
-  }
-}
-```
-
-```json
-{
-  "error": {
-    "code": "EVENT_FULL",
-    "message": "No places are available for this event."
-  }
-}
-```
-
-These conventions support FR-02, FR-05, FR-07, FR-13, FR-16, NFR-01, and NFR-06 while leaving detailed schemas to feature contracts.
-
-| Method/path | Requester and auth | Responsibility and typical outcomes | Requirements | Sprint |
-| --- | --- | --- | --- | --- |
-| `POST /auth/login` | Any visitor | Verify credentials; set session cookie. `200`, generic `401`, validation `422`. | FR-01, FR-02, NFR-02 | 1 |
-| `POST /auth/logout` | Authenticated user | Invalidate session and clear cookie. `204`, `401`. | FR-03, Q-09 | 1 |
-| `GET /me` | Authenticated user | Return id/display name/role only. `200`, `401`. | FR-04, FR-05 | 1 |
-| `GET /events` and `GET /events/{id}` | Public or authenticated | Return published public projection. `200`, empty list, safe not-found. F-05 v0.6 adds `registrationDeadline` and `registrationOpen` (effective-deadline window); `registrationAvailable` retains its F-03 capacity meaning. Registration writes revalidate eligibility on the backend. | FR-11, FR-12, Q-08 | 1/2 |
-| `POST /events` | Organizer | Validate, derive owner, optionally create-and-publish. `201`, `401/403`, `422`. | FR-06–FR-08, BR-12 | 1 |
-| `GET /organizer/events` | Organizer | Return only owned management records. `200`, `401/403`. | FR-09 | 1 |
-| `POST /events/{id}/registrations` | Participant | Transaction-safe self-registration. `201`, duplicate/full conflict, `401/403/404/422`. | FR-13, FR-16, BR-06–BR-11 | 1 |
-| `GET /me/registrations` | Participant | Return only own persisted registrations. `200`, `401`. | FR-14 | 1 |
-| `GET /me/registrations/{id}` | Participant | Open one persisted registration only when its `participant_id` matches the server-derived identity. `200`, safe `403/404`, `401`. | FR-14, BR-03, BR-04 | 1 |
-| `GET /organizer/events/{id}/registrations` | Owning Organizer | Return registrations for owned Event only. `200`, safe `403/404`. | FR-15 | 1 |
-| `PATCH /organizer/events/{id}` | Owning Organizer | Sprint 2 capacity/deadline transaction. `200`, conflict/validation. | FR-10, BR-14, BR-15 | 2 |
-| `POST /me/registrations/{id}/cancel` | Registration Participant | Sprint 2 cancellation with retained history. | FR-17, FR-18, BR-13 | 2 |
-| `POST /organizer/registrations/{id}/attendance` | Owning Organizer | Sprint 2 exactly-once check-in. | FR-19, FR-20 | 2 |
-| `GET /organizer/events/{id}/attendance` and `/summary` | Owning Organizer | Sprint 2 attendance; Sprint 3 summaries. | FR-21–FR-23, BR-18 | 2/3 |
-| `GET /me/registrations/{id}/attendance` | Participant | Sprint 2 returns attendance associated with the server-derived Participant's own registration only. | FR-21, BR-03, BR-04 | 2 |
-
-Request/response schemas, AC IDs, and STS IDs belong in feature contracts. No route above is evidence of a completed API.
-
-## 11. Error Handling and Validation
-
-The backend distinguishes malformed JSON syntax (`400`) from syntactically valid but invalid field values (`422`); authentication failures (missing/invalid credentials or session, generally 401); authorization failures (wrong role/owner, 403 or safe not-found); business conflicts (duplicate/full/closed/concurrent state, 409); and unexpected persistence failures (generic 500 with server-side diagnostic logging). Messages are actionable for the authorized caller but do not reveal passwords, session identifiers, participant lists, or existence of unrelated private records.
-
-Validation occurs at the API boundary and again in the service/transaction where state can change. Invalid login does not create a session. Missing/expired sessions do not reach protected services. Invalid Event fields, unpublished/missing Events, duplicate/full registrations, invalid deadlines/cancellations/check-ins, and database conflicts leave no partial committed state. Database failures are rolled back, logged without secrets, and returned as a safe retry-oriented failure. Sprint 2 time-window behavior uses server-authoritative UTC instants.
-
-## 12. Non-Functional Design
-
-| NFR | Architectural response and verification boundary |
+| Scope | Current status |
 | --- | --- |
-| NFR-01 Security/privacy | Backend RBAC/ownership, public projection, safe errors, password hashing, session protections, CSRF/CORS policy, and no identifier trust. Verify anonymous, wrong-role, cross-user, and cross-owner requests. |
-| NFR-02 Authentication | Approved server-side sessions with HttpOnly cookies and Secure in HTTPS environments. Verify valid/invalid login and cookie behavior. |
-| NFR-03 Session lifetime | Store activity/absolute expiry server-side (30-minute idle, 8-hour absolute), reject expired/revoked records, invalidate logout. Verify boundary tests with controlled time. |
-| NFR-04 Committed-data preservation | Durable transactional database writes and restart-safe retrieval preserve accepted Event, Registration, and later Attendance/Cancellation records. Verify real-database restart/retrieval, then repeat with durable deployment storage at Lab 5. |
-| NFR-05 Concurrency | Database transaction/locking/atomic guard plus active uniqueness constraint; inspect committed database state in Sprint 1 race tests. |
-| NFR-06 Safe failed-write recovery | Validation, authorization, transaction rollback, and controlled failure handling leave relevant state unchanged and never return false success. Verify negative cases and injected persistence failures with before/after database inspection. |
-| NFR-07 Performance | SR-06 defines Sprint 1 response-time targets and method; quantitative sequential/concurrent measurement against the real API/database belongs in Sprint 3. No benchmark result is claimed here. |
-| NFR-08 Accessible workflow state and errors | Semantic controls, keyboard access, visible focus, readable validation, labelled Asia/Bangkok times, and explicit loading/empty/error/success states. Verify the planned viewport/keyboard walkthrough and selected UI/e2e checks. |
-| NFR-09 Maintainable versioned contracts | Layered modules, migration discipline, stable requirement/feature IDs, contract and traceability links, teammate review, and regression links support maintainable change. Verify sampled engineering history and linked documents. |
-| NFR-10 Reproducible automated verification | Documented clean build/test commands, real database assertions, selected end-to-end journeys, retained counts/commit/failures, and no silently skipped required checks. Verify against the release. |
-| NFR-11 Repeatable deployment | Sprint 1 local setup/build/test/seed/restart is documented and reproducible; Docker, CI/CD, GCP, durable restart, and gated release checks belong to Lab 5. |
-| NFR-12 Externalized configuration and secret protection | Environment variables and safe examples configure runtime; real secrets stay out of tracked files, bundles, evidence, and routine logs; missing required configuration fails safely. Verify configuration review, secret scan, artifact inspection, and missing-variable startup. |
+| F-01 to F-04 | Accepted Sprint 1 increment; regression was included in Issue 15. The accepted candidate is `da3fa630be862955c973cc9e0c8cddcc5e1dcd6e`. |
+| F-05 to F-07 | Accepted contracts; implementation is integrated in `sprint-2-staging`; Issue 15 reports their AC verification passing on `107c93e`. Issue 17 still owns release-candidate verification and acceptance. |
+| F-08 | Partial UI-derived count metrics exist in the Organizer registration view and have component/E2E coverage. No F-08 contract, summary endpoint, rate, zero-active N/A behavior, or accepted D-10/BR-18 policy is recorded. |
 
-## 13. Deployment and Runtime Architecture
+The SRS is authoritative for behavior, rules, IDs, and sprint allocation. The Feature Inventory gives implementation/test/acceptance status; the Traceability Matrix maps requirements to evidence. Feature contracts define accepted APIs, ACs, and STSs. Issue 15 contains the actual Sprint 2 execution record. See [Deliverable 2 evidence map](deliverable-2-evidence-map.md) for the PDF navigation plan.
 
-```mermaid
-flowchart TB
-    Dev[Local developer machine]
-    Browser[Browser]
-    Web[Frontend + API in one application container]
-    App[Backend application process]
-    DB[(Transactional database)]
-    Sess[(Session records)]
-    Env[Environment configuration/secrets]
-    Browser -->|HTTPS| Web
-    Web --> App
-    App --> DB
-    App --> Sess
-    Env -.-> Web
-    Env -.-> App
-    Dev -.-> Browser
-    Dev -.-> App
-    Dev -.-> DB
-```
+## 2. Architecture overview
 
-Sprint 1 targets a reproducible local frontend, backend, and real database with seeded synthetic accounts. Connection strings, cookie/security mode, and secrets come from environment configuration or a local secret mechanism and are never committed. The session store may be a database table in the first implementation; it remains server-side and durable across application restart.
-
-Lab 5 is the checkpoint for Docker, CI/CD, and GCP/durable deployment. Later sprints reuse the same logical boundaries for regression and release hardening. No cloud deployment, CI result, or production readiness is claimed by this document.
-
-### 13.1 Lab 5 obligations and proposed GCP deployment plan
-
-Lab 5 requirements R-01 through R-12 are the mandatory course checkpoint. R-01–R-08 cover the required packaged application, working journey, persistent data, configuration/secrets, automation, and deployment evidence. R-09 requires the reviewed GitHub PR workflow; R-10 requires Lab 5 labels and preserved history; R-11 requires participation of both teammates; and R-12 requires a public repository. The exact evidence, commands, and checkpoint interpretation belong to the Lab 5 submission. This SDS documents design intent, not completed evidence. Artifact Registry, Workload Identity Federation, image digests, and a separate Cloud Run migration/seed job are recommended mechanisms for the proposed architecture, not individually stated mandatory requirements.
-
-Subject to team, account, and cost confirmation, the instructor-aligned candidate is one Docker image containing the EventCheck frontend, backend, and migration/seed tooling, pushed to Artifact Registry and served by a single Cloud Run application. PostgreSQL on Cloud SQL stores domain data and server-side session rows. Google Secret Manager supplies database URLs, cookie keys, and other sensitive configuration to Cloud Run; no secret is bundled into the frontend. Cloud Run uses a least-privilege service account with Cloud SQL and Secret Manager access, and Cloud SQL is not publicly writable.
+EventCheck is a single-repository, three-layer web application. The current production-oriented Docker build packages the React frontend and Express API in one application image; Express can serve the built Vite UI when `SERVE_CLIENT=true`. PostgreSQL is the system of record and Prisma provides schema/client and migration management.
 
 ```mermaid
 flowchart LR
     Browser[Browser]
-    Image[Artifact Registry<br/>versioned Docker image]
-    Run[Cloud Run<br/>single UI + API application]
-    SQL[(Cloud SQL PostgreSQL<br/>domain + session records)]
-    Secrets[Secret Manager<br/>runtime secrets]
-    Actions[GitHub Actions<br/>build/test/deploy]
-    Browser -->|HTTPS| Run
-    Actions -->|push image| Image
-    Image -->|deploy exact digest| Run
-    Run -->|private authenticated connection| SQL
-    Run -.->|read approved secrets| Secrets
-    Job[Cloud Run migration/seed job<br/>same versioned image]
-    Actions -->|start before promotion| Job
-    Job -->|migrate and seed| SQL
-    Job -.->|completes before revision promotion| Run
+    UI[React + TypeScript + Vite UI]
+    API[Express + TypeScript API]
+    Auth[Session, Origin/CSRF, role checks]
+    Logic[Event and registration transactions]
+    DB[(PostgreSQL via Prisma)]
+    Browser -->|HTTP/HTTPS JSON| UI
+    UI -->|/api/v1| API
+    API --> Auth
+    Auth --> Logic
+    Logic --> DB
 ```
 
-The migration/seed job runs and succeeds before the application revision is promoted; it is separate from serving traffic and uses the same versioned image. GitHub Actions builds/tests on reviewed feature PRs into `sprint-1-staging`, then a release PR into `main`; deployment is from `main` only and records the deployed commit SHA and image digest. Workload Identity Federation provides keyless GitHub-to-GCP authentication rather than a long-lived service-account key.
+| Layer | Actual components | Responsibility |
+| --- | --- | --- |
+| Presentation | `client/src/App.tsx`, React, TypeScript, Vite | Public discovery; Participant and Organizer workflows; request state and accessible feedback. The client does not grant authorization. |
+| Application/API | `server/src/app.ts`, `auth.ts`, `events.ts`, `security.ts`; Express/Node.js/TypeScript | Validate inputs, derive identity, enforce role/ownership, perform transaction-backed state changes, and return safe JSON responses. |
+| Persistence | PostgreSQL, Prisma models in `server/prisma/schema.prisma`, versioned migrations | Store identity/session, event, registration lifecycle, and attendance data with foreign keys, check/unique constraints, indexes, and transaction locks. |
+| Packaging/runtime | Root `Dockerfile`, `docker-compose.yml`, GitHub Actions workflows | Build a unified UI/API image, run local/test database workflows, and gate builds. GCP deployment evidence is historical and does not identify the current Sprint 2 release. |
 
-The single Cloud Run origin simplifies browser routing, but cookies still use Secure over HTTPS and a deployment-appropriate SameSite policy. If any separate origin is introduced later, credentialed CORS must allow only the frontend origin and CSRF protection/origin validation must cover state-changing requests; same-site behavior must not be assumed across arbitrary domains. Session expiration remains the approved 30-minute idle and 8-hour absolute lifetime. Cloud Run restarts/redeployments must reconnect to Cloud SQL and retrieve previously committed records; verification must inspect persisted data, not only HTTP responses.
+Core technologies (React/TypeScript/Vite, Express/TypeScript, PostgreSQL/Prisma) were team-confirmed in the existing design history. This SDS records actual repository use; it does not assert a current cloud revision or production readiness.
 
-CI/CD should run lint/build/unit/API tests, migration checks, and selected integration checks before deployment; deployment verification should exercise health, login, public discovery, persistence across backend restart/redeployment, and a protected operation without claiming success until evidence is recorded. This GCP plan is Proposed and belongs to Lab 5, not mandatory Sprint 1 implementation. Artifact Registry, Cloud Run, Cloud SQL, Secret Manager, Workload Identity Federation, quotas, billing, and student-account permissions require team confirmation.
+## 3. Component responsibilities
 
-## 14. Design Decisions and Trade-offs
+| Component | Main responsibility | Requirements / feature |
+| --- | --- | --- |
+| Authentication and identity | Login, database-backed session lookup/expiry/revocation, current identity, logout | FR-01 to FR-05; F-01 |
+| Event management | Organizer-owned event creation, validation, public projection, capacity/deadline update | FR-06 to FR-12; F-02/F-05 |
+| Registration lifecycle | Self-registration, capacity/deadline validation, cancellation, history, re-registration | FR-13 to FR-18; F-03/F-06 |
+| Organizer registration view | Owner-scoped registrations and statuses; source data for the current metrics panel | FR-15; F-04, partial F-08 UI slice |
+| Attendance | Owner check-in, duplicate prevention, event/participant-scoped retrieval | FR-19 to FR-21; F-07 |
+| Summary UI | Client-derived active/cancelled/checked-in/not-checked-in/remaining/total counts | Partial F-08 only; no dedicated summary API or rate calculation is implemented |
+| Shared security and error handling | Session, Origin validation, role/ownership predicates, safe errors | FR-05; BR-01 to BR-04; NFR-01 to NFR-03/NFR-06 |
 
-| Decision | Alternatives | Rationale and trade-off | Status/source |
-| --- | --- | --- | --- |
-| Three-layer web architecture | Microservices, serverless-only | Small team gains simple local execution and clear tests; a single deployment gives less independent scaling. | Proposed; architecture baseline |
-| Server-side sessions | JWT/localStorage tokens | Approved design supports revocation, idle/absolute expiry, and HttpOnly cookies; requires session persistence and lookup. | Approved; D-02, Q-09 |
-| Relational transactional model | Document store, in-memory state | Foreign keys, uniqueness, and transactions directly enforce registration invariants; schema migrations require care. | Approved (Team Confirmed); BR-08–BR-11 |
-| Backend authorization | UI-only checks, client role flags | Central enforcement protects direct API use and ownership; adds middleware/service checks. | Required; FR-05, BR-04/05 |
-| Database-safe registration writes | Read-count then insert, in-memory mutex | Works across concurrent requests/instances and preserves committed invariants; requires database-specific transaction tests. | Required; NFR-05 |
-| Public discovery | Login-gated discovery | Approved Q-08 improves discovery while keeping registration/private data protected; public projections must be narrow. | Approved; Q-08 |
-| UTC storage, Asia/Bangkok display/input | Local-time storage | Avoids comparison ambiguity and matches approved initial user context; conversion/labels must be tested. | Approved; D-08, Q-11 |
-| Combined Create & Publish | Mandatory draft workflow | Meets Sprint 1 with fewer states while retaining validation; draft UI may be added only if later approved. | Approved baseline; D-04 |
-| Later lifecycle modules | Sprint 1 implementation of all features | Keeps two-person scope feasible and preserves the proposed Sprint 2/3 allocation; shared schema must anticipate migrations. | Proposed team planning decision; D-13 |
+## 4. API design and current routes
 
-### 14.1 Technology confirmation register
+The API is JSON under `/api/v1`. Successful responses use a `{ data: ... }` envelope; errors use `{ error: { code, message, details? } }`. Dates are emitted as ISO strings. Client-supplied participant or owner identities do not grant authority; the server derives them from the authenticated session.
 
-| Component | Selected or candidate technology | Rationale/trade-off | Status | Confirmation required |
-| --- | --- | --- | --- | --- |
-| Frontend | React + TypeScript + Vite | Productive component/accessibility tooling; adds a build toolchain. | Approved (Team Confirmed) | Confirmed by both team members during the Issue #3 PR review |
-| Backend | Node.js + Express + TypeScript | Simple middleware and one-language full stack; requires disciplined module boundaries. | Approved (Team Confirmed) | Confirmed by both team members during the Issue #3 PR review |
-| Database/ORM | PostgreSQL + Prisma | Durable relational constraints and versioned migrations; locking details must remain explicit. | Approved (Team Confirmed) | Confirmed by both team members during the Issue #3 PR review |
-| Testing | Vitest + Supertest + Playwright | Covers unit/service, API/database, and selected UI journeys; increases setup surface. | Proposed | Team test-tool decision |
-| GCP runtime | Artifact Registry + single Cloud Run application + Cloud SQL + Secret Manager | Coherent instructor-aligned managed path; quotas, billing, IAM, and migration ordering require care. | Proposed | Team/account and Lab 5 decision |
+| Method and path | Access / responsibility | Actual behavior and evidence |
+| --- | --- | --- |
+| `POST /api/v1/auth/login` | Public | Verify login identifier/password; create server session and set `eventcheck_session` cookie. Invalid credentials return generic 401. |
+| `POST /api/v1/auth/logout` | Authenticated | Invalidate current server session, clear cookie, return 204. |
+| `GET /api/v1/me` | Authenticated | Return only safe user `id`, `displayName`, and `role`. |
+| `GET /api/v1/events` | Public | List published event public projections, including capacity/availability and deadline state. |
+| `GET /api/v1/events/:eventId` | Public | Return one published event public projection; omit private owner/registrant data. |
+| `POST /api/v1/events` | Organizer | Validate and create an owned Event as `PUBLISHED`; there is no draft state in the current Prisma enum. |
+| `GET /api/v1/organizer/events` | Organizer | List the authenticated Organizer's owned events. |
+| `GET /api/v1/organizer/events/:eventId` | Owning Organizer | Retrieve owned management details; other owners receive safe not-found. |
+| `GET /api/v1/organizer/events/:eventId/registrations` | Owning Organizer | Return event-scoped registration rows and permitted participant fields. |
+| `PATCH /api/v1/organizer/events/:eventId` | Owning Organizer | Update `capacity` and/or `registrationDeadline` before event start inside a transaction. |
+| `POST /api/v1/events/:eventId/registrations` | Participant | Register the authenticated Participant if published, before effective deadline, non-duplicate, and capacity remains. |
+| `GET /api/v1/me/registrations` | Participant | List only the authenticated Participant's registration history. |
+| `GET /api/v1/me/registrations/:registrationId` | Owning Participant | Retrieve a single own registration; other participants receive safe not-found. |
+| `POST /api/v1/me/registrations/:registrationId/cancel` | Owning Participant | Cancel an eligible own ACTIVE registration before event start; preserve history and `cancelledAt`. |
+| `POST /api/v1/organizer/registrations/:registrationId/attendance` | Owning Organizer | Check in an eligible ACTIVE registration for the specified owned Event during `[startAt, endAt)`. |
+| `GET /api/v1/organizer/events/:eventId/attendance` | Owning Organizer | Return attendance rows for the owned Event, in stable time/ID order. |
+| `GET /api/v1/me/registrations/:registrationId/attendance` | Owning Participant | Return own attendance or explicit `attendance: null`. |
+| `GET /health` | Public | Liveness response. |
+| `GET /api/ready` | Public | Readiness check that executes `SELECT 1` against PostgreSQL and returns 200/503. |
 
-Exact API route names, API contracts, CSRF library, session-store implementation, testing tools, and deployment topology remain Proposed until separately confirmed. Approved core technologies must not be represented as completed implementation evidence.
+**F-08 endpoint status:** No `/summary` endpoint is implemented in `server/src/app.ts`. The current Organizer metrics are client-derived from registration and attendance data. Any new summary API requires an accepted F-08 contract and must not be represented as current functionality before implementation.
 
-## 15. Requirements and Feature Traceability
+## 5. Database design and migrations
 
-The SDS uses the existing IDs without introducing new requirements. Coverage is summarized below; the full row-level mapping remains in [traceability.md](traceability.md).
+The physical model is defined in [`server/prisma/schema.prisma`](../server/prisma/schema.prisma). Database enum and model names are preserved below.
 
-| Architectural area | Requirement and feature references |
+| Model | Relevant fields and relationships | Constraints/indexes and purpose |
+| --- | --- | --- |
+| `User` | `id`, `loginIdentifier`, `displayName`, `role`, `passwordHash`, `createdAt`; relations to sessions, events, registrations, attendances | `loginIdentifier` unique; migration also adds case-insensitive unique lower-case index. Roles are `PARTICIPANT` and `ORGANIZER`. Password hashes only are stored. |
+| `Session` | Opaque `id`, `userId`, `createdAt`, `lastActivityAt`, `absoluteExpiry`, `invalidatedAt`; belongs to `User` | Indexes on `userId` and `absoluteExpiry`; user deletion cascades sessions. Auth middleware checks idle/absolute expiry and invalidation. |
+| `Event` | `id`, `organizerId`, `title`, `description`, `location`, `startAt`, `endAt`, nullable `registrationDeadline`, positive `capacity`, `publicationState`, `createdAt` | FK to owning User; positive capacity, nonblank required text, `endAt > startAt`; optional deadline check `registrationDeadline <= startAt`; indexes on organizer and `(publicationState,startAt)`. Composite unique `(id, organizerId)` supports Attendance owner consistency. Current `PublicationState` contains only `PUBLISHED`. |
+| `Registration` | `id`, `eventId`, `participantId`, `status`, `registeredAt`, nullable `cancelledAt`; optional one-to-one Attendance | Status is `ACTIVE` or `CANCELLED`; check requires ACTIVE with null `cancelledAt` and CANCELLED with non-null `cancelledAt`. Partial unique index `(participantId,eventId) WHERE status='ACTIVE'` preserves cancelled history while preventing two active rows. Lookup indexes cover `(eventId,status)`, `(participantId,status)`, and `(participantId,registeredAt)`. Event/User references restrict deletion to preserve history. |
+| `Attendance` | `id`, unique `registrationId`, `eventId`, `participantId`, `recordedByOrganizerId`, `checkedInAt` | One row per registration; composite FK ties it to the same registration/event/participant; composite Event/Organizer FK requires the recording Organizer to own the Event. Indexes on `(eventId,checkedInAt)` and `(participantId,checkedInAt)`; restrictive references retain attendance history. |
+
+Relevant migrations include F-01 authentication/session schema, F-02 event publication constraints, F-03 registration foundation and active-only unique index, registration delete restriction, case-insensitive login uniqueness, F-05 `registrationDeadline` with its start-time check, and F-06 `cancelledAt`/Attendance constraints. They are stored under `server/prisma/migrations/` and applied in order by Prisma.
+
+No summary values are persisted in a separate summary table. F-08 calculations currently happen in the UI from independently fetched source records; simultaneous updates can therefore produce mixed-time inputs. A consistent snapshot/data API rule remains an F-08 decision and verification item.
+
+## 6. Authentication, authorization, and security
+
+- `server/src/auth.ts` uses database-backed server sessions. The cookie is named `eventcheck_session`, contains an opaque random 32-byte identifier, is `HttpOnly`, `SameSite=Lax`, and `Secure` when `NODE_ENV=production`.
+- Session records enforce the agreed 30-minute idle and 8-hour absolute lifetime. `requireAuth` rejects missing, expired, invalidated sessions and updates activity while the session is valid. Logout marks the row invalid and clears the cookie.
+- `csrfGuard` applies before routes and requires the `Origin` of state-changing requests to exactly equal `CLIENT_ORIGIN` (default local origin); otherwise it returns 403 `CSRF_REJECTED`. GET/HEAD/OPTIONS are exempt.
+- `requireRole` enforces Participant or Organizer role in the server. Routes/services scope reads and mutations by the session-derived user ID and event ownership. The UI is not the authorization boundary.
+- Public event list/detail use a restricted event projection. Registrant identities, session fields, password hashes, and non-owned event details are not public responses.
+- Password handling is in `server/src/security.ts`; plaintext credentials and hashes are not returned by APIs. Unexpected server errors return a generic response while diagnostics are server-side.
+- No passwords, tokens, database URLs, or production secrets are part of this SDS. Configuration examples use placeholders; deployment secrets are external to tracked application source.
+
+## 7. Business workflows and consistency rules
+
+### 7.1 Event publication and discovery
+
+`POST /api/v1/events` requires Organizer role. Required text, offset-aware start/end instants, end-after-start, and positive integer capacity are validated before a single Event is created as `PUBLISHED`. Current storage has no `DRAFT` state. Public reads filter to `PUBLISHED` and return only approved public fields, capacity/remaining availability, optional deadline, and registration-window state.
+
+### 7.2 Registration and capacity/deadline updates
+
+`createRegistration` in `server/src/app.ts` runs a Prisma transaction and locks the Event row with `SELECT ... FOR UPDATE`. It then verifies existence/publication, checks server time is strictly before `registrationDeadline ?? startAt`, rejects an existing ACTIVE registration, counts ACTIVE rows, enforces `activeCount < capacity`, and inserts an ACTIVE Registration. The database partial unique index is a second guard against duplicate active rows.
+
+The owner PATCH locks the Event row, verifies owner and published state, rejects edits at/after `startAt`, validates deadline ordering, checks a proposed capacity against the active count, and commits changes in one transaction. A capacity reduction below active registrations is rejected; no Participant is displaced. Only ACTIVE registrations consume places; Attendance does not end ACTIVE status.
+
+### 7.3 Cancellation and re-registration
+
+Cancellation verifies the authenticated Participant owns the Registration, then locks Event followed by Registration. It reads Attendance under that transaction, samples server time after acquiring locks, and allows a transition only when the row is ACTIVE, has no Attendance, and current time is strictly before Event start. It stores `status=CANCELLED` and server `cancelledAt`; repeated cancellation returns the original state/time without releasing another place. F-03 registration remains the re-registration route and creates a distinct row only after all current publication/deadline/duplicate/capacity checks pass.
+
+### 7.4 Check-in and attendance retrieval
+
+Check-in also locks Event then Registration. It verifies selected Event, Organizer ownership, ACTIVE status, no prior Attendance, and server time in `[startAt,endAt)`. One Attendance row records the Registration, Event, Participant, owning Organizer, and `checkedInAt`. The unique registration constraint prevents duplicates. F-06 uses the same lock order, so cancellation cannot commit alongside Attendance for the same registration. Attendance never reduces active count or capacity use.
+
+### 7.5 Current summary behavior
+
+The Organizer view currently displays Active registrations, Cancelled registrations, Checked in, Not checked in, Remaining seats, and Total registration records. These are derived from API-loaded Registration and Attendance rows. The tested rule is that cancelled rows are historical and excluded from active/capacity and active attendance counts. Attendance rate, zero-active display, atomic summary snapshot, or a dedicated summary API are not implemented/verified as F-08.
+
+## 8. Request validation and error handling
+
+| Condition | Current response convention |
 | --- | --- |
-| Authentication, sessions, identity | FR-01–FR-05; NFR-01–NFR-03; D-02; Q-09; F-01; SR-05 |
-| Event ownership, validation, publication, discovery | FR-06–FR-12; BR-01–BR-05, BR-12; D-03, D-04, D-08; Q-08, Q-11; F-02, F-03; SR-01, SR-02 |
-| Registration, duplicate/capacity integrity | FR-13–FR-18; BR-06–BR-15; NFR-04, NFR-05; F-03–F-06; SR-01–SR-03 |
-| Attendance and reporting extensions | FR-19–FR-23; BR-16–BR-18; F-07, F-08; SR-01–SR-04 |
-| Quality, testability, deployment, maintainability | NFR-06–NFR-12; SR-05, SR-06; all F-01–F-08 integration |
+| Malformed JSON | 400 `MALFORMED_JSON` |
+| Valid JSON with invalid field/body | 422 validation error with safe code/message and field details where provided |
+| Missing/expired/revoked session | 401 `UNAUTHENTICATED` |
+| Wrong role or disallowed Origin | 403 `FORBIDDEN` or `CSRF_REJECTED` |
+| Missing/non-owned private resource | Safe 404 such as `EVENT_NOT_FOUND` or `REGISTRATION_NOT_FOUND` |
+| Duplicate, full, closed, late, or invalid lifecycle conflict | 409 with feature-specific safe codes such as `REGISTRATION_DUPLICATE`, `EVENT_FULL`, `REGISTRATION_CLOSED`, `CANCELLATION_CLOSED`, or `ATTENDANCE_ALREADY_EXISTS` |
+| Unexpected persistence/runtime error | Transaction rolls back; generic 500 `INTERNAL_SERVER_ERROR` without raw database detail in the response |
 
-All baseline IDs are preserved: FR-01–FR-23, BR-01–BR-18, NFR-01–NFR-12, D-01–D-13, Q-01–Q-11, F-01–F-08, and SR-01–SR-06. This SDS does not alter sprint allocations or statuses.
+Input is validated at the API boundary and transaction/service layer where state may change. Error paths are expected to preserve previously committed state. Issue 15 includes controlled failure tests and before/after database assertions; details are in the AC matrix.
 
-## 16. Risks, Assumptions, and Open Design Questions
+## 9. Transaction and concurrency design
 
-| Item | Treatment/status |
+| Operation | Transaction and lock rule | Evidence boundary |
+| --- | --- | --- |
+| Registration | Lock Event before checking deadline, duplicate ACTIVE row, active count, and capacity; insert in the same transaction. Partial unique index backs up application checks. | Sprint 1 last-seat/duplicate tests and F-05/F-06 races; Issue 15 records passing results on `107c93e`. |
+| Capacity/deadline edit | Lock Event; verify owner/state/time, active count and deadline; update only after all checks. | F-05 `TEST-F05-10/11`; lock evidence describes at least one observed PostgreSQL blocker and final committed invariants. |
+| Cancellation | Lock Event then Registration, check Attendance and start boundary, update lifecycle atomically. | F-06 `TEST-F06-11/13/14` and F-07 shared race tests. |
+| Check-in | Lock Event then Registration, validate eligibility/window and insert Attendance atomically; unique constraint prevents second row. | F-07 `TEST-F07-05/09/10`. |
+| F-08 summary | Current UI uses separate reads; no single transaction/snapshot guarantee is established. | Open design/verification gap; address in reviewed F-08 contract. |
+
+The lock tests do not overclaim what PostgreSQL observed: the Issue 15 supplemental F-06 test saw at least one backend blocked by the test holder while all launched HTTP promises remained pending. It does not establish that every request transaction was waiting in PostgreSQL.
+
+## 10. Deployment and operational architecture
+
+The repository has a unified Docker packaging path, local Compose database support, environment-based configuration, `/health` liveness and `/api/ready` database readiness endpoints, GitHub Actions quality checks, and a separate release workflow. The repository's deployment documentation and release workflow target one Cloud Run application image, Cloud SQL PostgreSQL, Artifact Registry, Secret Manager, and Workload Identity Federation.
+
+The available GCP release evidence is historical: Lab 5 documents Cloud Run service `eventcheck`, revision `eventcheck-00006-mqn`, release commit `945a59c`, PR #41, and Actions run `44999977201`. The Lab 5 document explicitly says the revision may not be current. Issue 15 reports CI run [45869394130](https://github.com/Ttime52/EventCheck/actions/runs/45869394130) passed its CI checks on corrected commit `fda1a77`; it is not a deployment record. No Sprint 2 candidate Cloud Run revision, image digest, or production smoke result is recorded in the inspected repository.
+
+Issue 17 must identify the exact release candidate and record fresh CI/regression outcome, commit, deployed image digest/revision if deployment is performed, health/readiness/login smoke result, and persisted-data/restart evidence. If any step is not performed, retain it as an explicit gap.
+
+## 11. Requirement traceability and open decisions
+
+This SDS preserves the SRS IDs and maps architectural areas as follows:
+
+| Architecture area | Requirements and responsibilities |
 | --- | --- |
-| Overbooking or duplicate registration under concurrency | High risk; mitigated by transaction/constraint design and real database race tests in Sprint 1. |
-| Role/ownership mistakes | High risk; mitigated by server-derived identity, centralized predicates, and cross-owner tests. |
-| Cookie/SameSite/CORS deployment mismatch | Open deployment risk; select and verify environment-specific configuration without weakening production security. |
-| Session persistence and expiry boundary defects | Mitigated by server-side timestamps, controlled-clock tests, restart checks, and logout replay tests. |
-| Sprint 2 schema evolution | Medium risk; use migrations and preserve cancelled history, attendance uniqueness, and active-count invariants. |
-| Two-student workload | Feasible only with the planned vertical slice, shared review, and no unapproved scope expansion. |
-| Exact API naming/contracts, CSRF library, session-store implementation, GCP deployment configuration, cloud account/IAM/cost decisions, and testing tools | Open technical decisions; the core React/TypeScript/Vite, Node.js/Express/TypeScript, PostgreSQL, and Prisma selections are team-approved, but these remaining choices require separate confirmation. |
-| Sprint 2 policy questions Q-01–Q-06/Q-10 | Accepted — Team Reviewed and recorded in the SRS. F-05 v0.6, F-06 v0.5, and F-07 v0.5 contracts are accepted; F-06/F-07 acceptance was confirmed by the user on 2026-11-25. F-06 implementation is verified; F-07 operations/UI remain pending. |
-| Q-07, Sprint 3 summary policy D-10/BR-18, and later planning decision D-13 | Remain open/proposed under the SRS and sprint gates; do not silently resolve them in implementation. |
+| Authentication, session and protected access | FR-01 to FR-05; BR-04; NFR-01 to NFR-03; F-01; SR-01/SR-05 |
+| Event creation, public projection, ownership | FR-06 to FR-12; BR-01/02/05/12; F-02/F-03; SR-01/SR-02 |
+| Capacity, registration, cancellation, history | FR-10/13/14/16/17/18; BR-05 to BR-15; NFR-04 to NFR-06; F-03/F-05/F-06; SR-02 |
+| Check-in and attendance retrieval | FR-15/19/20/21; BR-02/03/04/11/16/17; F-04/F-07; SR-01/SR-02/SR-03 |
+| Summary UI and planned reporting | FR-22/23; BR-18; F-08; SR-01/SR-02. Current UI is partial; D-10/BR-18 policy remains proposed. |
+| Accessibility, maintainability, testing, deployment, performance | NFR-07 to NFR-12; SR-03 to SR-06; all features as applicable |
 
-Assumptions are limited to seeded synthetic accounts, a transactional database, HTTPS in deployed environments, and the approved public discovery/session/time decisions. If a technology or policy conflicts with the SRS, the conflict must be reported and reviewed rather than silently changing another document.
+Open or pending decisions/evidence:
 
-## 17. References
+- D-10 and BR-18 F-08 summary definitions remain proposed. No F-08 contract/AC/STS has been located in the inspected branches.
+- D-12's numeric performance and viewport targets remain proposed; no quantitative NFR-07 run is recorded.
+- The current enum has no unpublished Event state; Sprint 1 records this as an accepted limitation, so unpublished-state negative behavior is not demonstrated by this schema.
+- Current Sprint 2 release acceptance and GCP deployment status are not established by passing tests, a staging merge, or historical Lab 5 deployment.
+- Sprint 1 UAT template results remain NOT RUN; Lab 6/7 findings were not found in inspected refs. See the [continuity and change register](sprints/sprint-2/continuity-and-change-register.md).
 
-- [EventCheck Software Requirements Specification](srs.md)
-- [EventCheck Feature Inventory](features.md)
-- [EventCheck Requirements Traceability Matrix](traceability.md)
-- [EventCheck Three-Sprint Plan](sprints/plan.md)
-- `group_work_specs_v1.pdf`, Theme 3 and Section 6 (course reference, if available locally)
-- `project_deliverable_1_v1.pdf`, Part C system-level design guidance (course reference, if available locally)
-- `01_SE_Lab_5_updated.pdf`, Lab 5 requirements R-01 through R-12 and Sections 4–5 (course reference)
-- `03_Student-Guide-GCP-Deployment-and+CI+CD-V1_1.pdf`, Episodes 0, 2, 3, 5, 6, and 7 (course reference)
+## 12. References
 
-The SDS records planned design only. It does not claim implementation, test execution, deployment, GitHub-rendered diagram verification, stakeholder interviews, or approval of unresolved technical choices.
+- [Software Requirements Specification](srs.md)
+- [Feature Inventory](features.md)
+- [Requirements Traceability Matrix](traceability.md)
+- [Sprint Plan](sprints/plan.md)
+- [Sprint 2 AC Verification](sprints/sprint-2/ac-verification.md)
+- [Issue 15 Integration Verification](sprints/sprint-2/integration-verification.md)
+- [Lab 5 Deployment Evidence](labs/lab-05/deployment.md)

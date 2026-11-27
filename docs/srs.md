@@ -1,6 +1,6 @@
 # EventCheck Software Requirements Specification
 
-**Course:** CPE 334 - Introduction to Software Engineering in the Age of AI Agents  
+**Course:** CPE 334 - Introduction to Software Engineering in the Age of AI Agents
 **Theme:** 3 - Event Registration and Attendance System
 
 ## 1. Introduction
@@ -80,7 +80,7 @@ Course checkpoints are Deliverable 1 on 8 November 2026, Sprint 2 completion and
 
 ## 4. Functional Requirements (FR)
 
-Statements define the intended behavior for their planned increment. Remaining team-specific refinements and lifecycle policies remain proposed where they are marked as such; agreed decisions D-02, D-03, D-04, Q-08, Q-09, and Q-11 are reflected directly in the requirements. They become the implementation baseline after the relevant contract review; mandatory course behavior remains required regardless of the chosen refinement. Observable outcomes describe externally verifiable behavior; BRs define the constraints applied to those operations. All listed capabilities are Must for the proposed product baseline; no optional feature is needed to complete the course workflow.
+Statements define the intended behavior for their planned increment. The policy details for F-05, F-06, and F-07 are accepted as recorded under Q-01 to Q-06 and the reviewed feature contracts. Summary policy D-10/BR-18 and numeric NFR targets remain proposed. The requirements retain their original IDs; implementation, test execution, feature acceptance, and release status are tracked separately in the Feature Inventory and Requirements Traceability Matrix. All listed capabilities are Must for the proposed product baseline; this priority does not approve an unresolved policy.
 
 ### 4.1 Authentication and Identity
 
@@ -158,11 +158,11 @@ Every rule below is enforced by the system. Proposed policy details are explicit
 | BR-10 | Concurrent last place | Competing registrations and capacity updates | With one place and two distinct eligible Participants, simultaneous requests cannot both succeed; capacity updates are serialized with registrations. Absent other failures, exactly one registration succeeds. | Losing request or unsafe capacity update receives a conflict/rejection; no extra active record and no invalid capacity. | 1; capacity edits in 2 | Synchronized real API/database requests against one-place and capacity-edit fixtures; verify committed records and capacity. |
 | BR-11 | Rejected writes are atomic | All registration and capacity mutations | Validation/authorization rejection or write failure must not leave a new active registration, consumed place, invalid capacity, or partial cancellation/attendance change. | Return failure; preserve previously valid committed state. | 1; extend in 2 | Inject controlled persistence failure and inspect records/capacity; test each rejection path. |
 | BR-12 | Complete publication details | Event publication | Proposed: required details in FR-07 must be valid; timestamps must represent valid instants and end must follow start. | Identify invalid fields and do not publish. | 1 | Missing/whitespace fields, invalid dates, equal/reversed times. |
-| BR-13 | Cancellation lifecycle | Participant cancellation | Proposed: own active registration may be cancelled strictly before event start, including after registration deadline, if not checked in. Repeat cancellation is a no-op, not another released place. | Deny late/checked-in cancellation; repeat returns unchanged cancelled state. | 2 | Before/at start, after deadline, checked-in, repeated and concurrent cancellation. |
-| BR-14 | Registration deadline | Registration/deadline editing | Proposed Sprint 2 rule: explicit deadline is optional; absent deadline defaults to event start. Explicit deadline must be no later than start. Registration is allowed only while server time is strictly before effective deadline. Sprint 1 has no time-based closure. | Reject at/after deadline and invalid deadline edits; no accepted registration or partial edit. | 2 | Fixed-clock tests immediately before/at/after deadline; default and invalid dates. |
-| BR-15 | Capacity modification | Owning Organizer capacity edit | Proposed Sprint 2 rule: allow changes to an owned, published event before start; new capacity must be positive and at least current active count, with atomic validation against concurrent registrations. Published capacity is fixed in Sprint 1. | Reject unsafe/late change; leave previous capacity unchanged and never displace existing registrations. | 2; fixed boundary in 1 | Reduce below active count, edit at/after start, and race reduction against registration; verify invariant and unchanged rejection state. |
-| BR-16 | Check-in eligibility | Organizer check-in | Proposed: only event owner records attendance for an existing active registration of that event, with server time at or after start and strictly before end. | Deny ineligible record/window without attendance creation. | 2 | Active/cancelled/unregistered/wrong-event fixtures and time boundaries. |
-| BR-17 | Duplicate attendance prevention | Check-in | At most one attendance record per registration; Proposed: repeated check-in returns duplicate outcome, preserving original actor/time. | Reject duplicate without additional attendance or changed timestamp. | 2 | Sequential and concurrent duplicate check-ins; inspect record count and original time. |
+| BR-13 | Cancellation lifecycle | Participant cancellation | Accepted Q-04 / F-06 v0.5: own active registration may be cancelled strictly before event start, including after registration deadline, if not checked in. Repeat cancellation returns the original cancelled state and time; it does not release another place. | Deny late/checked-in cancellation; leave rejected state unchanged. | 2 | Fixed-time boundary, after-deadline, checked-in, repeated and concurrent cases. |
+| BR-14 | Registration deadline | Registration/deadline editing | Accepted Q-03 / F-05 v0.6: explicit deadline is optional; absent deadline defaults to event start. Explicit deadline must be no later than start. Registration is allowed only while server time is strictly before effective deadline. Sprint 1 has no time-based closure. | Reject at/after deadline and invalid deadline edits; no accepted registration or partial edit. | 2 | Fixed-clock tests immediately before/at/after deadline; default and invalid dates. |
+| BR-15 | Capacity modification | Owning Organizer capacity edit | Accepted Q-01/Q-02 / F-05 v0.6: allow changes to an owned, published event before start; new capacity must be positive and at least current active count, with atomic validation against concurrent registrations. Published capacity is fixed in Sprint 1. | Reject unsafe/late change; leave previous capacity unchanged and never displace existing registrations. | 2; fixed boundary in 1 | Reduce below active count, edit at/after start, and race reduction against registration; verify invariant and unchanged rejection state. |
+| BR-16 | Check-in eligibility | Organizer check-in | Accepted Q-05 / F-07 v0.5: only the event owner records attendance for an existing active registration of that event, with server time in `[startAt, endAt)`. | Deny ineligible record/window without attendance creation. | 2 | Active/cancelled/unregistered/wrong-event fixtures and time boundaries. |
+| BR-17 | Duplicate attendance prevention | Check-in | Accepted F-07 v0.5: at most one attendance record per registration; a repeated check-in returns a duplicate outcome while preserving original actor/time. | Reject duplicate without additional attendance or changed timestamp. | 2 | Sequential and concurrent duplicate check-ins; inspect record count and original time. |
 | BR-18 | Summary reconciliation | Organizer summaries | Proposed: report one event's consistent committed snapshot. Remaining = capacity minus active count; not checked in = active count minus checked-in active count; rate = checked-in active count / active count × 100, displayed to one decimal. Zero denominator is N/A. | Do not display contradictory totals or another owner's data; return retrieval failure if a consistent result cannot be obtained. | 3 | Known fixtures with cancellations, re-registration, zero count, attendance, and concurrent changes. |
 
 ## 6. Non-Functional Requirements (NFR)
@@ -237,7 +237,7 @@ Q-01 to Q-03 were accepted in the F-05 review; F-05 v0.6 records the accepted AP
 
 ## 10. Requirement Verification and Sprint Allocation Summary
 
-This is a high-level verification plan, not the Feature Inventory, detailed traceability matrix, AC, or STS. The Feature Inventory and Requirements Traceability Matrix must map every baseline requirement to a feature or named system responsibility and sprint; feature contracts then supply exact cases and identifiers. No test execution is claimed in this documentation task.
+This is a high-level verification plan, not the Feature Inventory, detailed traceability matrix, AC, or STS. The Feature Inventory and Requirements Traceability Matrix map every baseline requirement to a feature or named system responsibility and sprint; feature contracts supply exact cases and identifiers. Actual Sprint 2 executions and tested versions are recorded in [AC verification](sprints/sprint-2/ac-verification.md) and [Issue 15 integration evidence](sprints/sprint-2/integration-verification.md). F-08 contract coverage, summary-rate/zero-denominator verification, quantitative NFR-07 measurements, and the final release-candidate verification remain open.
 
 | Increment | Requirement allocation | Expected verification and completion evidence |
 | --- | --- | --- |
@@ -249,7 +249,21 @@ The critical Sprint 1 acceptance demonstration is: (1) Organizer logs in; (2) pu
 
 Unit verification should cover meaningful rule logic, integration verification must exercise actual authorization and database persistence, and selected UI/end-to-end journeys should exercise the critical workflow. Screenshots and manual checks supplement automated verification; neither mocks alone nor an agent's claim constitutes execution evidence [R1, Section 8; R2, Sections 3.5-3.6]. The two students review requirement clarity, policy decisions, and evidence; unresolved behavior and failed/skipped checks must remain explicit.
 
-## 11. References
+## 11. Requirement Revision and Change History
+
+| Revision | Date | Change and rationale | Requirement effect | Supporting evidence |
+| --- | --- | --- | --- | --- |
+| Accepted Sprint 1 baseline | 2026-11-15 | Sprint 1 release candidate approved after the PR #20 committed-head verification. The accepted baseline commit is `da3fa630be862955c973cc9e0c8cddcc5e1dcd6e`; no Git release tag is present in this repository. | FR/BR/NFR IDs and Sprint 1 behavior retained. Existing accepted scope limitations include no unpublished Event state in the schema and no quantitative performance benchmark in Sprint 1. | [Sprint 1 DoD](sprints/sprint-1/definition-of-done.md), [verification results](sprints/sprint-1/verification-results.md), [continuity register](sprints/sprint-2/continuity-and-change-register.md). |
+| Accepted Sprint 2 policy revisions | 2026-11-24 to 2026-11-25 | Recorded the accepted capacity/deadline rules (Q-01 to Q-03), cancellation and re-registration rules (Q-04/Q-06), Organizer check-in rule (Q-05), and project history retention rule (Q-10). Rationale: make the Sprint 2 lifecycle transitions and capacity invariants explicit and testable. | Preserves FR-10, FR-12 to FR-21 and BR-08 to BR-17; no IDs were added or renumbered. D-05 to D-09 and Q-01 to Q-06/Q-10 carry the rationale and approval record. | [F-05 contract](sprints/sprint-2/f-05-capacity-deadline.md), [F-06 contract](sprints/sprint-2/f-06-registration-cancellation.md), [F-07 contract](sprints/sprint-2/f-07-organizer-check-in.md). |
+| Issue 16 documentation reconciliation | 2026-11-27 | Changed BR-13 to BR-17 descriptions from proposed to accepted to match the recorded policy decisions and accepted contracts. Added implementation/test/release status references; this is a status clarification, not a new behavior change. | No normative requirement text, identifier, priority, or sprint allocation changed. D-10 and BR-18 remain proposed; FR-22/FR-23 remain planned Must requirements whose calculation policy and feature contract are not accepted yet. | [Feature Inventory](features.md), [Requirements Traceability Matrix](traceability.md), [Sprint 2 AC verification](sprints/sprint-2/ac-verification.md), [Issue 15 evidence](sprints/sprint-2/integration-verification.md). |
+
+### Requirement and implementation status are separate
+
+- **Accepted requirement policy:** FR-10 and FR-17 to FR-21 and BR-13 to BR-17 have accepted Sprint 2 policy/contract baselines. Their implementation and execution evidence is tracked separately.
+- **Proposed requirement policy:** FR-22/FR-23 describe planned Sprint 3 summaries, but D-10 and BR-18's counting, rate, and consistent-snapshot rules remain proposed. No F-08 contract or formal F-08 acceptance record was found in the inspected branches.
+- **Implementation and tests:** F-05/F-06/F-07 are implemented and their accepted ACs have recorded passing tests on the Issue 15 test commit; the formal Sprint 2 release-candidate gate remains with Issue 17. F-08 has a tested subset of UI-derived counts, not complete summary functionality.
+
+## 12. References
 
 | Ref | Consulted source | Sections used | Availability and authority |
 | --- | --- | --- | --- |
@@ -257,5 +271,3 @@ Unit verification should cover meaningful rule logic, integration verification m
 | R2 | *CPE 334 Project Deliverable 1: Engineering baseline and working Sprint 1*, Semester 1/2026; local `project_deliverable_1_v1.pdf`. | Section 2; Sections 3.1-3.4; supporting Sections 3.5-3.6 and 4 on contracts, verification and self-contained submission. Relevant pages: 1-7. | Available and consulted as `project_deliverable_1_v1.pdf`. Defines Deliverable 1 Part A and adjacent artifact boundaries. |
 
 Neither requested PDF was inaccessible. R2 refers to a master `group_work_specs.docx`; that separate format was not consulted. This SRS uses the requested R1 PDF and does not claim a review of unprovided revisions, stakeholder interviews, or approved policy resolutions.
-
-

@@ -1,5 +1,11 @@
 # F-07 Verification Evidence
 
+## Integration status and evidence reconciliation — 2026-11-27
+
+This file contains feature-owner snapshots from the F-07 branch; they are not all results from one run or one tested SHA. The clean-commit verification at `6c50a02` is historical. Later Issue 15 evidence records the F-07 restart check and focused F-07 browser run on `b9df85c`, then the integrated PostgreSQL and full Playwright runs on `107c93e` (87/87 PostgreSQL integration and 30/30 E2E across F-05/F-06/F-07 and Sprint 1 regressions). The `107c93e` run did not repeat the dedicated F-07 restart script. The [AC matrix](ac-verification.md) and [Issue 15 integration report](integration-verification.md) are the current source for those later results. No result in this file establishes formal Sprint 2 release acceptance or GCP deployment.
+
+The owner-reported 2026-11-26 working-tree results below have no new tested SHA and must remain separate from clean-commit and Issue 15 results. One inherited note mentions `24/24` without a named suite, command, output, or tested version; that count is unresolved and excluded from the verification totals unless its source is supplied.
+
 ## Latest owner verification — 2026-11-26, 19:24 ICT
 
 The owner executed the corrected working tree against isolated `127.0.0.1:5433/eventcheck_test?schema=public`. This run reported F-07 integration 16 passed, 0 failed; full server 128 passed, 0 failed, 0 skipped across 16/16 passing files; server/client typecheck PASS; production build PASS; TEST-F07-08 restart PASS; and `git diff --check` PASS. The deliberate TEST-F07-10 failure after Attendance INSERT is expected rollback-test output.
@@ -12,7 +18,7 @@ Verified blocker assertions in `server/src/f07.integration.test.ts`: `TEST-F07-0
 
 This document records the current implementation evidence for F-07 without changing the accepted contract or STS definitions.
 
-## Review snapshot
+## Owner review snapshot — 2026-11-26
 
 - Branch: `feature/51-f07-check-in-attendance`
 - Current HEAD: `8298951d9b3c86cabfa3832856b92d1a6b333a1b`; working tree is dirty.
@@ -140,7 +146,7 @@ Historical uncommitted working-tree results are kept separate from the confirmed
 - **AC-F07-07:** `TEST-F07-06` covers multi-event scope/order/empty/ownership, while the F07 browser loading/error/retry tests cover deferred loading, 503 alert, keyboard Retry and recovery; all passed in the reported runs.
 - **AC-F07-12:** `TEST-F07-11` and `TEST-F07-12` cover Organizer check-in, CANCELLED history, scoped attendance persistence after reload, loading/error/retry and keyboard assertions; these passed in the 2026-11-26 owner run.
 
-## Current-session verification
+## Local reviewer-environment check (database and E2E not run)
 
 Executed against the current checkout (without database access):
 
@@ -150,7 +156,7 @@ Executed against the current checkout (without database access):
 - `npx playwright test e2e/f07-check-in.spec.ts --list` — 10 tests discovered in this environment; owner executed all 10 on macOS
 - `git diff --check` — PASS
 
-Database-backed and browser execution was **NOT RUN** in this environment because both `DATABASE_URL` and `E2E_DATABASE_URL` were unset; no database target could be verified safely. The latest 16/16, 30/30 and 24/24 results are owner-reported for the 2026-11-26 working-tree run.
+Database-backed and browser execution was **NOT RUN** in this environment because both `DATABASE_URL` and `E2E_DATABASE_URL` were unset; no database target could be verified safely. The owner-reported 16/16, 30/30, and 29/29 results are described in the dated run notes above, but do not have a unique implementation SHA. The `24/24` count in the original working note is untraceable and is not included in those results.
 
 The previously uncommitted Playwright additions are not part of the historical `6c50a02` run; their successful execution is recorded in the separate 2026-11-26 working-tree run above.
 

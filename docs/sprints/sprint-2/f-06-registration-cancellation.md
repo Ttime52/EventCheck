@@ -3,12 +3,14 @@
 **Issue:** 11B - Sprint 2 Feature Contracts<br>
 **Feature ID:** F-06<br>
 **Contract version:** 0.5<br>
-**Status:** Accepted — user confirmation recorded 2026-11-25; implementation and verification complete on the feature branch<br>
-**Updated:** 2026-11-25<br>
+**Status:** Accepted — user confirmation recorded 2026-11-25; implementation and verification complete; PR #59 and staging integration PR #61 merged; formal release acceptance pending<br>
+**Contract revision:** 2026-11-25<br>
 **Author:** Issue 11B contributor (name not recorded in the repository)<br>
 **Reviewer:** Acceptance reported by user; reviewer identity and review artifact not recorded in the repository<br>
 **Target branch:** sprint-2-staging
-**Work type:** Accepted F-06 feature contract. Implementation, migration, and verification are complete on the feature branch; PR/release approval remains pending.
+**Work type:** Accepted F-06 feature contract. Implementation and verification are integrated into `sprint-2-staging` via PR #61 after feature PR #59; final Sprint 2 release acceptance/deployment remain pending.
+
+**Current implementation snapshot (2026-11-27):** F-06 is IMPLEMENTED and TESTED. Feature PR #59 was merged to `feature/sprint-2-e2e`; the Issue 15 integration/regression tree was merged by PR #61 at `f08177c`. AC-F06-01 through AC-F06-13 results and the tested implementation version are in the [Sprint 2 AC matrix](ac-verification.md) and [Issue 15 integration report](integration-verification.md). The [F-06 implementation evidence](f-06-implementation-evidence.md) below remains a dated feature-branch test record; its pre-merge status is historical. No formal Sprint 2 release acceptance or deployment is recorded.
 
 ## 1. Purpose and scope
 
@@ -308,9 +310,9 @@ These specifications are implemented and mapped in the linked evidence. Each tes
 - **Steps and inputs:** Keyboard-navigate to My Registrations, open the eligible record, cancel and confirm, retry after refresh, and inspect both history rows. Also exercise empty/loading/error state with controlled API responses.
 - **Expected / database and authorization verification:** Controls have labels and visible focus; success and CANCELLED history are announced; the old row remains and a retry does not hide it. Verify the database contains exactly the expected status transition and cancelledAt; no API/UI path cancels another Participant's row.
 
-## 8. F-06 Definition of Done
+## 8. F-06 Implementation and Release Status
 
-F-06 implementation evidence is complete on the feature branch. The last release/review items remain outside this local implementation task.
+F-06 implementation and AC verification are complete and staging-integrated as recorded above. The final checklist item distinguishes the remaining reviewed-release gate from completed feature work.
 
 - [x] Confirmed the SRS reflects Accepted — Team Reviewed Q-04, Q-06, and Q-10 and the accepted F-05 v0.6 API/schema baseline.
 - [x] F-06 contract acceptance recorded per user confirmation on 2026-11-25; reviewer identity and external review artifact were not supplied in the repository.
@@ -321,7 +323,7 @@ F-06 implementation evidence is complete on the feature branch. The last release
 - [x] Participant list/detail and cancellation states are accessible by keyboard and show explicit loading, empty, success, conflict, session, and error outcomes.
 - [x] Real database restart verification confirms cancelled history remains. No automatic deletion, fake counter, or browser-only persistence is used.
 - [x] Sprint 1 and F-05 regression checks pass; failures/skips, test names, commands, counts, database, and tested source state are recorded in the linked evidence.
-- [ ] Issue/branch/PR, substantive Student 1 peer review, staging integration, and the accepted release identity are recorded. This contract task records no such review or release.
+- [ ] Final Sprint 2 release identity and acceptance are recorded. Feature PR #59 and staging integration PR #61 are known; this contract does not record the individual reviewer identity/substantive review artifact or an accepted release. Add those actual records when preparing the final PDF; do not infer acceptance from the merge.
 
 ## 9. Risks and unresolved repository questions
 
@@ -351,8 +353,9 @@ F-06 implementation evidence is complete on the feature branch. The last release
 | Student 1 peer review | Acceptance reported by user; reviewer identity and review artifact not supplied in the repository |
 | Team policy confirmation for Q-04, Q-06, Q-10 | Accepted — Team Reviewed; PR review recorded 2026-11-24 |
 | Contract acceptance | Accepted per user confirmation on 2026-11-25 |
-| Implementation and verification | Complete on feature branch; see [implementation evidence](f-06-implementation-evidence.md) |
-| PR/release approval | Pending |
+| Implementation and verification | Implemented, tested, and staging-integrated; see [implementation evidence](f-06-implementation-evidence.md) for its dated feature-branch run and the current snapshot above for later integration |
+| Feature/staging integration | PR #59 merged to `feature/sprint-2-e2e`; PR #61 merged to `sprint-2-staging` at `f08177c` |
+| Formal Sprint 2 release acceptance/deployment | Pending; Issue 17 must identify and verify the exact candidate |
 
 ### Related baseline
 

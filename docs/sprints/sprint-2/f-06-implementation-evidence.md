@@ -2,9 +2,11 @@
 
 **Feature:** F-06 Registration Cancellation and Re-registration  
 **Contract:** [F-06 v0.5](f-06-registration-cancellation.md)  
-**Status:** Implemented and verified on `feature/f06-registration-cancellation`; PR/release approval pending  
+**Status at verification snapshot:** Implemented and verified on `feature/f06-registration-cancellation` (2026-11-25); this snapshot predates PR #59/#61 integration. Current release status is in the note below.<br>
 **Verified:** 2026-11-25 (Asia/Bangkok)  
 **Source state:** `HEAD` was `38f0e589a9b6a377b89a65805d5eb9cb25d40784`; the implementation and evidence changes were uncommitted in the shared worktree when these checks ran.
+
+**Current integration status (2026-11-27):** This verification remains evidence for the dated feature-branch run, not the current release status. PR #59 later merged F-06 into `feature/sprint-2-e2e`, and PR #61 integrated the Issue 15 tested tree into `sprint-2-staging` at `f08177c`. The later integrated regression and current AC-to-test results are recorded in the [Sprint 2 AC matrix](ac-verification.md) and [Issue 15 integration report](integration-verification.md). No formal Sprint 2 release acceptance/deployment is recorded.
 
 F-06 lets a Participant cancel an eligible registration, retains the cancelled row and its timestamp, returns capacity once, and permits a later F-03 registration only after current eligibility checks. F-07 was accepted separately; Issue 13 adds the shared Attendance persistence required by the cancellation guard but does not add F-07 check-in or attendance retrieval routes or UI.
 
@@ -51,7 +53,7 @@ F-06 lets a Participant cancel an eligible registration, retains the cancelled r
 
 The standard `npm.cmd run db:seed --workspace server` invocation could not start on this Windows host: `tsx` failed in `uv_os_get_passwd` before opening a database connection. The same repository seed policy and password-hashing functions were run through the already-built Node modules, with `DATABASE_URL` independently checked to equal the isolated `eventcheck_test/public` target. No development or production account was changed.
 
-An initial Playwright run also exposed the missing synthetic accounts and the stale F-02 assertion described above. After fixing only this local test setup and the outdated assertion, the complete E2E suite passed. No external reviewer, PR, merge, or release is represented by these local results.
+An initial Playwright run also exposed the missing synthetic accounts and the stale F-02 assertion described above. After fixing only this local test setup and the outdated assertion, the complete E2E suite passed. At the time this 2026-11-25 feature-branch evidence was prepared, it did not itself represent an external reviewer, PR, merge, or release; later PR #59/#61 integration is recorded in the current-status note above.
 
 ## PR-ready summary
 
