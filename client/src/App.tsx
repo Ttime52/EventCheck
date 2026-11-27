@@ -512,6 +512,29 @@ export function App() {
     }
   }
 
+  function updateEventValidation(event: FormEvent<HTMLFormElement>) {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) return;
+    const fields = input.name === "startAt" ? ["startAt", "endAt"] : [input.name];
+    const nextErrors = { ...eventErrors };
+    for (const field of fields) {
+      if (!nextErrors[field]) continue;
+      const control = event.currentTarget.elements.namedItem(field);
+      if (!(control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement)
+        || !control.validity.valid || !control.value.trim()) continue;
+      if (field === "endAt") {
+        const start = event.currentTarget.elements.namedItem("startAt") as HTMLInputElement;
+        const startTime = Date.parse(toBangkokIso(start.value));
+        const endTime = Date.parse(toBangkokIso(control.value));
+        if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) continue;
+      }
+      delete nextErrors[field];
+    }
+    if (Object.keys(nextErrors).length === Object.keys(eventErrors).length) return;
+    setEventErrors(nextErrors);
+    if (Object.keys(nextErrors).length === 0) setEventsMessage("");
+  }
+
   async function publishEvent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || eventSubmitting) return;
@@ -634,7 +657,7 @@ export function App() {
               </div>
             </div>
             <div className={`event-layout${organizerTab === "events" ? " single-pane" : ""}`}>
-              {organizerTab === "create" && <form className="event-form" aria-label="Create and publish event" onSubmit={publishEvent}>
+              {organizerTab === "create" && <form className="event-form" aria-label="Create and publish event" onChange={updateEventValidation} onSubmit={publishEvent}>
                 <label htmlFor="event-title">
                   Title
                   <input id="event-title" name="title" required disabled={eventSubmitting} aria-invalid={Boolean(eventErrors.title)} aria-describedby={eventErrors.title ? "event-title-error" : undefined} />
