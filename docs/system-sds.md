@@ -8,13 +8,13 @@
 
 ## 1. Purpose, scope, and status conventions
 
-This SDS describes the system design present in the checked-out Sprint 2 staging implementation. It uses actual technology, route, model, and migration names from the repository. It distinguishes accepted requirements and contracts from implemented behavior and executed evidence. A design proposal or route in an old contract is not treated as an implemented API.
+This SDS describes the integrated Sprint 2 baseline plus the checkpoint F-08 API slice on `feature/f08-registration-attendance-summary`. It uses actual technology, route, model, and migration names from the repository. It distinguishes accepted requirements and contracts from implemented behavior and executed evidence. The F-08 API is implemented and locally verified in this branch but is not yet peer-reviewed, merged, or release-accepted.
 
 | Scope | Current status |
 | --- | --- |
 | F-01 to F-04 | Accepted Sprint 1 increment; regression was included in Issue 15. The accepted candidate is `da3fa630be862955c973cc9e0c8cddcc5e1dcd6e`. |
 | F-05 to F-07 | Accepted contracts; implementation is integrated in `sprint-2-staging`; Issue 15 reports their AC verification passing on `107c93e`. Issue 17 still owns release-candidate verification and acceptance. |
-| F-08 | Partial UI-derived count metrics exist in the Organizer registration view and have component/E2E coverage. Draft contract v0.1 and proposed AC/STS are review-ready but not accepted; D-10/BR-18 remain proposed. No summary endpoint, rate, or zero-active N/A behavior is implemented. |
+| F-08 | The existing Organizer panel remains client-derived. A separate owner-scoped `/summary` API and aggregate calculator are implemented on the F-08 branch and pass unit/PostgreSQL tests. Contract v0.3 and D-10/BR-18 remain unreviewed/unaccepted; the UI does not consume the API. |
 
 The SRS is authoritative for behavior, rules, IDs, and sprint allocation. The Feature Inventory gives implementation/test/acceptance status; the Traceability Matrix maps requirements to evidence. Feature contracts define accepted APIs, ACs, and STSs. Issue 15 contains the actual Sprint 2 execution record. See [Deliverable 2 evidence map](deliverable-2-evidence-map.md) for the PDF navigation plan.
 
@@ -80,11 +80,12 @@ The API is JSON under `/api/v1`. Successful responses use a `{ data: ... }` enve
 | `POST /api/v1/me/registrations/:registrationId/cancel` | Owning Participant | Cancel an eligible own ACTIVE registration before event start; preserve history and `cancelledAt`. |
 | `POST /api/v1/organizer/registrations/:registrationId/attendance` | Owning Organizer | Check in an eligible ACTIVE registration for the specified owned Event during `[startAt, endAt)`. |
 | `GET /api/v1/organizer/events/:eventId/attendance` | Owning Organizer | Return attendance rows for the owned Event, in stable time/ID order. |
+| `GET /api/v1/organizer/events/:eventId/summary` | Owning Organizer | Return capacity, ACTIVE/CANCELLED record counts, remaining seats, ACTIVE checked-in/not-checked-in totals, and attendance rate/null; aggregate-only projection. Implemented as a checkpoint F-08 API slice; acceptance pending. |
 | `GET /api/v1/me/registrations/:registrationId/attendance` | Owning Participant | Return own attendance or explicit `attendance: null`. |
 | `GET /health` | Public | Liveness response. |
 | `GET /api/ready` | Public | Readiness check that executes `SELECT 1` against PostgreSQL and returns 200/503. |
 
-**F-08 endpoint status:** No /summary endpoint is implemented in server/src/app.ts. The current Organizer metrics are client-derived from registration and attendance data. A draft API is specified in the review-ready F-08 contract; it is not an accepted or implemented API and must not be represented as current functionality.
+**F-08 endpoint status:** `GET /api/v1/organizer/events/:eventId/summary` is implemented in `server/src/app.ts` as a checkpoint API slice and covered by TEST-F08-01/02/04/05. It requires the authenticated Organizer role, filters Event ID and session Organizer ID in one query, returns aggregate fields only, and uses the standard 401/403/concealed-404/generic-500 envelopes. D-10/BR-18 and the contract remain Proposed/unaccepted. `OrganizerRegistrationsView` still derives its displayed metrics from separate registration and attendance responses; the UI has not been switched to this endpoint.
 
 ## 5. Database design and migrations
 
@@ -100,7 +101,7 @@ The physical model is defined in [`server/prisma/schema.prisma`](../server/prism
 
 Relevant migrations include F-01 authentication/session schema, F-02 event publication constraints, F-03 registration foundation and active-only unique index, registration delete restriction, case-insensitive login uniqueness, F-05 `registrationDeadline` with its start-time check, and F-06 `cancelledAt`/Attendance constraints. They are stored under `server/prisma/migrations/` and applied in order by Prisma.
 
-No summary values are persisted in a separate summary table. F-08 calculations currently happen in the UI from independently fetched source records; simultaneous updates can therefore produce mixed-time inputs. A consistent snapshot/data API rule remains an F-08 decision and verification item.
+No summary values are persisted in a separate summary table. The new F-08 API uses one parameterized PostgreSQL statement with scalar count subqueries, so its returned Event capacity and aggregates share one statement snapshot. It reads no Participant records and writes no data. The pre-existing UI still derives displayed counts from separately fetched F-04/F-07 responses and can use mixed-time inputs until it consumes the summary endpoint. The API query has no concurrent-writer experiment yet.
 
 ## 6. Authentication, authorization, and security
 
@@ -134,7 +135,7 @@ Check-in also locks Event then Registration. It verifies selected Event, Organiz
 
 ### 7.5 Current summary behavior
 
-The Organizer view currently displays Active registrations, Cancelled registrations, Checked in, Not checked in, Remaining seats, and Total registration records. These are derived from API-loaded Registration and Attendance rows. The tested rule is that cancelled rows are historical and excluded from active/capacity and active attendance counts. Attendance rate, zero-active display, atomic summary snapshot, or a dedicated summary API are not implemented/verified as F-08.
+The Organizer view currently displays Active registrations, Cancelled registrations, Checked in, Not checked in, Remaining seats, and Total registration records from API-loaded Registration and Attendance rows. Separately, the checkpoint `/summary` API now returns those persisted aggregates plus attendance rate or null for zero active rows. Unit/PostgreSQL tests cover provisional calculations, zero-active API output, authorization, response privacy, and read-only retrieval. UI N/A/loading/error/retry/refresh behavior and a concurrent-writer snapshot experiment remain unimplemented/unverified.
 
 ## 8. Request validation and error handling
 
@@ -158,7 +159,7 @@ Input is validated at the API boundary and transaction/service layer where state
 | Capacity/deadline edit | Lock Event; verify owner/state/time, active count and deadline; update only after all checks. | F-05 `TEST-F05-10/11`; lock evidence describes at least one observed PostgreSQL blocker and final committed invariants. |
 | Cancellation | Lock Event then Registration, check Attendance and start boundary, update lifecycle atomically. | F-06 `TEST-F06-11/13/14` and F-07 shared race tests. |
 | Check-in | Lock Event then Registration, validate eligibility/window and insert Attendance atomically; unique constraint prevents second row. | F-07 `TEST-F07-05/09/10`. |
-| F-08 summary | Current UI uses separate reads; no single transaction/snapshot guarantee is established. | Open design/verification gap; address in reviewed F-08 contract. |
+| F-08 summary API | One parameterized PostgreSQL SELECT supplies Event capacity and all aggregate counts from one statement snapshot; no writes or locks. | TEST-F08-02/05 pass in isolated PostgreSQL; a coordinated concurrent-writer experiment, UI integration, and independent review remain open. The displayed UI still uses separate reads. |
 
 The lock tests do not overclaim what PostgreSQL observed: the Issue 15 supplemental F-06 test saw at least one backend blocked by the test holder while all launched HTTP promises remained pending. It does not establish that every request transaction was waiting in PostgreSQL.
 
@@ -185,7 +186,7 @@ This SDS preserves the SRS IDs and maps architectural areas as follows:
 
 Open or pending decisions/evidence:
 
-- D-10 and BR-18 F-08 summary definitions remain proposed. Draft contract v0.1 and proposed AC/STS are available for review; acceptance and implementation remain pending.
+- D-10 and BR-18 F-08 summary definitions remain proposed. Contract v0.3 and an API/unit/PostgreSQL test slice exist; independent review, policy acceptance, remaining UI/lifecycle/concurrency work, and release integration remain pending.
 - D-12's numeric performance and viewport targets remain proposed; no quantitative NFR-07 run is recorded.
 - The current enum has no unpublished Event state; Sprint 1 records this as an accepted limitation, so unpublished-state negative behavior is not demonstrated by this schema.
 - Current Sprint 2 release acceptance and GCP deployment status are not established by passing tests, a staging merge, or historical Lab 5 deployment.

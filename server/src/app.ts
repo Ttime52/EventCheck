@@ -6,6 +6,7 @@ import { verifyPassword } from "./security.js";
 import { PublicationState, RegistrationStatus, Role } from "@prisma/client";
 import { eventView, publicEventView, validateCreateEventInput } from "./events.js";
 import { decideCancellation } from "./registration-lifecycle.js";
+import { buildEventSummary } from "./event-summary.js";
 
 export const app = express();
 let nowProvider = () => new Date();
@@ -341,6 +342,54 @@ app.get("/api/v1/organizer/events/:eventId/registrations", requireAuth, requireR
         })),
       },
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+type EventSummaryRow = {
+  eventId: string;
+  capacity: number;
+  activeCount: bigint;
+  cancelledCount: bigint;
+  checkedInCount: bigint;
+};
+
+app.get("/api/v1/organizer/events/:eventId/summary", requireAuth, requireRole(Role.ORGANIZER), async (request, response, next) => {
+  const organizerId = (request as AuthenticatedRequest).user!.id;
+  const eventId = Array.isArray(request.params.eventId) ? request.params.eventId[0] : request.params.eventId;
+  if (!eventIdPattern.test(eventId)) return response.status(404).json({ error: { code: "EVENT_NOT_FOUND", message: "Event not found" } });
+
+  try {
+    const rows = await prisma.$queryRaw<EventSummaryRow[]>`
+      SELECT
+        e."id" AS "eventId",
+        e."capacity" AS "capacity",
+        (
+          SELECT COUNT(*)
+          FROM "Registration" r
+          WHERE r."eventId" = e."id" AND r."status" = 'ACTIVE'::"RegistrationStatus"
+        ) AS "activeCount",
+        (
+          SELECT COUNT(*)
+          FROM "Registration" r
+          WHERE r."eventId" = e."id" AND r."status" = 'CANCELLED'::"RegistrationStatus"
+        ) AS "cancelledCount",
+        (
+          SELECT COUNT(DISTINCT r."id")
+          FROM "Registration" r
+          INNER JOIN "Attendance" a
+            ON a."registrationId" = r."id"
+            AND a."eventId" = r."eventId"
+            AND a."participantId" = r."participantId"
+          WHERE r."eventId" = e."id" AND r."status" = 'ACTIVE'::"RegistrationStatus"
+        ) AS "checkedInCount"
+      FROM "Event" e
+      WHERE e."id" = ${eventId} AND e."organizerId" = ${organizerId}
+    `;
+    const row = rows[0];
+    if (!row) return response.status(404).json({ error: { code: "EVENT_NOT_FOUND", message: "Event not found" } });
+    return response.json({ data: { summary: buildEventSummary(row.eventId, row.capacity, row.activeCount, row.cancelledCount, row.checkedInCount) } });
   } catch (error) {
     return next(error);
   }
