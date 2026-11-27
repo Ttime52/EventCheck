@@ -14,10 +14,11 @@ const otherOwnerLogin = `f08-other-owner-${run}@example.test`;
 const participantOneLogin = `f08-participant-one-${run}@example.test`;
 const participantTwoLogin = `f08-participant-two-${run}@example.test`;
 const participantThreeLogin = `f08-participant-three-${run}@example.test`;
+const loginIdentifiers = [ownerLogin, otherOwnerLogin, participantOneLogin, participantTwoLogin, participantThreeLogin];
+const eventTitles = [`F08 summary ${run}`, `F08 empty ${run}`];
 const isolated = isIsolatedTestDatabase();
 
 let ownerId = "";
-let otherOwnerId = "";
 let participantOneId = "";
 let participantTwoId = "";
 let participantThreeId = "";
@@ -30,6 +31,16 @@ let expiredSessionId = "";
 let revokedSessionId = "";
 const eventIds: string[] = [];
 const registrationIds: string[] = [];
+const attendanceIds: string[] = [];
+const userIds: string[] = [];
+const sessionIds: string[] = [];
+
+function trackCreated<T extends { id: string }>(creation: Promise<T>, ids: string[]) {
+  return creation.then(record => {
+    ids.push(record.id);
+    return record;
+  });
+}
 
 async function login(loginIdentifier: string) {
   const response = await request(app).post("/api/v1/auth/login").set(origin).send({ loginIdentifier, password });
@@ -44,43 +55,41 @@ describe.skipIf(!isolated)("F-08 Organizer Event Summary against isolated Postgr
   beforeAll(async () => {
     if (!isIsolatedTestDatabase()) throw new Error("F-08 integration tests require exactly eventcheck_test/public on 127.0.0.1:5433");
     const passwordHash = await hashPassword(password);
-    const [owner, otherOwner, participantOne, participantTwo, participantThree] = await Promise.all([
-      prisma.user.create({ data: { loginIdentifier: ownerLogin, displayName: "F08 Owner", role: Role.ORGANIZER, passwordHash } }),
-      prisma.user.create({ data: { loginIdentifier: otherOwnerLogin, displayName: "F08 Other Owner", role: Role.ORGANIZER, passwordHash } }),
-      prisma.user.create({ data: { loginIdentifier: participantOneLogin, displayName: "F08 Participant One", role: Role.PARTICIPANT, passwordHash } }),
-      prisma.user.create({ data: { loginIdentifier: participantTwoLogin, displayName: "F08 Participant Two", role: Role.PARTICIPANT, passwordHash } }),
-      prisma.user.create({ data: { loginIdentifier: participantThreeLogin, displayName: "F08 Participant Three", role: Role.PARTICIPANT, passwordHash } }),
+    const [owner, , participantOne, participantTwo, participantThree] = await Promise.all([
+      trackCreated(prisma.user.create({ data: { loginIdentifier: ownerLogin, displayName: "F08 Owner", role: Role.ORGANIZER, passwordHash } }), userIds),
+      trackCreated(prisma.user.create({ data: { loginIdentifier: otherOwnerLogin, displayName: "F08 Other Owner", role: Role.ORGANIZER, passwordHash } }), userIds),
+      trackCreated(prisma.user.create({ data: { loginIdentifier: participantOneLogin, displayName: "F08 Participant One", role: Role.PARTICIPANT, passwordHash } }), userIds),
+      trackCreated(prisma.user.create({ data: { loginIdentifier: participantTwoLogin, displayName: "F08 Participant Two", role: Role.PARTICIPANT, passwordHash } }), userIds),
+      trackCreated(prisma.user.create({ data: { loginIdentifier: participantThreeLogin, displayName: "F08 Participant Three", role: Role.PARTICIPANT, passwordHash } }), userIds),
     ]);
     ownerId = owner.id;
-    otherOwnerId = otherOwner.id;
     participantOneId = participantOne.id;
     participantTwoId = participantTwo.id;
     participantThreeId = participantThree.id;
     [ownerCookie, otherOwnerCookie, participantCookie] = await Promise.all([login(ownerLogin), login(otherOwnerLogin), login(participantOneLogin)]);
 
     const [event, emptyEvent] = await Promise.all([
-      prisma.event.create({ data: { organizerId: ownerId, title: `F08 summary ${run}`, description: "F08 aggregate fixture", location: "Test Hall", startAt: new Date("2099-11-26T09:00:00.000Z"), endAt: new Date("2099-11-26T12:00:00.000Z"), capacity: 10, publicationState: PublicationState.PUBLISHED } }),
-      prisma.event.create({ data: { organizerId: ownerId, title: `F08 empty ${run}`, description: "F08 empty fixture", location: "Test Hall", startAt: new Date("2099-11-26T09:00:00.000Z"), endAt: new Date("2099-11-26T12:00:00.000Z"), capacity: 4, publicationState: PublicationState.PUBLISHED } }),
+      trackCreated(prisma.event.create({ data: { organizerId: ownerId, title: eventTitles[0], description: "F08 aggregate fixture", location: "Test Hall", startAt: new Date("2099-11-26T09:00:00.000Z"), endAt: new Date("2099-11-26T12:00:00.000Z"), capacity: 10, publicationState: PublicationState.PUBLISHED } }), eventIds),
+      trackCreated(prisma.event.create({ data: { organizerId: ownerId, title: eventTitles[1], description: "F08 empty fixture", location: "Test Hall", startAt: new Date("2099-11-26T09:00:00.000Z"), endAt: new Date("2099-11-26T12:00:00.000Z"), capacity: 4, publicationState: PublicationState.PUBLISHED } }), eventIds),
     ]);
     eventId = event.id;
     emptyEventId = emptyEvent.id;
-    eventIds.push(event.id, emptyEvent.id);
 
     const createRegistration = (participantId: string, status: RegistrationStatus) => prisma.registration.create({
       data: { eventId, participantId, status, cancelledAt: status === RegistrationStatus.CANCELLED ? new Date("2026-11-01T00:00:00.000Z") : null },
     });
-    const [cancelledOne, cancelledTwo, activeOne, activeTwo, activeThree] = await Promise.all([
-      createRegistration(participantOneId, RegistrationStatus.CANCELLED),
-      createRegistration(participantOneId, RegistrationStatus.CANCELLED),
-      createRegistration(participantOneId, RegistrationStatus.ACTIVE),
-      createRegistration(participantTwoId, RegistrationStatus.ACTIVE),
-      createRegistration(participantThreeId, RegistrationStatus.ACTIVE),
+    const [, , activeOne] = await Promise.all([
+      trackCreated(createRegistration(participantOneId, RegistrationStatus.CANCELLED), registrationIds),
+      trackCreated(createRegistration(participantOneId, RegistrationStatus.CANCELLED), registrationIds),
+      trackCreated(createRegistration(participantOneId, RegistrationStatus.ACTIVE), registrationIds),
+      trackCreated(createRegistration(participantTwoId, RegistrationStatus.ACTIVE), registrationIds),
+      trackCreated(createRegistration(participantThreeId, RegistrationStatus.ACTIVE), registrationIds),
     ]);
-    registrationIds.push(cancelledOne.id, cancelledTwo.id, activeOne.id, activeTwo.id, activeThree.id);
-    await prisma.attendance.create({ data: { registrationId: activeOne.id, eventId, participantId: participantOneId, recordedByOrganizerId: ownerId, checkedInAt: new Date("2099-11-26T09:30:00.000Z") } });
+    await trackCreated(prisma.attendance.create({ data: { registrationId: activeOne.id, eventId, participantId: participantOneId, recordedByOrganizerId: ownerId, checkedInAt: new Date("2099-11-26T09:30:00.000Z") } }), attendanceIds);
 
     expiredSessionId = crypto.randomUUID();
     revokedSessionId = crypto.randomUUID();
+    sessionIds.push(expiredSessionId, revokedSessionId);
     await prisma.session.createMany({ data: [
       { id: expiredSessionId, userId: ownerId, absoluteExpiry: new Date(Date.now() - 1_000) },
       { id: revokedSessionId, userId: ownerId, absoluteExpiry: new Date(Date.now() + 3_600_000), invalidatedAt: new Date() },
@@ -88,15 +97,43 @@ describe.skipIf(!isolated)("F-08 Organizer Event Summary against isolated Postgr
   });
 
   afterAll(async () => {
-    if (eventIds.length) {
-      await prisma.attendance.deleteMany({ where: { eventId: { in: eventIds } } });
-      await prisma.registration.deleteMany({ where: { eventId: { in: eventIds } } });
-      await prisma.event.deleteMany({ where: { id: { in: eventIds } } });
+    const cleanupErrors: string[] = [];
+    const attemptCleanup = async (label: string, operation: () => Promise<unknown>) => {
+      try {
+        await operation();
+      } catch (error) {
+        cleanupErrors.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    };
+
+    try {
+      await attemptCleanup("Attendance", () => prisma.attendance.deleteMany({ where: { OR: [
+        ...(eventIds.length ? [{ eventId: { in: eventIds } }] : []),
+        ...(attendanceIds.length ? [{ id: { in: attendanceIds } }] : []),
+      ] } }));
+      await attemptCleanup("Registrations", () => prisma.registration.deleteMany({ where: { OR: [
+        ...(eventIds.length ? [{ eventId: { in: eventIds } }] : []),
+        ...(registrationIds.length ? [{ id: { in: registrationIds } }] : []),
+      ] } }));
+      await attemptCleanup("Events", () => prisma.event.deleteMany({ where: { OR: [
+        ...(eventIds.length ? [{ id: { in: eventIds } }] : []),
+        { title: { in: eventTitles } },
+      ] } }));
+      await attemptCleanup("Sessions", () => prisma.session.deleteMany({ where: { OR: [
+        { id: { in: sessionIds } },
+        ...(userIds.length ? [{ userId: { in: userIds } }] : []),
+      ] } }));
+      await attemptCleanup("Users", () => prisma.user.deleteMany({ where: { OR: [
+        ...(userIds.length ? [{ id: { in: userIds } }] : []),
+        { loginIdentifier: { in: loginIdentifiers } },
+      ] } }));
+    } finally {
+      await attemptCleanup("Prisma disconnect", () => prisma.$disconnect());
     }
-    if (ownerId || otherOwnerId || participantOneId || participantTwoId || participantThreeId) {
-      await prisma.user.deleteMany({ where: { id: { in: [ownerId, otherOwnerId, participantOneId, participantTwoId, participantThreeId].filter(Boolean) } } });
+
+    if (cleanupErrors.length) {
+      throw new Error(`F-08 fixture cleanup failed: ${cleanupErrors.join("; ")}`);
     }
-    await prisma.$disconnect();
   });
 
   it("TEST-F08-02: returns database-backed lifecycle and attendance counts without row-level data", async () => {

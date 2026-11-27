@@ -2,11 +2,11 @@
 
 **Issue:** 18 - Sprint 3 F-08 Registration and Attendance Summaries<br>
 **Feature ID:** F-08<br>
-**Contract version:** 0.4<br>
-**Status:** Draft - checkpoint API slice implemented and verified at `25664f864a5b70a2d6fc1675c0c663a61a0d80bd`; peer review and acceptance pending<br>
+**Contract version:** 0.5<br>
+**Status:** Draft - D-10/BR-18 approved; backend checkpoint slice implemented; peer review and full feature acceptance pending<br>
 **Revision date:** 2026-11-27<br>
 **Author:** Issue 18 contributor (individual name not recorded)<br>
-**Reviewer:** Student 1 (requested by Issue 18; review not recorded)<br>
+**Reviewer:** Student 1 (requested by Issue 18); requestor review comments received 2026-11-27, formal disposition pending<br>
 **Feature branch:** feature/f08-registration-attendance-summary<br>
 **Baseline:** origin/sprint-2-staging at 21669b9b902967219724d8a62d29574f3ff0c987
 **Target completion:** 2026-12-13
@@ -15,15 +15,15 @@
 
 F-08 specifies aggregate registration and attendance summaries for the Organizer who owns an Event. This is the only new feature allocated to Sprint 3. F-01 to F-07 remain in Sprint 3 for integration, regression, and defect correction only. This conclusion is supported by the Feature Inventory and SRS Sprint 3 allocation; the complete scope audit and cross-cutting responsibility map are in [F-08 progress and Sprint 3 remaining work](remaining-work.md).
 
-Contract v0.1 was committed before F-08 source/test implementation at `5c8ca563fea5b9a9f87a785de7dde875990838dd`; it includes the Feature-Level SDS, API/UI/data proposals, numbered AC, STS, DoD, scope inventory, and traceability. No independent peer-review record was present at that point. Version 0.2 recorded the user's 2026-11-27 checkpoint instruction to implement and verify a bounded database-backed API slice after contract preparation. The instruction authorized work against the explicitly Proposed rules below; it did not accept D-10/BR-18, the contract, any AC, or the full feature. This v0.4 revision adds the actual execution record below and keeps peer-review and release evidence separate.
+Contract v0.1 was committed before F-08 source/test implementation at `5c8ca563fea5b9a9f87a785de7dde875990838dd`; it includes the Feature-Level SDS, API/UI/data proposals, numbered AC, STS, DoD, scope inventory, and traceability. No independent peer-review record was present at that point. Version 0.2 recorded the user's 2026-11-27 checkpoint instruction to implement and verify a bounded database-backed API slice. The requestor subsequently approved the proposed D-10/BR-18 rules on 2026-11-27; version 0.5 records that decision and leaves peer review, feature acceptance, and release evidence separate.
 
 The F-05, F-06, and F-07 contracts are accepted and their code is staging-integrated. The repository does not record formal Sprint 2 release acceptance or a release tag. The Sprint 3 plan lists an integrated Sprint 2 release as a prerequisite; the team must record how that prerequisite is satisfied before F-08 work is accepted for release integration.
 
-**Contract/release gate:** D-10 and BR-18 remain Proposed in the SRS. This draft does not accept them. No Student 1 review or approval artifact was found at this revision. The checkpoint-limited API slice was implemented under the user's direct instruction using these definitions as provisional working assumptions. Before the work is represented as an accepted F-08 contract or integrated as the Sprint 3 release candidate, Student 1/team must review the contract and code, approve or revise D-10/BR-18, record dispositions in the SRS/change history and contract history, and resolve the Sprint 3 PR target and Sprint 2 release dependency.
+**Contract/release gate:** D-10/BR-18 were approved on 2026-11-27 and recorded in the SRS and this contract's decision history. The contract and feature remain unaccepted pending substantive peer review, review dispositions, completion of the remaining F-08 work, and resolution of the Sprint 3 PR target and Sprint 2 release dependency.
 
-**Process status:** The contract content was prepared and committed before source/test implementation, but independent peer review did not occur before implementation. This leaves the DoD review-before-implementation item unmet; the later user instruction authorized only the checkpoint API slice. Do not describe this contract or implementation as peer-reviewed. Review and disposition remain required before PR approval, merge, or feature acceptance.
+**Process status:** The contract content was prepared and committed before source/test implementation, but independent peer review did not occur before implementation. This leaves the DoD review-before-implementation item unmet; the later user instruction authorized only the checkpoint API slice. The requestor reviewed the implementation, contract, tests, and documentation on 2026-11-27; formal review disposition remains pending before PR approval, merge, or feature acceptance.
 
-The checked-in GitHub Actions workflow runs PR checks for sprint-1-staging, sprint-2-staging, and main. No sprint-3-staging branch or CI target is present. The feature branch uses the latest integrated Sprint 2 staging code as its baseline; the PR target remains a team decision and must not be inferred from that baseline.
+The checked-in GitHub Actions workflow runs PR checks for sprint-1-staging, sprint-2-staging, and main. No sprint-3-staging branch or CI target is present. PR #64 is open; confirm its base and the Sprint 2 dependency disposition before merge. Do not infer the target from the feature branch baseline.
 
 ## 2. Scope and exclusions
 
@@ -48,8 +48,8 @@ The checked-in GitHub Actions workflow runs PR checks for sprint-1-staging, spri
 | Type | IDs | F-08 coverage |
 | --- | --- | --- |
 | Functional requirements | FR-22, FR-23 | Owned-Event capacity and lifecycle totals; active attendance and rate. |
-| Business rules | BR-02, BR-09, BR-18 | Owner visibility; remaining seats follow the active-capacity invariant; summary reconciliation. BR-18 remains Proposed pending approval. |
-| Decisions | D-10, BR-18, Q-10 | D-10/BR-18 remain Proposed. Q-10 is Accepted for retaining synthetic history during the project and assessment period. |
+| Business rules | BR-02, BR-09, BR-18 | Owner visibility; remaining seats follow the active-capacity invariant; summary reconciliation under the BR-18 decision approved 2026-11-27. |
+| Decisions | D-10, BR-18, Q-10 | D-10/BR-18 are Accepted as recorded in the SRS and contract history. Q-10 remains accepted for retaining synthetic history during the project and assessment period; no production retention policy is introduced. |
 | Non-functional requirements | NFR-01, NFR-04, NFR-05, NFR-06, NFR-08, NFR-09, NFR-10 | Privacy, persisted data, concurrent-change integrity, safe failure, accessible states, versioned contracts, and reproducible test evidence. |
 | System responsibilities | SR-01 to SR-06 | SR-01/02/03/04 extend through F-08. SR-05 remains a shared deployment responsibility. SR-06 has a separate Sprint 3 performance measurement for the F-03 operations named by NFR-07; see Section 12. |
 | Dependencies | F-01 to F-07 | Session/role identity, Event ownership/capacity, Registration lifecycle, Organizer lists, cancellation history, and Attendance associations. |
@@ -82,11 +82,11 @@ The Group Work Specification says the feature contract must precede implementati
 6. The client displays returned values only after a successful response. No provisional zero values are displayed while loading or after an error.
 7. A successful check-in causes a summary refresh. A manual refresh, page reload, or re-entry reads the latest committed snapshot. Participant cancellation/re-registration while the Organizer view is open is reflected by its next refresh.
 
-### 5.2 Proposed calculation rules
+### 5.2 Approved calculation rules
 
-The definitions below are proposals for review under D-10/BR-18. BR-09's active-only capacity invariant is already accepted; the feature-level reporting definitions remain subject to approval.
+The definitions below were approved under D-10/BR-18 on 2026-11-27. BR-09's active-only capacity invariant remains applicable.
 
-| Metric | Proposed definition |
+| Metric | Approved definition |
 | --- | --- |
 | capacity | Current Event.capacity from PostgreSQL. |
 | activeCount | Number of Registration records for the Event whose status is ACTIVE. |
@@ -254,7 +254,7 @@ The Feature Inventory lists F-08 as the only Sprint 3 feature. The SRS Sprint 3 
 
 | Item | Remaining Sprint 3 work | Contract/evidence treatment |
 | --- | --- | --- |
-| F-08 | Registration and Attendance Summaries | This complete draft contract supplies SDS, UI/API/data proposals, AC, STS, and DoD. D-10/BR-18 and peer acceptance remain pending. |
+| F-08 | Registration and Attendance Summaries | This draft contract supplies SDS, UI/API/data proposals, AC, STS, and DoD. D-10/BR-18 are approved; peer review and feature acceptance remain pending. |
 | SR-01 | Backend Authorization and Data Privacy | Applied to F-08 summary route; TEST-F08-05 tests authenticated role/ownership and privacy. |
 | SR-02 | Persistent Integrity, Atomicity, and Concurrency | Single PostgreSQL statement snapshot, aggregate reconciliation, no writes; TEST-F08-02 through 04. Whole-product concurrency regression remains Sprint 3 integration work. |
 | SR-03 | Accessible Workflow State and Error Communication | F-08 loading, empty, failure, retry, refresh, keyboard, and responsive behavior; TEST-F08-06/07 plus final manual viewport walkthrough. |
@@ -264,7 +264,7 @@ The Feature Inventory lists F-08 as the only Sprint 3 feature. The SRS Sprint 3 
 
 ## 13. Definition of Done
 
-- D-10 and BR-18 are approved or revised with rationale; applicable Q-10 scope remains explicit. SRS, Feature Inventory, traceability, contract history, and review record agree.
+- D-10 and BR-18 approved on 2026-11-27 remain consistent across the SRS, Feature Inventory, traceability, contract history, and implementation; applicable Q-10 scope remains explicit.
 - Student 1 completes a substantive review before implementation; the review artifact records findings/questions and disposition. Student 1's assignment in the Issue is not itself evidence of review.
 - The final accepted F-08 contract, AC, STS, permission rules, query design, and API/UI behavior precede implementation.
 - The owning Organizer can retrieve all required aggregates from real committed PostgreSQL records. Calculations satisfy the approved definitions and use a consistent snapshot.
@@ -283,15 +283,15 @@ The Feature Inventory lists F-08 as the only Sprint 3 feature. The SRS Sprint 3 
 
 | ID | Status | Required next action | Owner / target |
 | --- | --- | --- | --- |
-| DEC-F08-01 / D-10 | Proposed | Approve or revise event-level lifecycle/attendance reporting scope and no-export boundary; record the decision. | Team; 2026-11-28 |
-| DEC-F08-02 / BR-18 | Proposed | Approve or revise record-count definitions, active-only attendance numerator/denominator, one-decimal rounding, zero-active API null/UI N/A, one-snapshot rule, and ownership visibility. | Team; 2026-11-28 |
+| DEC-F08-01 / D-10 | Accepted 2026-11-27 | Event-level on-screen lifecycle/attendance summaries; no export. Approved by the requestor; recorded in the SRS revision history. | Recorded |
+| DEC-F08-02 / BR-18 | Accepted 2026-11-27 | Cancelled record counts; active-only capacity and attendance calculations; one-decimal rate; API null/UI N/A at zero active; consistent committed snapshot; owning-Organizer visibility. Approved by the requestor; recorded in the SRS revision history. | Recorded |
 | REVIEW-F08-01 | Pending | Student 1 reviews the full contract and test design; record reviewer findings and dispositions. | Student 1; 2026-11-28 |
 | DEP-F08-01 | Pending | Record formal Sprint 2 release acceptance or a team-approved decision on the Sprint 3 dependency. | Release owners; 2026-11-29 |
 | DEP-F08-02 | Pending | Identify the Sprint 3 staging/PR target and CI coverage. No sprint-3-staging branch exists in the inspected refs. | Team; 2026-11-29 |
 | DEC-SR06-01 / D-12 | Proposed | Confirm or revise the NFR-07 target before using it as a pass/fail threshold. | Team; before measurement, target 2026-12-08 |
 | RISK-F08-01 | Open | Separate F-08 data correctness from data-retention duration: Q-10 applies only to synthetic project/assessment data; production policy remains separate. | Team; before any production use |
 
-Full-feature acceptance and release integration remain gated until DEC-F08-01, DEC-F08-02, REVIEW-F08-01, DEP-F08-01, and DEP-F08-02 have recorded dispositions. The limited API implementation does not close those gates.
+Full-feature acceptance and release integration remain gated until REVIEW-F08-01, DEP-F08-01, and DEP-F08-02 have recorded dispositions and the remaining F-08 implementation and verification are complete. The limited API implementation does not close those gates.
 
 ## 15. Version and decision history
 
@@ -301,10 +301,11 @@ Full-feature acceptance and release integration remain gated until DEC-F08-01, D
 | 0.2 | 2026-11-27 | Draft - checkpoint API slice authorized; peer review and acceptance pending | Recorded the user's checkpoint direction to implement and verify a limited database-backed summary API against the provisional v0.1 rules. This revision was prepared before source/test changes. It does not change the Proposed status of D-10/BR-18, substitute author work for Student 1 review, or authorize full-feature/release acceptance. Add test outcomes and code revision in a later evidence update. |
 | 0.3 | 2026-11-27 | Draft - API slice implemented and locally verified; peer review, policy acceptance, and release integration pending | Added the actual `/summary` API, pure calculation helper, unit and isolated PostgreSQL tests, and server integration-runner coverage. Recorded executed commands, results, partial AC evidence, and remaining work in Section 16. D-10/BR-18, the contract, and the full feature remain unaccepted. |
 | 0.4 | 2026-11-27 | Draft - tested source identity recorded; peer review, policy acceptance, and release integration pending | Recorded tested source commit `25664f864a5b70a2d6fc1675c0c663a61a0d80bd`, updated AC verification statuses against the draft criteria, and retained all unrun/gated work explicitly. No policy or feature acceptance is inferred. |
+| 0.5 | 2026-11-27 | Draft - D-10/BR-18 approved; review disposition and full feature acceptance pending | Recorded the requestor's approval of the D-10/BR-18 proposal, including lifecycle/no-export scope, cancelled-record and active-only calculations, one-decimal rate, zero-active API null/UI N/A, consistent committed snapshot, and owner authorization. Recorded the requestor's review of the implementation, contract, tests, and documentation. Updated linked status records. No F-08 contract, feature, or release acceptance is inferred. |
 
 ## 16. Checkpoint implementation and execution record
 
-The following is a local implementation result on `feature/f08-registration-attendance-summary`, tested at source commit `25664f864a5b70a2d6fc1675c0c663a61a0d80bd`, based on pre-worktree baseline `5c8ca563fea5b9a9f87a785de7dde875990838dd`. PostgreSQL testing used a separate temporary PostgreSQL 18 cluster bound only to `127.0.0.1:5433`, a newly created `eventcheck_test` database, and the repository's seven existing Prisma migrations. It did not connect to the configured `eventcheck` database on port 5433 or the project PostgreSQL service on port 5432. No F-08 schema change or migration was added. These results verify the draft cases only; the contract, D-10/BR-18, and full feature remain unaccepted.
+The following is a local implementation result on `feature/f08-registration-attendance-summary`, tested at source commit `25664f864a5b70a2d6fc1675c0c663a61a0d80bd`, based on pre-worktree baseline `5c8ca563fea5b9a9f87a785de7dde875990838dd`. PostgreSQL testing used a separate temporary PostgreSQL 18 cluster bound only to `127.0.0.1:5433`, a newly created `eventcheck_test` database, and the repository's seven existing Prisma migrations. It did not connect to the configured `eventcheck` database on port 5433 or the project PostgreSQL service on port 5432. No F-08 schema change or migration was added. The tests verify the now-approved calculation rules on the tested source revision; the contract and full feature remain unaccepted.
 
 | Test ID | Executed result | What the result establishes | Remaining limit |
 | --- | --- | --- | --- |
@@ -325,8 +326,8 @@ The first PostgreSQL fixture attempt failed before assertions because it attempt
 
 | Draft AC | Status against provisional contract | Executed evidence / remaining limit |
 | --- | --- | --- |
-| AC-F08-01 | VERIFIED against draft wording; acceptance pending | TEST-F08-02 counts committed ACTIVE/CANCELLED rows, including two CANCELLED records for the same Participant. D-10/BR-18 policy approval remains pending. |
-| AC-F08-02 | VERIFIED against draft wording; acceptance pending | TEST-F08-01/02 verifies capacity minus ACTIVE count and cancelled-history exclusion. D-10/BR-18 policy approval remains pending. |
+| AC-F08-01 | VERIFIED against approved policy; feature acceptance pending | TEST-F08-02 counts committed ACTIVE/CANCELLED rows, including two CANCELLED records for the same Participant. Independent contract review and full workflow verification remain open. |
+| AC-F08-02 | VERIFIED against approved policy; feature acceptance pending | TEST-F08-01/02 verifies capacity minus ACTIVE count and cancelled-history exclusion. Independent contract review and full workflow verification remain open. |
 | AC-F08-03 | PARTIAL, API calculation verified | TEST-F08-01/02 verifies active checked-in/not-checked-in arithmetic and active Attendance count. Lifecycle transition regression remains TEST-F08-03/07. |
 | AC-F08-04 | PARTIAL, API result verified | TEST-F08-01/02/zero-active case verifies rate rounding and API null; UI N/A display remains unimplemented and untested. |
 | AC-F08-05 | VERIFIED for the tested API behavior; acceptance pending | TEST-F08-05 passes direct role/session/owner-concealment cases. Peer review and integrated UI path remain open. |

@@ -87,7 +87,7 @@ Event-level registration and attendance summaries remain F-08 in Sprint 3. Repor
 | --- | --- |
 | Goal | Complete the last baseline feature, integrate the whole product, verify remaining quality targets, correct accepted defects, and prepare a reproducible final release. |
 | Included features | F-08 Registration and Attendance Summaries; F-01 to F-07 for full-product integration, regression, and defect correction only. |
-| Key dependencies and prerequisites | Integrated Sprint 2 release; approved or revised D-10/BR-18 summary policy and affected Q-10 retention treatment; known UAT/defect status; stable performance fixtures and environment; retained CI/deployment foundation; Sprint 3 contract for F-08 before implementation. |
+| Key dependencies and prerequisites | Integrated Sprint 2 release; D-10/BR-18 summary policy approved 2026-11-27 and existing Q-10 retention scope; known UAT/defect status; stable performance fixtures and environment; retained CI/deployment foundation; Sprint 3 contract for F-08 before implementation. |
 | Expected outcome | The owning Organizer receives consistent registration/attendance summaries, and the complete product meets its authorized workflow, persistence, failure-handling, accessibility, reproducibility, performance, deployment, and traceability obligations with known debt disclosed. |
 
 ### Scope
@@ -117,7 +117,7 @@ This snapshot was refreshed against origin/sprint-2-staging at 21669b9b902967219
 | --- | --- | --- |
 | Sprint 1: F-01 to F-04 | ACCEPTED for Sprint 1. | The accepted release candidate is `da3fa630be862955c973cc9e0c8cddcc5e1dcd6e` (PR #20). No Git tag is present. Issue 15 re-ran the Sprint 1 backend/API and browser regression on tested implementation SHA `107c93e` as part of 87/87 PostgreSQL integration and 30/30 E2E passes. See [Sprint 1 continuity and change register](sprint-2/continuity-and-change-register.md). |
 | Sprint 2: F-05 to F-07 | IMPLEMENTED, TESTED, and INTEGRATED to `sprint-2-staging`; formal release acceptance is not recorded. | Issue 15 maps all 38 accepted ACs to executed tests. PR #61 merged at `f08177c`; the merge tree differs from tested `107c93e` only in the Issue 15 evidence document. Issue 17 still needs to verify and record its exact release candidate and release/deployment evidence. See [AC verification](sprint-2/ac-verification.md). |
-| Sprint 3: F-08 | PARTIAL. Contract v0.4 contains the full Feature-Level SDS, UI/API/data specifications, numbered AC/STS, DoD, references, dependencies, and history. The owner-scoped database API slice is tested at `25664f8`. | D-10/BR-18, peer review, remaining UI/lifecycle/concurrency tests, final PR target/release integration, NFR and final acceptance remain open. See [F-08 contract](sprint-3/f-08-registration-attendance-summary.md) and [remaining work](sprint-3/remaining-work.md). |
+| Sprint 3: F-08 | PARTIAL. Contract v0.5 contains the full Feature-Level SDS, UI/API/data specifications, numbered AC/STS, DoD, references, dependencies, and history. D-10/BR-18 are approved; the owner-scoped database API slice is tested at `25664f8`. | Peer review, remaining UI/lifecycle/concurrency tests, final PR target/release integration, NFR and feature acceptance remain open. See [F-08 contract](sprint-3/f-08-registration-attendance-summary.md) and [remaining work](sprint-3/remaining-work.md). |
 
 Sprint 1 release continuity and Lab/UAT evidence gaps are tracked separately; missing Lab 6/7/UAT artifacts are not treated as proof that no findings exist. The Deliverable 2 evidence navigation table is in [`../deliverable-2-evidence-map.md`](../deliverable-2-evidence-map.md); final PDF page numbers are assigned only during Issue 17 assembly.
 
@@ -131,7 +131,7 @@ The following gates prevent planning assumptions from becoming silent requiremen
 | --- | --- |
 | Before Sprint 1 contracts are accepted | Supply F-01 to F-04 AC/STS IDs and reconcile any SRS status ambiguity around proposed numerical targets, while preserving the agreed authentication design. |
 | Before F-05 to F-07 contracts are accepted | Resolve Q-01 to Q-06 and affected Q-10; approve any resulting SRS revision and update feature/traceability links. |
-| Before F-08 contract or final quantitative verification is accepted | Confirm or revise D-10/BR-18, affected Q-10, and D-12 numerical targets through recorded review. |
+| Before F-08 contract or final quantitative verification is accepted | Preserve approved D-10/BR-18 and Q-10 scope; confirm D-12 numerical targets through recorded review before performance measurement. |
 | When scope or policy changes | Update the SRS, feature inventory, traceability matrix, this plan, and affected contracts in one reviewed change; preserve IDs and prior history. |
 
 No excluded capability is contingency work for these sprints. If schedule pressure occurs, the team must report incomplete baseline work and replan through approval rather than silently removing a requirement, weakening a rule/test, or marking planned verification as executed.

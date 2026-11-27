@@ -14,7 +14,7 @@ This SDS describes the integrated Sprint 2 baseline plus the checkpoint F-08 API
 | --- | --- |
 | F-01 to F-04 | Accepted Sprint 1 increment; regression was included in Issue 15. The accepted candidate is `da3fa630be862955c973cc9e0c8cddcc5e1dcd6e`. |
 | F-05 to F-07 | Accepted contracts; implementation is integrated in `sprint-2-staging`; Issue 15 reports their AC verification passing on `107c93e`. Issue 17 still owns release-candidate verification and acceptance. |
-| F-08 | The existing Organizer panel remains client-derived. A separate owner-scoped `/summary` API and aggregate calculator are implemented on the F-08 branch at `25664f8` and pass unit/PostgreSQL tests. Contract v0.4 and D-10/BR-18 remain unreviewed/unaccepted; the UI does not consume the API. |
+| F-08 | The existing Organizer panel remains client-derived. A separate owner-scoped `/summary` API and aggregate calculator are implemented on the F-08 branch at `25664f8` and pass unit/PostgreSQL tests. D-10/BR-18 are approved; requestor review is recorded, with formal disposition and feature acceptance pending; the UI does not consume the API. |
 
 The SRS is authoritative for behavior, rules, IDs, and sprint allocation. The Feature Inventory gives implementation/test/acceptance status; the Traceability Matrix maps requirements to evidence. Feature contracts define accepted APIs, ACs, and STSs. Issue 15 contains the actual Sprint 2 execution record. See [Deliverable 2 evidence map](deliverable-2-evidence-map.md) for the PDF navigation plan.
 
@@ -85,7 +85,7 @@ The API is JSON under `/api/v1`. Successful responses use a `{ data: ... }` enve
 | `GET /health` | Public | Liveness response. |
 | `GET /api/ready` | Public | Readiness check that executes `SELECT 1` against PostgreSQL and returns 200/503. |
 
-**F-08 endpoint status:** `GET /api/v1/organizer/events/:eventId/summary` is implemented in `server/src/app.ts` as a checkpoint API slice and covered by TEST-F08-01/02/04/05. It requires the authenticated Organizer role, filters Event ID and session Organizer ID in one query, returns aggregate fields only, and uses the standard 401/403/concealed-404/generic-500 envelopes. D-10/BR-18 and the contract remain Proposed/unaccepted. `OrganizerRegistrationsView` still derives its displayed metrics from separate registration and attendance responses; the UI has not been switched to this endpoint.
+**F-08 endpoint status:** `GET /api/v1/organizer/events/:eventId/summary` is implemented in `server/src/app.ts` as a checkpoint API slice and covered by TEST-F08-01/02/04/05. It requires the authenticated Organizer role, filters Event ID and session Organizer ID in one query, returns aggregate fields only, and uses the standard 401/403/concealed-404/generic-500 envelopes. D-10/BR-18 are approved; the draft contract and full feature remain unaccepted. `OrganizerRegistrationsView` still derives its displayed metrics from separate registration and attendance responses; the UI has not been switched to this endpoint.
 
 ## 5. Database design and migrations
 
@@ -181,12 +181,12 @@ This SDS preserves the SRS IDs and maps architectural areas as follows:
 | Event creation, public projection, ownership | FR-06 to FR-12; BR-01/02/05/12; F-02/F-03; SR-01/SR-02 |
 | Capacity, registration, cancellation, history | FR-10/13/14/16/17/18; BR-05 to BR-15; NFR-04 to NFR-06; F-03/F-05/F-06; SR-02 |
 | Check-in and attendance retrieval | FR-15/19/20/21; BR-02/03/04/11/16/17; F-04/F-07; SR-01/SR-02/SR-03 |
-| Summary UI and planned reporting | FR-22/23; BR-18; F-08; SR-01/SR-02. Current UI is partial; D-10/BR-18 policy remains proposed. |
+| Summary UI and planned reporting | FR-22/23; BR-18; F-08; SR-01/SR-02. D-10/BR-18 policy is approved; current UI and feature implementation remain partial. |
 | Accessibility, maintainability, testing, deployment, performance | NFR-07 to NFR-12; SR-03 to SR-06; all features as applicable |
 
 Open or pending decisions/evidence:
 
-- D-10 and BR-18 F-08 summary definitions remain proposed. Contract v0.4 and an API/unit/PostgreSQL test slice exist; independent review, policy acceptance, remaining UI/lifecycle/concurrency work, and release integration remain pending.
+- D-10/BR-18 F-08 summary definitions were approved on 2026-11-27. Contract v0.5 and an API/unit/PostgreSQL test slice exist; formal review disposition, remaining UI/lifecycle/concurrency work, and release integration remain pending.
 - D-12's numeric performance and viewport targets remain proposed; no quantitative NFR-07 run is recorded.
 - The current enum has no unpublished Event state; Sprint 1 records this as an accepted limitation, so unpublished-state negative behavior is not demonstrated by this schema.
 - Current Sprint 2 release acceptance and GCP deployment status are not established by passing tests, a staging merge, or historical Lab 5 deployment.
