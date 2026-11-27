@@ -2,8 +2,8 @@
 
 **Issue:** 18 - Sprint 3 F-08 Registration and Attendance Summaries<br>
 **Feature ID:** F-08<br>
-**Contract version:** 0.3<br>
-**Status:** Draft - checkpoint API slice implemented and verified; peer review and acceptance pending<br>
+**Contract version:** 0.4<br>
+**Status:** Draft - checkpoint API slice implemented and verified at `25664f864a5b70a2d6fc1675c0c663a61a0d80bd`; peer review and acceptance pending<br>
 **Revision date:** 2026-11-27<br>
 **Author:** Issue 18 contributor (individual name not recorded)<br>
 **Reviewer:** Student 1 (requested by Issue 18; review not recorded)<br>
@@ -15,11 +15,13 @@
 
 F-08 specifies aggregate registration and attendance summaries for the Organizer who owns an Event. This is the only new feature allocated to Sprint 3. F-01 to F-07 remain in Sprint 3 for integration, regression, and defect correction only. This conclusion is supported by the Feature Inventory and SRS Sprint 3 allocation; the complete scope audit and cross-cutting responsibility map are in [F-08 progress and Sprint 3 remaining work](remaining-work.md).
 
-Contract v0.1 was committed before F-08 source/test implementation at `5c8ca563fea5b9a9f87a785de7dde875990838dd`; it includes the Feature-Level SDS, API/UI/data proposals, numbered AC, STS, DoD, scope inventory, and traceability. No independent peer-review record was present at that point. Version 0.2 recorded the user's 2026-11-27 checkpoint instruction to implement and verify a bounded database-backed API slice after contract preparation. The instruction authorized work against the explicitly Proposed rules below; it did not accept D-10/BR-18, the contract, any AC, or the full feature. This v0.3 revision adds the actual execution record below and keeps peer-review and release evidence separate.
+Contract v0.1 was committed before F-08 source/test implementation at `5c8ca563fea5b9a9f87a785de7dde875990838dd`; it includes the Feature-Level SDS, API/UI/data proposals, numbered AC, STS, DoD, scope inventory, and traceability. No independent peer-review record was present at that point. Version 0.2 recorded the user's 2026-11-27 checkpoint instruction to implement and verify a bounded database-backed API slice after contract preparation. The instruction authorized work against the explicitly Proposed rules below; it did not accept D-10/BR-18, the contract, any AC, or the full feature. This v0.4 revision adds the actual execution record below and keeps peer-review and release evidence separate.
 
 The F-05, F-06, and F-07 contracts are accepted and their code is staging-integrated. The repository does not record formal Sprint 2 release acceptance or a release tag. The Sprint 3 plan lists an integrated Sprint 2 release as a prerequisite; the team must record how that prerequisite is satisfied before F-08 work is accepted for release integration.
 
 **Contract/release gate:** D-10 and BR-18 remain Proposed in the SRS. This draft does not accept them. No Student 1 review or approval artifact was found at this revision. The checkpoint-limited API slice was implemented under the user's direct instruction using these definitions as provisional working assumptions. Before the work is represented as an accepted F-08 contract or integrated as the Sprint 3 release candidate, Student 1/team must review the contract and code, approve or revise D-10/BR-18, record dispositions in the SRS/change history and contract history, and resolve the Sprint 3 PR target and Sprint 2 release dependency.
+
+**Process status:** The contract content was prepared and committed before source/test implementation, but independent peer review did not occur before implementation. This leaves the DoD review-before-implementation item unmet; the later user instruction authorized only the checkpoint API slice. Do not describe this contract or implementation as peer-reviewed. Review and disposition remain required before PR approval, merge, or feature acceptance.
 
 The checked-in GitHub Actions workflow runs PR checks for sprint-1-staging, sprint-2-staging, and main. No sprint-3-staging branch or CI target is present. The feature branch uses the latest integrated Sprint 2 staging code as its baseline; the PR target remains a team decision and must not be inferred from that baseline.
 
@@ -178,9 +180,9 @@ These IDs and wordings are new draft proposals because no accepted F-08 AC set e
 | AC-F08-05 | Anonymous, expired/revoked, Participant, and non-owning Organizer requests are denied with the specified safe outcomes; no summary or private registration/attendance data is disclosed. | FR-05, FR-22, FR-23, BR-02, BR-04, NFR-01 |
 | AC-F08-06 | At least one meaningful F-08 summary rule is implemented against committed PostgreSQL records and an executed test passes on the recorded tested commit. Existing partial F-07-labelled evidence is progress evidence only and is not treated as execution of a new TEST-F08 case. | FR-22/23, BR-18, NFR-04, NFR-09, NFR-10 |
 
-## 11. Software Test Specification (planned; NOT RUN)
+## 11. Software Test Specification (draft test plan; execution status in Section 16)
 
-The following are stable draft test IDs for review. Test execution, counts, and tested commit are blank until implementation is approved and executed. All PostgreSQL tests must use the isolated eventcheck_test/public database; the test guard refuses other database targets.
+The following are stable draft test IDs for review. Actual test commands/results and source commit are recorded in Section 16. All PostgreSQL tests must use the isolated eventcheck_test/public database; the test guard refuses other database targets.
 
 ### TEST-F08-01 - Summary calculation unit matrix
 
@@ -275,7 +277,7 @@ The Feature Inventory lists F-08 as the only Sprint 3 feature. The SRS Sprint 3 
 - A reviewer-approved feature PR is integrated only after the team confirms the Sprint 3 PR base and the Sprint 2 release dependency. No author self-approval or merge is claimed.
 - Evidence includes test commands/results, tested commit SHA, API response or actual screenshot when available, unresolved gaps, owners, and dates no later than 2026-12-13.
 
-**Checkpoint DoD status:** The database-backed API, unit/integration evidence, typecheck, build, and schema validation listed in Section 16 are complete in the tested working tree. The independent review, approved policy, UI/accessibility work, lifecycle refresh E2E, concurrency-specific test, final candidate verification, PR integration, and release evidence remain open; therefore F-08 is not Done.
+**Checkpoint DoD status:** The database-backed API, unit/integration evidence, typecheck, build, and schema validation listed in Section 16 passed on tested source commit `25664f8`. Independent review, approved policy, UI/accessibility work, lifecycle refresh E2E, concurrency-specific test, final candidate verification, PR integration, and release evidence remain open; therefore F-08 is not Done.
 
 ## 14. Risks, open dependencies, and approval checklist
 
@@ -297,11 +299,12 @@ Full-feature acceptance and release integration remain gated until DEC-F08-01, D
 | --- | --- | --- | --- |
 | 0.1 | 2026-11-27 | Draft - Review Ready; pending team policy decisions and Student 1 review | Prepared the pre-implementation Feature-Level SDS, proposed API/UI/data behavior, AC-F08-01 through 06, TEST-F08-01 through 07, cross-cutting TEST-SR06-01, DoD, Sprint 3 scope audit, and dependency/approval register. No policy was accepted and no F-08 runtime code or test was implemented. |
 | 0.2 | 2026-11-27 | Draft - checkpoint API slice authorized; peer review and acceptance pending | Recorded the user's checkpoint direction to implement and verify a limited database-backed summary API against the provisional v0.1 rules. This revision was prepared before source/test changes. It does not change the Proposed status of D-10/BR-18, substitute author work for Student 1 review, or authorize full-feature/release acceptance. Add test outcomes and code revision in a later evidence update. |
-| 0.3 | 2026-11-27 | Draft - API slice implemented and locally verified; peer review, policy acceptance, and release integration pending | Added the actual `/summary` API, pure calculation helper, unit and isolated PostgreSQL tests, and server integration-runner coverage. Recorded exact executed commands, results, partial AC evidence, and remaining work in Section 16. D-10/BR-18, the contract, and the full feature remain unaccepted. |
+| 0.3 | 2026-11-27 | Draft - API slice implemented and locally verified; peer review, policy acceptance, and release integration pending | Added the actual `/summary` API, pure calculation helper, unit and isolated PostgreSQL tests, and server integration-runner coverage. Recorded executed commands, results, partial AC evidence, and remaining work in Section 16. D-10/BR-18, the contract, and the full feature remain unaccepted. |
+| 0.4 | 2026-11-27 | Draft - tested source identity recorded; peer review, policy acceptance, and release integration pending | Recorded tested source commit `25664f864a5b70a2d6fc1675c0c663a61a0d80bd`, updated AC verification statuses against the draft criteria, and retained all unrun/gated work explicitly. No policy or feature acceptance is inferred. |
 
 ## 16. Checkpoint implementation and execution record
 
-The following is a local implementation result on `feature/f08-registration-attendance-summary`, based on pre-worktree baseline `5c8ca563fea5b9a9f87a785de7dde875990838dd`. PostgreSQL testing used a separate temporary PostgreSQL 18 cluster bound only to `127.0.0.1:5433`, a newly created `eventcheck_test` database, and the repository's seven existing Prisma migrations. It did not connect to the configured `eventcheck` database on port 5433 or the project PostgreSQL service on port 5432. No F-08 schema change or migration was added. The implementation source SHA is pending a permitted Git commit; until that identity is recorded, AC-F08-06 is not formally closed under its own tested-commit wording.
+The following is a local implementation result on `feature/f08-registration-attendance-summary`, tested at source commit `25664f864a5b70a2d6fc1675c0c663a61a0d80bd`, based on pre-worktree baseline `5c8ca563fea5b9a9f87a785de7dde875990838dd`. PostgreSQL testing used a separate temporary PostgreSQL 18 cluster bound only to `127.0.0.1:5433`, a newly created `eventcheck_test` database, and the repository's seven existing Prisma migrations. It did not connect to the configured `eventcheck` database on port 5433 or the project PostgreSQL service on port 5432. No F-08 schema change or migration was added. These results verify the draft cases only; the contract, D-10/BR-18, and full feature remain unaccepted.
 
 | Test ID | Executed result | What the result establishes | Remaining limit |
 | --- | --- | --- | --- |
@@ -322,12 +325,12 @@ The first PostgreSQL fixture attempt failed before assertions because it attempt
 
 | Draft AC | Status against provisional contract | Executed evidence / remaining limit |
 | --- | --- | --- |
-| AC-F08-01 | PARTIAL, API calculation verified | TEST-F08-02 counts committed ACTIVE/CANCELLED rows, including two CANCELLED records for the same Participant. Full accepted-policy status awaits D-10/BR-18 review. |
-| AC-F08-02 | PARTIAL, API calculation verified | TEST-F08-01/02 verifies capacity minus ACTIVE count and cancelled-history exclusion. Full accepted-policy status awaits D-10/BR-18 review. |
+| AC-F08-01 | VERIFIED against draft wording; acceptance pending | TEST-F08-02 counts committed ACTIVE/CANCELLED rows, including two CANCELLED records for the same Participant. D-10/BR-18 policy approval remains pending. |
+| AC-F08-02 | VERIFIED against draft wording; acceptance pending | TEST-F08-01/02 verifies capacity minus ACTIVE count and cancelled-history exclusion. D-10/BR-18 policy approval remains pending. |
 | AC-F08-03 | PARTIAL, API calculation verified | TEST-F08-01/02 verifies active checked-in/not-checked-in arithmetic and active Attendance count. Lifecycle transition regression remains TEST-F08-03/07. |
 | AC-F08-04 | PARTIAL, API result verified | TEST-F08-01/02/zero-active case verifies rate rounding and API null; UI N/A display remains unimplemented and untested. |
-| AC-F08-05 | PARTIAL, API authorization verified | TEST-F08-05 passes direct role/session/owner concealment cases; peer review and integrated UI path remain open. |
-| AC-F08-06 | IMPLEMENTATION/TEST EXECUTED; formal closure pending | Meaningful database-backed workflow is implemented and passing TEST-F08-02 on the tested working tree. Record the source commit SHA before claiming this AC complete. |
+| AC-F08-05 | VERIFIED for the tested API behavior; acceptance pending | TEST-F08-05 passes direct role/session/owner-concealment cases. Peer review and integrated UI path remain open. |
+| AC-F08-06 | VERIFIED against draft wording; acceptance pending | Meaningful database-backed workflow is implemented and TEST-F08-02 passes on source commit `25664f864a5b70a2d6fc1675c0c663a61a0d80bd`. The AC remains draft and unaccepted until review. |
 
 ## References
 

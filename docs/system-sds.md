@@ -14,7 +14,7 @@ This SDS describes the integrated Sprint 2 baseline plus the checkpoint F-08 API
 | --- | --- |
 | F-01 to F-04 | Accepted Sprint 1 increment; regression was included in Issue 15. The accepted candidate is `da3fa630be862955c973cc9e0c8cddcc5e1dcd6e`. |
 | F-05 to F-07 | Accepted contracts; implementation is integrated in `sprint-2-staging`; Issue 15 reports their AC verification passing on `107c93e`. Issue 17 still owns release-candidate verification and acceptance. |
-| F-08 | The existing Organizer panel remains client-derived. A separate owner-scoped `/summary` API and aggregate calculator are implemented on the F-08 branch and pass unit/PostgreSQL tests. Contract v0.3 and D-10/BR-18 remain unreviewed/unaccepted; the UI does not consume the API. |
+| F-08 | The existing Organizer panel remains client-derived. A separate owner-scoped `/summary` API and aggregate calculator are implemented on the F-08 branch at `25664f8` and pass unit/PostgreSQL tests. Contract v0.4 and D-10/BR-18 remain unreviewed/unaccepted; the UI does not consume the API. |
 
 The SRS is authoritative for behavior, rules, IDs, and sprint allocation. The Feature Inventory gives implementation/test/acceptance status; the Traceability Matrix maps requirements to evidence. Feature contracts define accepted APIs, ACs, and STSs. Issue 15 contains the actual Sprint 2 execution record. See [Deliverable 2 evidence map](deliverable-2-evidence-map.md) for the PDF navigation plan.
 
@@ -186,7 +186,7 @@ This SDS preserves the SRS IDs and maps architectural areas as follows:
 
 Open or pending decisions/evidence:
 
-- D-10 and BR-18 F-08 summary definitions remain proposed. Contract v0.3 and an API/unit/PostgreSQL test slice exist; independent review, policy acceptance, remaining UI/lifecycle/concurrency work, and release integration remain pending.
+- D-10 and BR-18 F-08 summary definitions remain proposed. Contract v0.4 and an API/unit/PostgreSQL test slice exist; independent review, policy acceptance, remaining UI/lifecycle/concurrency work, and release integration remain pending.
 - D-12's numeric performance and viewport targets remain proposed; no quantitative NFR-07 run is recorded.
 - The current enum has no unpublished Event state; Sprint 1 records this as an accepted limitation, so unpublished-state negative behavior is not demonstrated by this schema.
 - Current Sprint 2 release acceptance and GCP deployment status are not established by passing tests, a staging merge, or historical Lab 5 deployment.
