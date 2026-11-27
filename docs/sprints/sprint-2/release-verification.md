@@ -5,8 +5,8 @@ Snapshot: 2026-11-27 (Asia/Bangkok). Owner: Student 1; release reviewer: Student
 ## Candidate and integration identity
 
 - Remote candidate: `c5f355aad2e2a4ca719f529b07c7570ce85d035d` (`origin/sprint-2-staging`, PR #62 merge).
-- Current verification checkout: `release/54-sprint-2-verification` at exact candidate `c5f355aad2e2a4ca719f529b07c7570ce85d035d`. Earlier Codex checks used tree-equivalent `0f6115ae73cdc8159d1779ac752b20e96305e692`; those results below are historical, not new execution at the candidate commit.
-- Both commits have identical Git tree `1931b4c24762f85da7f940cb359c57208bf0bb82`. Historical Codex checks used the earlier checkout; the owner runs below used exact candidate `c5f355a`. This document is a subsequent uncommitted evidence change. Current status: HEAD equals candidate, with only this untracked evidence file and no tracked source/test modifications.
+- Current documentation PR checkout: `release/54-sprint-2-verification`, HEAD `842d584ab27d6eb3ba1dbc4e2dbb9d8a75695e4c` (PR #63 into `sprint-2-staging`). Working tree was clean before this clarification; only this document is modified afterward.
+- Historical owner functional verification used exact candidate `c5f355aad2e2a4ca719f529b07c7570ce85d035d`. Earlier Codex checks used tree-equivalent `0f6115ae73cdc8159d1779ac752b20e96305e692`, both tree `1931b4c24762f85da7f940cb359c57208bf0bb82`. The earlier untracked-file/HEAD-equals-candidate observations were pre-push history. PR commit `842d584` adds only this evidence file; application, tests, dependencies and deployment configuration are unchanged from candidate.
 - Sprint 1 accepted candidate: `da3fa630be862955c973cc9e0c8cddcc5e1dcd6e`; release merge to main: `91857c25f9ab27e9c904ca3886c0d3f1a67684dc`. No release tag exists locally after fetch.
 - `origin/main` is an ancestor of staging; comparison of deployment/CI paths shows only the CI workflow differs. No missing main-only deployment changes were found by this ancestry check.
 - PR #61 integration at `f08177c` and PR #62 documentation integration at `c5f355a` are present. PR #62 has an APPROVED review by `KwanchanokThungsuk`, explicitly limited to Issue 16 documentation.
@@ -66,7 +66,7 @@ Functional candidate verification is complete based on the supplied owner execut
 
 ## Release and Deliverable 2 gates
 
-Functional verification: **COMPLETE based on owner execution**. Evidence status: **READY FOR PEER REVIEW**, with team-agreed temporary dependency risk acceptance subject to the requirements and controls below. Candidate-specific CI, Student 2 formal PR review, main integration, release acceptance, tagging and deployment remain pending. No formal release acceptance or GitHub approval of Issue #54 is claimed.
+Functional verification: **COMPLETE based on owner execution**. Evidence status: **READY FOR REVIEWER RECHECK**. PR #63 has successful recorded PR-level CI at documentation head `842d584`, as detailed below. These new documentation clarifications have not yet run through CI. Formal teammate approval, staging integration, reviewed release PR into main, accepted release/tagging, deployment/post-deployment checks and final Deliverable 2 candidate verification remain pending.
 
 ## F-05 restart setup
 
@@ -112,6 +112,7 @@ Prisma and @prisma/config audit entries inherit the vulnerable dependency chain;
 - Decision date: 27 November 2026.
 - Decision owners: Student 1 and Student 2.
 - Approval source: owner-reported offline team discussion; no GitHub approval is claimed.
+- PR #63 reviewer requested explicit confirmation of this agreement on 2026-11-27. The owner reconfirms that both students agreed offline to the temporary deferral described here. The review at `842d584` is CHANGES_REQUESTED for documentation clarification, not formal approval or unconditional release acceptance.
 - Decision: retain current dependency versions and temporarily defer remediation, including Vitest 3.2.7 and Prisma 6.19.3.
 - Known audit findings: 2 critical, 4 high and 1 moderate. Affected packages remain vulnerable and present in the Docker image.
 - Rationale: avoid introducing major-version compatibility and regression risks during the remaining academic project period. Supporting evidence is the dependency exposure/reachability assessment above; it does not prove the absence of all exploit paths.
@@ -133,7 +134,7 @@ Grading availability is explicit: Deliverable 2 page 5, Final Delivery page 6 an
 The team accepts residual dependency risk temporarily under these controls; it does not assert vulnerability-free operation. Formal release review must confirm applicable requirements, pending deployment controls and grading availability before acceptance.
 
 - Completed functional gates: verified isolated database URLs/container/migrations, full server/client/browser runs, all three API restart checks, typecheck/build and historical tree-equivalent clean Docker build. No repeat is required solely for this documentation update; re-evaluate if candidate source changes.
-- No candidate-specific CI result was returned by the staging-branch run query in this session. Historical PR CI cannot be attributed to this candidate.
+- The original pre-push staging-branch query returned no candidate CI. This historical observation is superseded for PR-level verification by run 45979117715 below; owner tests on `c5f355a` remain a distinct record.
 - Existing deployment workflow triggers on main and uses environment `demo`; merging a release PR can trigger deployment. Require explicit owner authorization before release actions.
 - Prepare proposed PR `Release: Sprint 2 F-05/F-06/F-07 integration` from staging to main only after verification and Student 2 review. No release PR/tag/merge/deployment was created here.
 - Final evidence inventory: [rubric map](../../deliverable-2-evidence-map.md), [continuity register](continuity-and-change-register.md), SRS/SDS/traceability, accepted contracts, and [Sprint 3 plan](../sprint-3/remaining-work.md). Real review chains and test excerpts exist; TDD red/green artifacts, Lab 6/7/UAT execution and current deployment identity require owner-supplied evidence. Proposed owners: Student 1 release verification; Student 2 review; team evidence collection/F-08 through 2026-12-13. These assignments are proposals, not recorded approvals.
@@ -159,7 +160,16 @@ The following supersedes the earlier access-blocked observations below. These ar
 
 The previous Cloud SQL None observation came from an incorrect JSON annotation location; corrected owner inspection confirms the instance on both jobs. No job was executed during this audit. Synthetic deployed-data attestation is recorded below. Standalone Lab 5–7 guides remain unavailable in the inspected workspace; supplied project PDFs were reviewed. These are disclosed evidence limitations, not findings of noncompliance.
 
-**Current verdict: READY FOR SINGLE PUSH AND PEER REVIEW.** Synthetic Data Attestation, provisioning digest and both jobs' secret-reference evidence are COMPLETE. Earlier blanket cloud-access blockers below are historical and superseded for verified controls. Inherited IAM scope, shared runner, Editor grants, latest secret selectors and unavailable Lab guides remain disclosed limitations. Candidate CI, formal teammate PR review, main integration, tagging/deployment and post-deployment checks remain subsequent gates. Dependency acceptance remains conditional on its documented controls. This verdict is not formal release acceptance or authorization to execute Git/release actions.
+**Current verdict: READY FOR REVIEWER RECHECK.** PR #63 is open with successful recorded CI on `842d584`; approval remains requested after these clarifications. Synthetic Data Attestation, provisioning digest and secret references are complete. Inherited IAM scope, shared runner, Editor grants, latest secret selectors and unavailable Lab guides remain disclosed limitations. Staging integration, reviewed main release PR, acceptance/tagging, deployment/post-deployment and final Deliverable 2 verification remain subsequent gates. Dependency acceptance remains conditional on its documented controls.
+
+### PR #63 CI evidence — independently inspected 2026-11-27
+
+- Workflow: **CI & Docker Build**; job `test-and-docker`: SUCCESS.
+- Run [45979117715](https://github.com/Ttime52/EventCheck/actions/runs/45979117715), event `pull_request`, created 2026-11-27 10:05:22 UTC (17:05:22 ICT), updated 10:07:59 UTC (17:07:59 ICT).
+- PR documentation head: `842d584ab27d6eb3ba1dbc4e2dbb9d8a75695e4c`.
+- Checkout log and Docker build tag: generated merge revision `858bda6e6723f1ed2da0e164a6cbf924f6679de2` merging that PR head into candidate/base `c5f355aad2e2a4ca719f529b07c7570ce85d035d`. This CI execution is not a direct checkout of `c5f355a`.
+- Logs: unit 44 passed/87 skipped; separate nine PostgreSQL suites 87 passed with no skipped cases (7+7+5+11+7+13+16+17+4), F-06 API restart PASS; client 29 passed; Playwright 30 passed; Prisma generation/validation, isolated migrations/seed, typecheck/build, offline deployment checks and production Docker build steps SUCCESS.
+- GitHub PR file list and local diff confirm documentation-only scope: this file alone. CI did not deploy. No CI success is claimed for the uncommitted documentation update produced by the current task.
 
 ### Synthetic Data Attestation — owner-provided, 2026-11-27
 
