@@ -2,6 +2,7 @@
 
 **Scope:** Accepted F-05 v0.6, F-06 v0.5, and F-07 v0.5 contracts
 **Evidence source:** [Issue 15 integration, regression and E2E report](integration-verification.md)
+**Additional feature evidence:** [F-06 implementation record](f-06-implementation-evidence.md); [F-07 verification history](f-07-verification-evidence.md)<br>
 **Implementation/test SHA:** `107c93eafbc5c2afb29527336665a6d38269c478`
 **Current staging HEAD:** `f08177c1cf4d9820846a72ef1fc1bcff55c9b96b` (PR #61 merge)
 **Verification recorded:** 2026-11-27

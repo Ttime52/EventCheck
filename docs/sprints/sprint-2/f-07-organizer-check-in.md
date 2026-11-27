@@ -3,18 +3,20 @@
 **Issue:** 11B - Sprint 2 Feature Contracts<br>
 **Feature ID:** F-07<br>
 **Contract version:** 0.5<br>
-**Status:** Accepted — confirmed by user on 2026-11-25; F-07 operations/UI pending, shared Attendance persistence present<br>
-**Updated:** 2026-11-25<br>
+**Status:** Accepted — confirmed by user on 2026-11-25; F-07 implementation and verification complete and staging-integrated; formal release acceptance pending<br>
+**Contract revision:** 2026-11-25<br>
 **Author:** Issue 11B contributor (name not recorded in the repository)<br>
 **Reviewer:** Acceptance reported by user; reviewer identity and review artifact not recorded in the repository<br>
 **Target branch:** sprint-2-staging
-**Work type:** Accepted F-07 feature contract. Check-in/retrieval operations, UI, and F-07-specific verification remain pending and outside Issue 13.
+**Work type:** Accepted F-07 feature contract. Feature PR #60 and staging integration PR #61 are merged; Issue 15 regression is recorded. Current F-07 evidence is linked below. Final Sprint 2 release acceptance/deployment remain pending.
+
+**Current implementation snapshot (2026-11-27):** F-07 is IMPLEMENTED and TESTED. PR #60 merged F-07 into `feature/sprint-2-e2e`; PR #61 integrated the tested tree into `sprint-2-staging` at `f08177c`. Issue 15 records the integrated API/browser AC results on `107c93e` and separately identifies the dedicated F-07 restart result on `b9df85c`; the [Sprint 2 AC matrix](ac-verification.md) gives the row-by-row result and the [F-07 verification evidence](f-07-verification-evidence.md) preserves the feature-specific test history. Contract acceptance is not the same as release acceptance: no final Sprint 2 release identity/deployment is recorded, and the individual PR reviewer identity is not recorded in this contract.
 
 ## 1. Purpose and scope
 
 Under Accepted — Team Reviewed Q-05, only the owning Organizer records check-in for an eligible ACTIVE Registration during `[startAt, endAt)`. F-07 also lets the Organizer retrieve attendance for owned Events and a Participant retrieve attendance for their own Registration. F-07 contract acceptance was confirmed by the user on 2026-11-25; reviewer identity and external review artifact are not recorded in this repository. The accepted contract covers organizer and participant UI states, APIs, persistent associations, role/ownership enforcement, transaction boundaries, acceptance criteria, and planned tests.
 
-This contract is accepted. Issue 13 added the shared Attendance Prisma model and migration for F-06's checked-in cancellation guard, and tested the shared lock order with a storage-level writer. The F-07 check-in and attendance retrieval APIs, authorization workflow, Organizer/Participant UI, and F-07-specific acceptance tests remain pending and are outside Issue 13.
+This contract is accepted. At Issue 13 completion, the shared Attendance Prisma model and migration for F-06's checked-in cancellation guard were present, while F-07 routes, UI, and feature-specific acceptance tests were still pending. Those F-07 operations were later implemented under PR #60 and integrated by PR #61; the current implementation and test status is recorded above and in the linked verification evidence.
 
 ## 2. Requirement and responsibility links
 
@@ -70,7 +72,7 @@ Q-05 and Q-10 are Accepted — Team Reviewed in the PR review recorded 2026-11-2
 
 ### 4.2 User interface
 
-F-07 requires changes to the existing Organizer registration-list flow and a Participant attendance view. The current Organizer list already provides event-scoped Registration rows; the Attendance UI is not implemented.
+The accepted design changes the existing Organizer registration-list flow and adds a Participant attendance view. These UI operations are implemented in the staging tree; test execution and the release boundary are recorded in the current-status note above, the [AC matrix](ac-verification.md), and the [verification evidence](f-07-verification-evidence.md).
 
 | Screen or control | Role | Required behavior |
 | --- | --- | --- |
@@ -186,7 +188,7 @@ Persist checkedInAt as a UTC instant from the authoritative server/database cloc
 
 ## 7. Software Test Specifications
 
-These are planned F-07 specifications; no F-07 endpoint/UI implementation or F-07-specific test execution is claimed. F-06 TEST-F06-13 does exercise the shared Event/Registration lock order with a storage-level check-in writer. Test fixtures use UTC instants; user-facing time is labelled Asia/Bangkok (UTC+7).
+These numbered specifications are the accepted F-07 STS baseline. Executed F-07 results are recorded in the [AC matrix](ac-verification.md) and [verification evidence](f-07-verification-evidence.md); see the current-status snapshot above for tested versions and release limitations. F-06 TEST-F06-13 separately exercised the shared Event/Registration lock order with a storage-level check-in writer before the F-07 HTTP route was implemented. Test fixtures use UTC instants; user-facing time is labelled Asia/Bangkok (UTC+7).
 
 ### TEST-F07-01 - Owner check-in creates one associated Attendance
 
@@ -284,32 +286,32 @@ These are planned F-07 specifications; no F-07 endpoint/UI implementation or F-0
 - **Steps and inputs:** Sign in as P1, keyboard-open each own Registration's attendance detail, refresh the page, and attempt an altered P2 Registration ID.
 - **Expected / database and authorization verification:** P1 sees the checked-in timestamp on the first and Not Checked In on the second. The altered ID is denied without revealing P2's record. Labels, focus, loading, and error states are usable; no self-check-in control appears.
 
-## 8. F-07 Definition of Done
+## 8. F-07 Implementation and Release Status
 
-F-07 implementation is Done only after every item is evidenced on the reviewed Sprint 2 release. These are future completion criteria, not claims that work is complete.
+The feature is implemented, tested, and integrated into `sprint-2-staging` as recorded above. The checklist records implementation/test evidence separately from the still-pending formal Sprint 2 release. A checked feature item does not mean the release has been accepted or deployed.
 
 - [x] Confirmed the SRS reflects Accepted — Team Reviewed Q-05/Q-10 and accepted F-05 v0.6 API/schema baseline.
 - [x] F-07 contract acceptance recorded per user confirmation on 2026-11-25; reviewer identity and external review artifact were not supplied in the repository.
-- [ ] Reviewed migration adds Attendance, uniqueness, restrictive foreign keys, association-consistency constraints, and query indexes; rollback does not rewrite applied migration history.
-- [ ] Backend derives identity and ownership from the session, validates Origin/CSRF, enforces ACTIVE status and [startAt, endAt), and samples server time after the shared Event/Registration locks.
-- [ ] F-06 and F-07 share a lock order and pass the start-boundary race; no Registration can be both CANCELLED and attended.
-- [ ] Every AC-F07-01 through AC-F07-12 is implemented and mapped to actual TEST results. Authorization, wrong Event, boundary, duplicate/concurrent, rollback, restart, and retrieval tests pass.
-- [ ] Organizer and Participant views show accurate attendance states and accessible loading, empty, success, conflict, retry, and error states. Not Checked In appears only after a successful read.
-- [ ] Real database restart verification confirms Attendance associations and timestamps persist throughout the project and assessment period under Q-10; any real-user production retention policy is reviewed separately.
-- [ ] Sprint 1/F-03/F-04/F-05/F-06 regression checks pass; actual commands, results, counts, failures/skips, database, and tested commit are recorded.
-- [ ] Issue/branch/PR, substantive Student 1 peer review, staging integration, and accepted release identity are recorded. This contract task records no such review or release.
+- [x] Attendance migration, uniqueness, restrictive foreign keys, association-consistency constraints, and query indexes are present and included in the integrated verification evidence.
+- [x] Backend derives identity and ownership from the session, validates Origin/CSRF, enforces ACTIVE status and [startAt, endAt), and uses the shared Event/Registration lock order.
+- [x] F-06 and F-07 share the lock order and the start-boundary race has passing database evidence; incompatible CANCELLED-plus-Attendance state is rejected.
+- [x] AC-F07-01 through AC-F07-12 are mapped to actual TEST results in the [Sprint 2 AC matrix](ac-verification.md); the tested versions and restart limitation are stated there.
+- [x] Organizer and Participant views provide the accepted attendance states and accessible loading, empty, success, conflict, retry, and error behavior in the recorded UI/browser tests.
+- [x] The F-07 restart check passed on the version recorded in the AC matrix; repeat it on the exact Issue 17 release candidate before release acceptance.
+- [x] Sprint 1/F-03/F-04/F-05/F-06 regression checks passed in the Issue 15 run; commands, counts, failures/skips, database, and tested commit are recorded in the integration evidence.
+- [ ] Final Sprint 2 release identity and acceptance/deployment are recorded. PR #60 and staging integration PR #61 are known; this contract does not preserve the individual reviewer identity/substantive review artifact. Include actual PR review evidence in the final PDF if available.
 
 ## 9. Risks and unresolved repository questions
 
 | Item | Current observation | Required treatment |
 | --- | --- | --- |
-| Q-05 policy | SRS and SDS record the owning-Organizer/ACTIVE/[startAt, endAt) rule as Accepted — Team Reviewed. | Preserve the accepted rule; F-07 contract is accepted and its implementation remains pending. |
+| Q-05 policy | SRS and SDS record the owning-Organizer/ACTIVE/[startAt, endAt) rule as Accepted — Team Reviewed. | Preserve the accepted rule; F-07 implementation and tests are integrated, with formal release acceptance still pending. |
 | Q-10 retention | SRS records synthetic history retention through the project and assessment period as Accepted — Team Reviewed. | No automatic deletion for this scope; real-user production rules need separate review. |
 | F-05 dependency status | Q-01 to Q-03, field meanings, and F-05 v0.6 API/schema are accepted and integrated. | Preserve both meanings; backend rechecks registration eligibility. Check-in remains governed by Q-05 and Event `startAt`/`endAt`. |
-| Shared persistence | F-06 added the Attendance model/migration and verified its restrictive composite references for the checked-in guard. | F-07 still needs its check-in/retrieval routes, authorization checks, UI, and feature-specific tests; keep those outside Issue 13. |
+| Shared persistence | F-06 added the Attendance model/migration and verified its restrictive composite references for the checked-in guard. | F-07 routes, authorization checks, UI, and feature-specific tests were added separately under PR #60; the Issue 15 regression preserves the cross-feature boundaries. |
 | Cross-entity integrity | Attendance.eventId and participantId must match the linked Registration; recording Organizer must own the Event. | Enforce with reviewed composite constraints plus backend authorization checks. |
 | F-06 race | Cancellation and check-in are mutually exclusive lifecycle outcomes. | Use one lock order and test both before-start and exact-start outcomes. |
-| Existing route proposal | Accepted F-07 endpoint paths are not current server endpoints. | Implement the routes and UI in a separate F-07 implementation issue; Issue 13 only shares the accepted Attendance persistence and Event/Registration lock order. |
+| Existing route proposal | The accepted F-07 endpoint paths are implemented in the current staging tree. | Keep the contract paths synchronized with `server/src/app.ts`; do not describe them as proposals or as Issue 13 work. |
 
 ## 10. Version and decision history
 
@@ -328,8 +330,9 @@ F-07 implementation is Done only after every item is evidenced on the reviewed S
 | Student 1 peer review | Acceptance reported by user; reviewer identity and review artifact not supplied in the repository |
 | Team policy confirmation for Q-05 and Q-10 | Accepted — Team Reviewed; PR review recorded 2026-11-24 |
 | Contract acceptance | Accepted per user confirmation on 2026-11-25 |
-| Implementation, migration, and test execution | Pending; F-07 implementation remains outside Issue 13 |
-| PR/release approval | Pending |
+| Implementation, migration, and test execution | Implemented, tested, and staging-integrated; see the AC matrix and F-07 verification report |
+| Feature/staging integration | PR #60 merged to `feature/sprint-2-e2e`; PR #61 merged to `sprint-2-staging` at `f08177c` |
+| Formal Sprint 2 release acceptance/deployment | Pending; Issue 17 must verify and identify the exact candidate |
 
 ### Related baseline
 

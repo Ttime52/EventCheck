@@ -16,6 +16,8 @@ Update EventCheck's engineering documentation to distinguish accepted Sprint 1 a
 - Added F-08 progress and remaining-work plan at `docs/sprints/sprint-3/remaining-work.md`.
 - Added rubric navigation at `docs/deliverable-2-evidence-map.md`.
 - Updated Issue 15's status wording for the later PR #61 merge and recorded this PR description in this file.
+- Reconciled current implementation, feature-PR/staging-merge, test, and release statuses in the F-05/F-06/F-07 contracts and their feature verification records while preserving the dated version history.
+- Clarified that F-07 owner-reported working-tree results have no tested SHA, marked the unexplained 24/24 count unresolved, and mapped the later Issue 15 run separately.
 
 ## Requirements coverage
 
