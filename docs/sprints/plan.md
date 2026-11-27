@@ -111,13 +111,13 @@ Sprint 3 and the product baseline are complete only when all of the following ar
 
 ## 6. Current progress and remaining work
 
-This snapshot is based on the inspected local `origin/sprint-2-staging` ref at `f08177c1cf4d9820846a72ef1fc1bcff55c9b96b` (2026-11-27). The approved allocation above is unchanged.
+This snapshot was refreshed against origin/sprint-2-staging at 21669b9b902967219724d8a62d29574f3ff0c987 on 2026-11-27. PR #63 added release-verification documentation to staging after the PR #61 feature integration; the Sprint 2 feature implementation remains the integrated F-05 to F-07 tree. Formal Sprint 2 release acceptance and a release tag are still not recorded. The approved allocation above is unchanged.
 
 | Increment | Current status | Evidence and remaining gate |
 | --- | --- | --- |
 | Sprint 1: F-01 to F-04 | ACCEPTED for Sprint 1. | The accepted release candidate is `da3fa630be862955c973cc9e0c8cddcc5e1dcd6e` (PR #20). No Git tag is present. Issue 15 re-ran the Sprint 1 backend/API and browser regression on tested implementation SHA `107c93e` as part of 87/87 PostgreSQL integration and 30/30 E2E passes. See [Sprint 1 continuity and change register](sprint-2/continuity-and-change-register.md). |
 | Sprint 2: F-05 to F-07 | IMPLEMENTED, TESTED, and INTEGRATED to `sprint-2-staging`; formal release acceptance is not recorded. | Issue 15 maps all 38 accepted ACs to executed tests. PR #61 merged at `f08177c`; the merge tree differs from tested `107c93e` only in the Issue 15 evidence document. Issue 17 still needs to verify and record its exact release candidate and release/deployment evidence. See [AC verification](sprint-2/ac-verification.md). |
-| Sprint 3: F-08 | PARTIAL. A subset of Organizer-side derived count metrics is implemented and exercised within F-07 UI tests; F-08 itself has no accepted contract or AC/STS. | D-10/BR-18 remain proposed. Attendance rate, zero-active N/A, a defined consistent snapshot, owner-denial contract coverage, and full F-08 acceptance remain outstanding. See [F-08 progress and remaining work](sprint-3/remaining-work.md). |
+| Sprint 3: F-08 | PARTIAL. A subset of Organizer-side derived count metrics is implemented and exercised within F-07 UI tests. F-08 contract v0.1, proposed AC/STS, and DoD are now review-ready but not accepted. | D-10/BR-18 remain proposed; Student 1 review is not recorded. Attendance rate, zero-active N/A, a consistent summary read, direct owner-denial coverage, and full F-08 acceptance remain outstanding. Formal Sprint 2 release acceptance and Sprint 3 PR target are also unresolved. See [F-08 progress and remaining work](sprint-3/remaining-work.md) and [F-08 contract](sprint-3/f-08-registration-attendance-summary.md). |
 
 Sprint 1 release continuity and Lab/UAT evidence gaps are tracked separately; missing Lab 6/7/UAT artifacts are not treated as proof that no findings exist. The Deliverable 2 evidence navigation table is in [`../deliverable-2-evidence-map.md`](../deliverable-2-evidence-map.md); final PDF page numbers are assigned only during Issue 17 assembly.
 

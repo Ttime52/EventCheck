@@ -2,7 +2,7 @@
 
 **Project:** EventCheck — Event Registration and Attendance System
 **Snapshot:** 2026-11-27
-**Current target branch:** `sprint-2-staging` at `f08177c1cf4d9820846a72ef1fc1bcff55c9b96b`
+**Current target branch:** origin/sprint-2-staging at 21669b9b902967219724d8a62d29574f3ff0c987
 **Verified implementation/test SHA:** `107c93eafbc5c2afb29527336665a6d38269c478`
 **Release status:** Sprint 1 has an accepted candidate; Sprint 2 is implemented, tested and staging-integrated, but a formal release acceptance/deployment record is not present.
 
@@ -14,7 +14,7 @@ This SDS describes the system design present in the checked-out Sprint 2 staging
 | --- | --- |
 | F-01 to F-04 | Accepted Sprint 1 increment; regression was included in Issue 15. The accepted candidate is `da3fa630be862955c973cc9e0c8cddcc5e1dcd6e`. |
 | F-05 to F-07 | Accepted contracts; implementation is integrated in `sprint-2-staging`; Issue 15 reports their AC verification passing on `107c93e`. Issue 17 still owns release-candidate verification and acceptance. |
-| F-08 | Partial UI-derived count metrics exist in the Organizer registration view and have component/E2E coverage. No F-08 contract, summary endpoint, rate, zero-active N/A behavior, or accepted D-10/BR-18 policy is recorded. |
+| F-08 | Partial UI-derived count metrics exist in the Organizer registration view and have component/E2E coverage. Draft contract v0.1 and proposed AC/STS are review-ready but not accepted; D-10/BR-18 remain proposed. No summary endpoint, rate, or zero-active N/A behavior is implemented. |
 
 The SRS is authoritative for behavior, rules, IDs, and sprint allocation. The Feature Inventory gives implementation/test/acceptance status; the Traceability Matrix maps requirements to evidence. Feature contracts define accepted APIs, ACs, and STSs. Issue 15 contains the actual Sprint 2 execution record. See [Deliverable 2 evidence map](deliverable-2-evidence-map.md) for the PDF navigation plan.
 
@@ -84,7 +84,7 @@ The API is JSON under `/api/v1`. Successful responses use a `{ data: ... }` enve
 | `GET /health` | Public | Liveness response. |
 | `GET /api/ready` | Public | Readiness check that executes `SELECT 1` against PostgreSQL and returns 200/503. |
 
-**F-08 endpoint status:** No `/summary` endpoint is implemented in `server/src/app.ts`. The current Organizer metrics are client-derived from registration and attendance data. Any new summary API requires an accepted F-08 contract and must not be represented as current functionality before implementation.
+**F-08 endpoint status:** No /summary endpoint is implemented in server/src/app.ts. The current Organizer metrics are client-derived from registration and attendance data. A draft API is specified in the review-ready F-08 contract; it is not an accepted or implemented API and must not be represented as current functionality.
 
 ## 5. Database design and migrations
 
@@ -185,7 +185,7 @@ This SDS preserves the SRS IDs and maps architectural areas as follows:
 
 Open or pending decisions/evidence:
 
-- D-10 and BR-18 F-08 summary definitions remain proposed. No F-08 contract/AC/STS has been located in the inspected branches.
+- D-10 and BR-18 F-08 summary definitions remain proposed. Draft contract v0.1 and proposed AC/STS are available for review; acceptance and implementation remain pending.
 - D-12's numeric performance and viewport targets remain proposed; no quantitative NFR-07 run is recorded.
 - The current enum has no unpublished Event state; Sprint 1 records this as an accepted limitation, so unpublished-state negative behavior is not demonstrated by this schema.
 - Current Sprint 2 release acceptance and GCP deployment status are not established by passing tests, a staging merge, or historical Lab 5 deployment.
