@@ -1,0 +1,11 @@
+git.exe : warning: in the working copy of 'docs/labs/lab-06/evidence/obs-07/pr-description.md', LF will be replaced by
+CRLF the next time Git touches it
+At line:2 char:205
++ ... rified-diff-check-rerun.txt'; & git diff --check *> $checkLog; $gitDi ...
++                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: in the... Git touches it:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+warning: in the working copy of 'server/src/uat-display-name-update.test.ts', LF will be replaced by CRLF the next
+time Git touches it
+Exit code: 0

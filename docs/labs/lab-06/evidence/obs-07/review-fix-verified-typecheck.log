@@ -1,0 +1,11 @@
+
+> typecheck
+> npm run typecheck --workspace server && npm run typecheck --workspace client
+
+
+> typecheck
+> tsc -p tsconfig.json --noEmit
+
+
+> typecheck
+> tsc -p tsconfig.json --noEmit
