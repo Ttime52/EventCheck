@@ -47,8 +47,8 @@ Common synthetic values (change only the run token and future date):
 | Field | Value |
 | --- | --- |
 | Organizer test account | `organizer@example.test` / display name `Demo Organizer` in local seeded environments; deployed account label: `TODO: Confirm` |
-| Participant A test account | `participant@example.test` / display name `Demo Participant` in local seeded environments; deployed account label: `TODO: Confirm` |
-| Participant B test account | `TODO: Confirm` a separately provisioned synthetic Participant and private credential delivery; required for UAT-03 |
+| Participant A test account | Issue #67 reports `participant-demo@example.com` / `Production Demo Participant A`; verify the account in isolated UAT and obtain credentials privately |
+| Participant B test account | Issue #67 reports `participant-b@example.test` / `Production Demo Participant B`; verify the distinct account in isolated UAT and obtain credentials privately; required for UAT-03 |
 | Organizer B test account | `TODO: Confirm` a separately provisioned synthetic Organizer and private credential delivery; required for UAT-05 |
 | Normal journey title | `UAT-<RUN_ID>-01 Normal Journey` |
 | Duplicate case title | `UAT-<RUN_ID>-02 Duplicate Rule` |
@@ -121,7 +121,7 @@ Common synthetic values (change only the run token and future date):
 - **Acceptance criteria:** AC-F03-02, AC-F03-03, AC-F03-09
 - **Objective:** Verify that a distinct Participant cannot register after all available places are consumed and that no extra Registration is created.
 - **User roles:** Organizer, Participant A, Participant B
-- **Preconditions:** Valid Organizer and Participant A accounts; **a second distinct Participant B account must be provisioned for the UAT environment**. Its label and private credential delivery are `TODO: Confirm`. Without Participant B, record this case as `BLOCKED`; do not substitute the Organizer or reuse Participant A because duplicate-first handling is a different rule.
+- **Preconditions:** Valid Organizer and Participant A accounts; **a second distinct Participant B account must exist in the isolated UAT environment**. Issue #67 reports the Participant A/B identifiers and corrected labels, but account presence and private credential delivery still require confirmation. Without Participant B, record this case as `BLOCKED`; do not substitute the Organizer or reuse Participant A because duplicate-first handling is a different rule.
 - **Test data:** Title `UAT-<RUN_ID>-03 One Place`; generic description; location `CPE Test Hall A`; future date; capacity `1`.
 - **Test steps and expected results:**
   1. As Organizer, create and publish the capacity-1 Event. **Expected:** the Event displays `1 remaining` and `Available`.
@@ -259,7 +259,7 @@ This case requires a controlled application restart while preserving the UAT dat
 
 ## Coverage notes and known limits
 
-- UAT-03 requires Participant B and UAT-05 requires Organizer B. The repository's development seed documents only one Participant and one Organizer; these additional deployed test accounts are not confirmed. Confirm their provisioning and private credential delivery before scheduling those cases.
+- UAT-03 requires Participant B and UAT-05 requires Organizer B. Issue #67 reports two synthetic Participant identifiers and corrected labels; their presence in the isolated deployment and private credential delivery are not confirmed. The repository's development seed still documents only one Participant and one Organizer. Confirm the accounts before scheduling UAT-03 or UAT-05.
 - The Event schema supports only published Events in the accepted Sprint 1 implementation, so a UI UAT of unpublished-event discovery/registration is not applicable to the shipped state model.
 - Manual UAT does not reproduce synchronized last-place races, database failure injection, or exact 30-minute/8-hour expiry boundaries. Those remain covered by the repository's recorded automated verification and are not claimed as manual UAT results.
 - Fixed published capacity and absence of capacity editing are in scope. Sprint 2 capacity modification and deadlines are excluded.
