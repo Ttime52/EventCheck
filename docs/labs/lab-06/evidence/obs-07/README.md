@@ -75,9 +75,9 @@ These are **manual steps only**. The current work did not run either command aga
 
 ## Review and release status
 
-- Fix commit: **Pending**.
-- Draft PR targeting `sprint-1-staging`: **Pending**.
-- CI: **Pending**; report only after the hosted checks are observed.
+- Fix commit: [`7a25ae8154ac95111521f42fdf279bd1f94ce20f`](https://github.com/Ttime52/EventCheck/commit/7a25ae8154ac95111521f42fdf279bd1f94ce20f).
+- Draft PR targeting `sprint-1-staging`: [#70](https://github.com/Ttime52/EventCheck/pull/70).
+- CI: **Pending at the last check on the initial PR head**; recheck [PR #70](https://github.com/Ttime52/EventCheck/pull/70) for the current head before approval/merge.
 - UAT database plan/apply: **Pending environment owner review and approval**; no database has been changed.
 - Deployment: **Pending**.
 - Independent UAT retest: **Pending**. Sec01-Team047 must retest after the corrected test data is approved and available in the deployed UAT environment. No PASS is claimed.
