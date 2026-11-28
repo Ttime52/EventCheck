@@ -1,0 +1,63 @@
+
+> test
+> vitest run src/uat-display-name-update.test.ts --reporter=verbose
+
+
+ RUN  v3.2.7 D:/GitHub/EventCheck/server
+
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > dry-runs only the two Participant accounts without writing or opening a transaction 7ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > updates Participant names when Organizer A is missing 2ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > updates Participant names when Organizer B is missing 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > updates Participant names when both Organizers is missing 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > updates only Participant displayName and preserves IDs, login, role, password hashes, registrations, and unrelated users 2ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > is idempotent when applied twice with the same exact-ID approval 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > does not commit partial changes when an update fails inside the transaction 2ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > rejects a missing Participant before any user update 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > fails safely for a role mismatch before any user update 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > fails safely for a shared User ID before any user update 0ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > fails safely for an unexpected current display name before any user update 0ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > rejects case-insensitive login collisions before any write 0ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > rejects a case-variant account even when no canonical-case account exists 0ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > requires a verified UAT marker and exact credential-free database target 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > binds the apply approval to the verified database and exact Participant User IDs 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > rejects database User IDs that differ from the approved IDs before any update 1ms
+ × src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > rejects an apply target that was not produced by UAT environment verification 8ms
+   → Apply requires a database target verified from the approved UAT environment
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > defaults to dry-run and requires both explicit apply flags 1ms
+npm.cmd :
+At line:2 char:1
++ npm.cmd run test --workspace server -- src/uat-display-name-update.te ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > rejects an apply target that was
+not produced by UAT environment verification
+Error: Apply requires a database target verified from the approved UAT environment
+ ❯ applyUatDisplayNameUpdate src/uat-display-name-update.ts:152:11
+    150| ): Promise<DisplayNameUpdatePlan[]> {
+    151|   if (target[verifiedTargetBrand] !== true || !target.databaseTarget) {
+    152|     throw new UatDisplayNameUpdateError("Apply requires a database tar…
+       |           ^
+    153|   }
+    154|   return client.$transaction(async (transaction) => {
+ ❯ src/uat-display-name-update.test.ts:331:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 passed (18)
+   Start at  14:27:32
+   Duration  1.19s (transform 148ms, setup 0ms, collect 176ms, tests 31ms, environment 0ms, prepare 389ms)
+
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path D:\GitHub\EventCheck\server
+npm error workspace @eventcheck/server
+npm error location D:\GitHub\EventCheck\server
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c vitest run src/uat-display-name-update.test.ts
+--reporter=verbose

@@ -1,0 +1,25 @@
+
+> test
+> vitest run src/production-provisioning.test.ts --reporter=verbose
+
+
+ RUN  v3.2.7 D:/GitHub/EventCheck/server
+
+ ✓ src/production-provisioning.test.ts > production account configuration > requires production mode and all account/database values 3ms
+ ✓ src/production-provisioning.test.ts > production account configuration > rejects invalid DATABASE_URL 0ms
+ ✓ src/production-provisioning.test.ts > production account configuration > rejects invalid PROVISION_ORGANIZER_EMAIL 0ms
+ ✓ src/production-provisioning.test.ts > production account configuration > rejects invalid PROVISION_PARTICIPANT_EMAIL 0ms
+ ✓ src/production-provisioning.test.ts > production account configuration > rejects invalid PROVISION_ORGANIZER_PASSWORD 0ms
+ ✓ src/production-provisioning.test.ts > production account configuration > rejects invalid PROVISION_PARTICIPANT_PASSWORD 0ms
+ ✓ src/production-provisioning.test.ts > production account configuration > normalizes email identifiers and rejects duplicate emails or reused passwords 0ms
+ ✓ src/production-provisioning.test.ts > production account configuration > does not expose configured credentials in validation errors 0ms
+ ✓ src/production-provisioning.test.ts > production account provisioning > creates one account per role with hashes compatible with login 209ms
+ ✓ src/production-provisioning.test.ts > production account provisioning > is idempotent and never resets existing passwords 131ms
+ ✓ src/production-provisioning.test.ts > production account provisioning > fails before writes when an existing account has the wrong role 36ms
+ ✓ src/production-provisioning.test.ts > production account provisioning > fails closed when only the casing of an existing login identifier differs 32ms
+ ✓ src/production-provisioning.test.ts > production account provisioning > does not start a transaction for invalid required environment values 1ms
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  14:28:44
+   Duration  1.26s (transform 133ms, setup 0ms, collect 207ms, tests 414ms, environment 0ms, prepare 324ms)

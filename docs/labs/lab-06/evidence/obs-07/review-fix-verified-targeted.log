@@ -1,0 +1,30 @@
+
+> test
+> vitest run src/uat-display-name-update.test.ts --reporter=verbose
+
+
+ RUN  v3.2.7 D:/GitHub/EventCheck/server
+
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > dry-runs only the two Participant accounts without writing or opening a transaction 4ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > updates Participant names when Organizer A is missing 2ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > updates Participant names when Organizer B is missing 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > updates Participant names when both Organizers is missing 0ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > updates only Participant displayName and preserves IDs, login, role, password hashes, registrations, and unrelated users 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > is idempotent when applied twice with the same exact-ID approval 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > does not commit partial changes when an update fails inside the transaction 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > rejects a missing Participant before any user update 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > fails safely for a role mismatch before any user update 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > fails safely for a shared User ID before any user update 0ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > fails safely for an unexpected current display name before any user update 0ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > rejects case-insensitive login collisions before any write 0ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > rejects a case-variant account even when no canonical-case account exists 0ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > requires a verified UAT marker and exact credential-free database target 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > binds the apply approval to the verified database and exact Participant User IDs 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > rejects database User IDs that differ from the approved IDs before any update 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > rejects an apply target that was not produced by UAT environment verification 0ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > defaults to dry-run and requires both explicit apply flags 0ms
+
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+   Start at  14:31:38
+   Duration  606ms (transform 78ms, setup 0ms, collect 113ms, tests 17ms, environment 0ms, prepare 180ms)
