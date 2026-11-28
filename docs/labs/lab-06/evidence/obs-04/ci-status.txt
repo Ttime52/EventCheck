@@ -1,0 +1,6 @@
+Command: gh pr checks 69
+Pull request: https://github.com/Ttime52/EventCheck/pull/69
+Checked: 2026-11-28 (Asia/Bangkok)
+Check: test-and-docker — pending
+Workflow run: https://github.com/Ttime52/EventCheck/actions/runs/46109933417
+Run state from gh run view: in_progress; conclusion not yet available.

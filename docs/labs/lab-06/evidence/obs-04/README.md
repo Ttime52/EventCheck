@@ -60,7 +60,7 @@ Real headless Chromium screenshots were captured from the local Vite app with sy
 ## Review and release status
 
 - Fix commit: [`e734e950cc39fbd1f30d914a5e1ed569e1b9bc4a`](https://github.com/Ttime52/EventCheck/commit/e734e950cc39fbd1f30d914a5e1ed569e1b9bc4a).
-- Pull request targeting `sprint-1-staging`: **Pending**.
-- CI status: **Pending**; no hosted CI result was checked.
+- Draft pull request targeting `sprint-1-staging`: [#69](https://github.com/Ttime52/EventCheck/pull/69).
+- CI status: `test-and-docker` was **pending / in progress** when checked on 28 November 2026; see [ci-status.txt](ci-status.txt) and [workflow run 46109933417](https://github.com/Ttime52/EventCheck/actions/runs/46109933417). No PASS is claimed.
 - Deployment: **Pending**.
 - Independent UAT retest: **Pending**; Sec01-Team047 must retest the corrected release after deployment. No PASS is claimed.
