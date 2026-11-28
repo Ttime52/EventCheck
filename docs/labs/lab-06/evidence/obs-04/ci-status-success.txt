@@ -1,0 +1,10 @@
+Command: gh run view 46110248329 --json status,conclusion,jobs
+Checked: 2026-11-28 (Asia/Bangkok)
+PR #69 head: 01cdda794fc3b17c4274586e44dd77848faea56c
+Workflow run: https://github.com/Ttime52/EventCheck/actions/runs/46110248329
+Run state: completed; conclusion success.
+Backend unit tests: step passed (38 passed; 41 integration-only tests skipped in that unit command).
+Backend PostgreSQL integration tests: step passed.
+Frontend tests, typecheck, and build: step passed; 28 frontend tests passed.
+Playwright E2E tests: step passed; 16 passed.
+Unified production Docker image: build step passed.

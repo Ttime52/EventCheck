@@ -1,0 +1,6 @@
+warning: in the working copy of 'docs/labs/lab-06/evidence/obs-07/README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/labs/lab-06/evidence/obs-07/pr-description.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/prisma/update-uat-display-names.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/src/uat-display-name-update.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/src/uat-display-name-update.ts', LF will be replaced by CRLF the next time Git touches it
+EXIT_CODE=0

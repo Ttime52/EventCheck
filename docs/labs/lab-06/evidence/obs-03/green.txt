@@ -1,0 +1,19 @@
+Issue #65 / UAT-06 / OBS-03 GREEN verification
+Time: 2026-11-28T00:32:28.446583+07:00
+HEAD: 9e764cd9ccad54e4f694e7581f7e6d702ae064c6 + uncommitted fix/tests
+Command: npm run test --workspace client -- src/obs03-validation.test.tsx
+Exit code: 0
+
+
+> test
+> vitest run src/obs03-validation.test.tsx
+
+
+ RUN  v3.2.7 /Users/dinoden/EventCheck/client
+
+ ✓ src/obs03-validation.test.tsx (4 tests) 102ms
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  00:32:27
+   Duration  557ms (transform 43ms, setup 39ms, collect 70ms, tests 102ms, environment 208ms, prepare 29ms)

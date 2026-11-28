@@ -1,0 +1,96 @@
+Local verification, 2026-11-28T00:32:46.677606+07:00
+HEAD 9e764cd9ccad54e4f694e7581f7e6d702ae064c6 + uncommitted changes
+
+COMMAND: npm run test --workspace client
+EXIT CODE: 0
+
+> test
+> vitest run
+
+
+ RUN  v3.2.7 /Users/dinoden/EventCheck/client
+
+ ✓ src/obs03-validation.test.tsx (4 tests) 106ms
+ ✓ src/App.test.tsx (20 tests) 371ms
+
+ Test Files  2 passed (2)
+      Tests  24 passed (24)
+   Start at  00:32:46
+   Duration  811ms (transform 54ms, setup 84ms, collect 148ms, tests 477ms, environment 401ms, prepare 58ms)
+
+
+COMMAND: npm run test --workspace client -- src/App.test.tsx -t F-02
+EXIT CODE: 0
+
+> test
+> vitest run src/App.test.tsx -t F-02
+
+
+ RUN  v3.2.7 /Users/dinoden/EventCheck/client
+
+ ✓ src/App.test.tsx (20 tests | 16 skipped) 128ms
+
+ Test Files  1 passed (1)
+      Tests  4 passed | 16 skipped (20)
+   Start at  00:32:47
+   Duration  413ms (transform 41ms, setup 18ms, collect 58ms, tests 128ms, environment 98ms, prepare 23ms)
+
+
+COMMAND: npm run test --workspace server -- src/events.test.ts
+EXIT CODE: 0
+
+> test
+> vitest run src/events.test.ts
+
+
+ RUN  v3.2.7 /Users/dinoden/EventCheck/server
+
+ ✓ src/events.test.ts (5 tests) 3ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  00:32:48
+   Duration  129ms (transform 18ms, setup 0ms, collect 17ms, tests 3ms, environment 0ms, prepare 22ms)
+
+
+COMMAND: npm run typecheck
+EXIT CODE: 0
+
+> typecheck
+> npm run typecheck --workspace server && npm run typecheck --workspace client
+
+
+> typecheck
+> tsc -p tsconfig.json --noEmit
+
+
+> typecheck
+> tsc -p tsconfig.json --noEmit
+
+
+COMMAND: npm run build
+EXIT CODE: 0
+
+> build
+> npm run build --workspace server && npm run build --workspace client
+
+
+> build
+> tsc -p tsconfig.json
+
+
+> build
+> vite build
+
+vite v6.4.6 building for production...
+transforming...
+✓ 29 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.37 kB │ gzip:  0.26 kB
+dist/assets/index-Che-DpC8.css   11.19 kB │ gzip:  2.95 kB
+dist/assets/index-BIqeVJJ0.js   255.10 kB │ gzip: 76.47 kB
+✓ built in 316ms
+
+COMMAND: git diff --check
+EXIT CODE: 0

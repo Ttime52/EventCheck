@@ -1,0 +1,7 @@
+Command: gh pr view 69 --json url,isDraft,state,baseRefName,headRefName,headRefOid,statusCheckRollup
+Checked: 2026-11-28 (Asia/Bangkok)
+PR: https://github.com/Ttime52/EventCheck/pull/69 (OPEN, draft; base sprint-1-staging)
+Head SHA: 9483f4386bf49a37985cd542dbdacdd67fe07672
+Check: test-and-docker — IN_PROGRESS; conclusion not yet available.
+Workflow run: https://github.com/Ttime52/EventCheck/actions/runs/46110037296
+Earlier workflow run 46109933417 was cancelled when this newer head was pushed.

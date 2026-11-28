@@ -13,7 +13,8 @@
     "prisma:validate": "prisma validate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "db:provision-production-accounts": "tsx prisma/provision-production-accounts.ts"
+    "db:provision-production-accounts": "tsx prisma/provision-production-accounts.ts",
+    "db:update-uat-display-names": "tsx prisma/update-uat-display-names.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",

@@ -1,0 +1,24 @@
+
+> test
+> vitest run src/uat-display-name-update.test.ts --reporter=verbose
+
+
+ RUN  v3.2.7 D:/GitHub/EventCheck/server
+
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > dry-runs the exact four accounts without writing or opening a transaction 3ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > updates only displayName and preserves IDs, logins, roles, password hashes, registrations, and unrelated users 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > is idempotent when applied twice 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > does not commit partial changes when an update fails inside the transaction 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > fails safely for a missing account before any user update 0ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > fails safely for a role mismatch before any user update 0ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > fails safely for a shared User ID before any user update 0ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > fails safely for an unexpected current display name before any user update 0ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > requires the deployed UAT marker and an exact credential-free database target match 1ms
+ ✓ src/uat-display-name-update.test.ts > OBS-07 UAT display-name maintenance > defaults to dry-run and requires both explicit apply flags 0ms
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  13:31:20
+   Duration  486ms (transform 53ms, setup 0ms, collect 76ms, tests 9ms, environment 0ms, prepare 153ms)
+
+EXIT_CODE=0
