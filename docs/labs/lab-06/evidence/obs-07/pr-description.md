@@ -37,7 +37,7 @@ RED/GREEN is not applicable and is not claimed: accepted triage classifies OBS-0
 - `npm.cmd test` — server: 48 passed, 41 skipped; client: 28 passed, 0 skipped; exit code 0. The skipped server tests require an integration database.
 - `npm.cmd run typecheck` — server and client passed.
 - `npm.cmd run build` — server and client builds passed.
-- The previous CI run passed before the Organizer A/B extension; CI for the updated PR head is pending.
+- GitHub Actions run `46117485823` passed for the Organizer A/B code head `1326cb827cf9166e84c0632450c653b77d8f953d`; run `46117779515` also passed on evidence head `bd8b610694a97a4699121cfa2ac2c787c9e441f6`. Recheck PR #70 for the latest run after this description update.
 - No DB command was run. No deployed before/after screenshot is available because the UAT URL/revision is unconfirmed.
 
 Full logs and the manual operator runbook are in `docs/labs/lab-06/evidence/obs-07/README.md`.
