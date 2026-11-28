@@ -61,6 +61,6 @@ Real headless Chromium screenshots were captured from the local Vite app with sy
 
 - Fix commit: [`e734e950cc39fbd1f30d914a5e1ed569e1b9bc4a`](https://github.com/Ttime52/EventCheck/commit/e734e950cc39fbd1f30d914a5e1ed569e1b9bc4a).
 - Draft pull request targeting `sprint-1-staging`: [#69](https://github.com/Ttime52/EventCheck/pull/69).
-- CI status: `test-and-docker` was **pending / in progress** when checked on 28 November 2026; see [ci-status.txt](ci-status.txt) and [workflow run 46109933417](https://github.com/Ttime52/EventCheck/actions/runs/46109933417). No PASS is claimed.
+- CI status: `test-and-docker` was **in progress** for PR head `9483f4386bf49a37985cd542dbdacdd67fe07672` when checked on 28 November 2026; see [ci-status-followup.txt](ci-status-followup.txt) and [workflow run 46110037296](https://github.com/Ttime52/EventCheck/actions/runs/46110037296). The earlier run was cancelled after the evidence update pushed a newer head. Check [PR #69](https://github.com/Ttime52/EventCheck/pull/69) for the latest state; no PASS is claimed.
 - Deployment: **Pending**.
 - Independent UAT retest: **Pending**; Sec01-Team047 must retest the corrected release after deployment. No PASS is claimed.
