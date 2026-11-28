@@ -82,9 +82,9 @@ These are **manual steps only**. The current work did not run either command aga
 
 ## Review and release status
 
-- Fix commit: [`7a25ae8154ac95111521f42fdf279bd1f94ce20f`](https://github.com/Ttime52/EventCheck/commit/7a25ae8154ac95111521f42fdf279bd1f94ce20f).
+- Code commits: [Participant maintenance setup `7a25ae8154ac95111521f42fdf279bd1f94ce20f`](https://github.com/Ttime52/EventCheck/commit/7a25ae8154ac95111521f42fdf279bd1f94ce20f) and [Organizer A/B extension `836cc74c13e820bd639ef2dcd390af78ae57a831`](https://github.com/Ttime52/EventCheck/commit/836cc74c13e820bd639ef2dcd390af78ae57a831).
 - Draft PR targeting `sprint-1-staging`: [#70](https://github.com/Ttime52/EventCheck/pull/70).
-- CI: run `46115631896` passed for the earlier Participant-only version; the Organizer A/B extension awaits checks on the updated PR head. See [PR #70](https://github.com/Ttime52/EventCheck/pull/70) for the current result.
+- CI: run `46115631896` passed for the earlier Participant-only version. Checks for the Organizer A/B extension are **Pending** on commit `836cc74c13e820bd639ef2dcd390af78ae57a831`; see [PR #70](https://github.com/Ttime52/EventCheck/pull/70) for the current result.
 - UAT database plan/apply: **Pending environment owner review and approval**; no database has been changed.
 - Deployment: **Pending**.
 - Independent UAT retest: **Pending**. Sec01-Team047 must retest after the corrected test data is approved and available in the deployed UAT environment. No PASS is claimed.
