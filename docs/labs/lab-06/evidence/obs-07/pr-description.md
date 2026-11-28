@@ -8,17 +8,21 @@ Fixes #67
 - Test case: UAT-03 — Reject registration when capacity is full
 - Reporter: Sec01-Team047
 - Classification: Accepted test-data configuration issue; Minor; disposition Fix Test Data
+- Follow-up request: also distinguish Organizer A/B using `organizer-a@example.test` and `organizer-b@example.test`.
 
 ## Root cause
 
 Issue #67 reports two distinct synthetic Participant accounts with the same display name, `Production Demo Participant`. Existing account provisioning intentionally leaves matching accounts unchanged, so rerunning that provisioner would not correct the labels. Triage found no evidence of an authorization or data-isolation defect.
 
+The user also requested distinct labels for `organizer-a@example.test` and `organizer-b@example.test`. This follow-up extends the same guarded maintenance command to those two Organizer accounts. Their expected shared current name is assumed to be `Production Demo Organizer`; the command aborts if the dry-run finds another name.
+
 ## Changes
 
-- Add a guarded, idempotent maintenance command that targets only `participant-demo@example.com` and `participant-b@example.test`.
-- Validate both records exist exactly once, have the Participant role, resolve to distinct User IDs, and have either the reported original name or the correct target name.
+- Add a guarded, idempotent maintenance command that targets only the two issue-reported Participant accounts and the two user-requested Organizer accounts.
+- Map the Organizer logins to `Production Demo Organizer A/B`; keep the issue-reported Participant targets `Production Demo Participant A/B`.
+- Validate all four records exist exactly once, have the expected role for each login, resolve to distinct User IDs, and have either the expected shared name or the correct target name. The Organizer current-name expectation is `Production Demo Organizer`; an unexpected value aborts the plan.
 - Update only `displayName` inside a serializable transaction. The default is read-only; database writes require a verified UAT target plus both `--apply` and `--confirm-uat-database`.
-- Update the Sprint 1 UAT handoff labels and add Lab 6 Part D evidence/runbook.
+- Update the Sprint 1 UAT handoff labels and add Lab 6 Part D evidence/runbook for both role pairs.
 
 The change does not modify application behavior, account IDs, login identifiers, roles, password hashes, sessions, registrations, foreign keys, schemas, or API contracts. No live UAT database was accessed or changed.
 
@@ -28,11 +32,12 @@ RED/GREEN is not applicable and is not claimed: accepted triage classifies OBS-0
 
 ## Verification
 
-- `npm.cmd run test --workspace server -- src/uat-display-name-update.test.ts --reporter=verbose` — 10 passed, 0 failed.
+- `npm.cmd run test --workspace server -- src/uat-display-name-update.test.ts --reporter=verbose` — 10 passed, 0 failed after the Organizer A/B extension.
 - `npm.cmd run test --workspace server -- src/production-provisioning.test.ts --reporter=verbose` — 13 passed, 0 failed.
 - `npm.cmd test` — server: 48 passed, 41 skipped; client: 28 passed, 0 skipped; exit code 0. The skipped server tests require an integration database.
 - `npm.cmd run typecheck` — server and client passed.
 - `npm.cmd run build` — server and client builds passed.
+- The previous CI run passed before the Organizer A/B extension; CI for the updated PR head is pending.
 - No DB command was run. No deployed before/after screenshot is available because the UAT URL/revision is unconfirmed.
 
 Full logs and the manual operator runbook are in `docs/labs/lab-06/evidence/obs-07/README.md`.

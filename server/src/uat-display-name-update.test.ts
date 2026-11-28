@@ -11,6 +11,8 @@ import {
 
 const participantALogin = "participant-demo@example.com";
 const participantBLogin = "participant-b@example.test";
+const organizerALogin = "organizer-a@example.test";
+const organizerBLogin = "organizer-b@example.test";
 
 type FakeUser = {
   id: string;
@@ -26,6 +28,8 @@ function makeUsers(): FakeUser[] {
   return [
     { id: "user-a", loginIdentifier: participantALogin, displayName: "Production Demo Participant", role: Role.PARTICIPANT, passwordHash: "hash-a" },
     { id: "user-b", loginIdentifier: participantBLogin, displayName: "Production Demo Participant", role: Role.PARTICIPANT, passwordHash: "hash-b" },
+    { id: "organizer-a", loginIdentifier: organizerALogin, displayName: "Production Demo Organizer", role: Role.ORGANIZER, passwordHash: "hash-organizer-a" },
+    { id: "organizer-b", loginIdentifier: organizerBLogin, displayName: "Production Demo Organizer", role: Role.ORGANIZER, passwordHash: "hash-organizer-b" },
     { id: "unrelated-user", loginIdentifier: "unrelated@example.test", displayName: "Production Demo Participant", role: Role.PARTICIPANT, passwordHash: "hash-unrelated" },
   ];
 }
@@ -71,7 +75,7 @@ function makeDatabase(initialUsers = makeUsers(), initialRegistrations: FakeRegi
 }
 
 describe("OBS-07 UAT display-name maintenance", () => {
-  it("dry-runs the exact two accounts without writing or opening a transaction", async () => {
+  it("dry-runs the exact four accounts without writing or opening a transaction", async () => {
     const database = makeDatabase();
     const beforeUsers = structuredClone(database.users);
     const beforeRegistrations = structuredClone(database.registrations);
@@ -79,11 +83,13 @@ describe("OBS-07 UAT display-name maintenance", () => {
     const plan = await planUatDisplayNameUpdate(database.client);
 
     expect(plan).toEqual([
-      { userId: "user-a", loginIdentifier: participantALogin, currentDisplayName: "Production Demo Participant", targetDisplayName: "Production Demo Participant A", action: "update" },
-      { userId: "user-b", loginIdentifier: participantBLogin, currentDisplayName: "Production Demo Participant", targetDisplayName: "Production Demo Participant B", action: "update" },
+      { userId: "user-a", loginIdentifier: participantALogin, expectedRole: Role.PARTICIPANT, currentDisplayName: "Production Demo Participant", targetDisplayName: "Production Demo Participant A", action: "update" },
+      { userId: "user-b", loginIdentifier: participantBLogin, expectedRole: Role.PARTICIPANT, currentDisplayName: "Production Demo Participant", targetDisplayName: "Production Demo Participant B", action: "update" },
+      { userId: "organizer-a", loginIdentifier: organizerALogin, expectedRole: Role.ORGANIZER, currentDisplayName: "Production Demo Organizer", targetDisplayName: "Production Demo Organizer A", action: "update" },
+      { userId: "organizer-b", loginIdentifier: organizerBLogin, expectedRole: Role.ORGANIZER, currentDisplayName: "Production Demo Organizer", targetDisplayName: "Production Demo Organizer B", action: "update" },
     ]);
     expect(database.findMany).toHaveBeenCalledWith({
-      where: { loginIdentifier: { in: [participantALogin, participantBLogin] } },
+      where: { loginIdentifier: { in: [participantALogin, participantBLogin, organizerALogin, organizerBLogin] } },
       select: { id: true, loginIdentifier: true, displayName: true, role: true },
     });
     expect(database.$transaction).not.toHaveBeenCalled();
@@ -102,6 +108,8 @@ describe("OBS-07 UAT display-name maintenance", () => {
     expect(plan.map(({ targetDisplayName, action }) => [targetDisplayName, action])).toEqual([
       ["Production Demo Participant A", "update"],
       ["Production Demo Participant B", "update"],
+      ["Production Demo Organizer A", "update"],
+      ["Production Demo Organizer B", "update"],
     ]);
     expect(database.$transaction).toHaveBeenCalledTimes(1);
     expect(database.$transaction).toHaveBeenCalledWith(
@@ -111,11 +119,15 @@ describe("OBS-07 UAT display-name maintenance", () => {
     expect(database.update.mock.calls.map(([args]) => args.data)).toEqual([
       { displayName: "Production Demo Participant A" },
       { displayName: "Production Demo Participant B" },
+      { displayName: "Production Demo Organizer A" },
+      { displayName: "Production Demo Organizer B" },
     ]);
     expect(database.users).toEqual([
       { ...beforeUsers[0], displayName: "Production Demo Participant A" },
       { ...beforeUsers[1], displayName: "Production Demo Participant B" },
-      beforeUsers[2],
+      { ...beforeUsers[2], displayName: "Production Demo Organizer A" },
+      { ...beforeUsers[3], displayName: "Production Demo Organizer B" },
+      beforeUsers[4],
     ]);
     expect(database.registrations).toEqual(beforeRegistrations);
   });
@@ -127,8 +139,8 @@ describe("OBS-07 UAT display-name maintenance", () => {
 
     const secondPlan = await applyUatDisplayNameUpdate(database.client);
 
-    expect(secondPlan.map(({ action }) => action)).toEqual(["unchanged", "unchanged"]);
-    expect(database.update).toHaveBeenCalledTimes(2);
+    expect(secondPlan.map(({ action }) => action)).toEqual(["unchanged", "unchanged", "unchanged", "unchanged"]);
+    expect(database.update).toHaveBeenCalledTimes(4);
     expect(database.users).toEqual(usersAfterFirstApply);
     expect(database.registrations).toHaveLength(2);
   });
@@ -144,10 +156,10 @@ describe("OBS-07 UAT display-name maintenance", () => {
   });
 
   it.each([
-    ["a missing account", [makeUsers()[0]]],
-    ["a non-Participant role", [makeUsers()[0], { ...makeUsers()[1], role: Role.ORGANIZER }]],
-    ["a shared User ID", [makeUsers()[0], { ...makeUsers()[1], id: "user-a" }]],
-    ["an unexpected current display name", [makeUsers()[0], { ...makeUsers()[1], displayName: "Unrelated Name" }]],
+    ["a missing account", makeUsers().filter(({ loginIdentifier }) => loginIdentifier !== organizerBLogin)],
+    ["a role mismatch", makeUsers().map((user) => user.loginIdentifier === organizerALogin ? { ...user, role: Role.PARTICIPANT } : user)],
+    ["a shared User ID", makeUsers().map((user) => user.loginIdentifier === organizerBLogin ? { ...user, id: "organizer-a" } : user)],
+    ["an unexpected current display name", makeUsers().map((user) => user.loginIdentifier === organizerBLogin ? { ...user, displayName: "Unrelated Name" } : user)],
   ])("fails safely for %s before any user update", async (_caseName, invalidUsers) => {
     const database = makeDatabase(invalidUsers as FakeUser[]);
     const beforeUsers = structuredClone(database.users);

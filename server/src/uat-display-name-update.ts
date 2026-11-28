@@ -5,11 +5,25 @@ const targetAccounts = [
     loginIdentifier: "participant-demo@example.com",
     expectedDisplayName: "Production Demo Participant",
     targetDisplayName: "Production Demo Participant A",
+    role: Role.PARTICIPANT,
   },
   {
     loginIdentifier: "participant-b@example.test",
     expectedDisplayName: "Production Demo Participant",
     targetDisplayName: "Production Demo Participant B",
+    role: Role.PARTICIPANT,
+  },
+  {
+    loginIdentifier: "organizer-a@example.test",
+    expectedDisplayName: "Production Demo Organizer",
+    targetDisplayName: "Production Demo Organizer A",
+    role: Role.ORGANIZER,
+  },
+  {
+    loginIdentifier: "organizer-b@example.test",
+    expectedDisplayName: "Production Demo Organizer",
+    targetDisplayName: "Production Demo Organizer B",
+    role: Role.ORGANIZER,
   },
 ] as const;
 
@@ -30,6 +44,7 @@ type DisplayNameUser = {
 export type DisplayNameUpdatePlan = {
   userId: string;
   loginIdentifier: string;
+  expectedRole: Role;
   currentDisplayName: string;
   targetDisplayName: string;
   action: "update" | "unchanged";
@@ -41,7 +56,7 @@ export class UatDisplayNameUpdateError extends Error {}
 
 function buildPlan(users: DisplayNameUser[]): DisplayNameUpdatePlan[] {
   if (users.length !== targetAccounts.length) {
-    throw new UatDisplayNameUpdateError("Both OBS-07 Participant accounts must exist exactly once; no changes were made");
+    throw new UatDisplayNameUpdateError("All four configured UAT accounts must exist exactly once; no changes were made");
   }
 
   const usersByLogin = new Map<string, DisplayNameUser>();
@@ -53,8 +68,8 @@ function buildPlan(users: DisplayNameUser[]): DisplayNameUpdatePlan[] {
     if (usersByLogin.has(user.loginIdentifier)) {
       throw new UatDisplayNameUpdateError("A target account matched more than once; no changes were made");
     }
-    if (user.role !== Role.PARTICIPANT) {
-      throw new UatDisplayNameUpdateError("Both target accounts must have the PARTICIPANT role; no changes were made");
+    if (user.role !== target.role) {
+      throw new UatDisplayNameUpdateError("A target account has the wrong role; no changes were made");
     }
     if (user.displayName !== target.expectedDisplayName && user.displayName !== target.targetDisplayName) {
       throw new UatDisplayNameUpdateError("A target account has an unexpected display name; no changes were made");
@@ -71,12 +86,13 @@ function buildPlan(users: DisplayNameUser[]): DisplayNameUpdatePlan[] {
   });
 
   if (new Set(plannedUsers.map(({ user }) => user.id)).size !== targetAccounts.length) {
-    throw new UatDisplayNameUpdateError("The target login identifiers must resolve to two distinct User IDs; no changes were made");
+    throw new UatDisplayNameUpdateError("The target login identifiers must resolve to four distinct User IDs; no changes were made");
   }
 
   return plannedUsers.map(({ target, user }) => ({
     userId: user.id,
     loginIdentifier: user.loginIdentifier,
+    expectedRole: target.role,
     currentDisplayName: user.displayName,
     targetDisplayName: target.targetDisplayName,
     action: user.displayName === target.targetDisplayName ? "unchanged" : "update",
@@ -91,14 +107,14 @@ async function readPlan(client: Pick<PrismaClient, "user">): Promise<DisplayName
   return buildPlan(users);
 }
 
-/** Read and validate the exact account pair. This function performs no writes. */
+/** Read and validate the exact account set. This function performs no writes. */
 export function planUatDisplayNameUpdate(
   client: Pick<PrismaClient, "user">,
 ): Promise<DisplayNameUpdatePlan[]> {
   return readPlan(client);
 }
 
-/** Update only displayName for the two verified accounts in one serializable transaction. */
+/** Update only displayName for the four verified accounts in one serializable transaction. */
 export function applyUatDisplayNameUpdate(
   client: UatDisplayNameUpdateClient,
 ): Promise<DisplayNameUpdatePlan[]> {
@@ -114,7 +130,7 @@ export function applyUatDisplayNameUpdate(
       if (
         updated.id !== item.userId ||
         updated.loginIdentifier !== item.loginIdentifier ||
-        updated.role !== Role.PARTICIPANT ||
+        updated.role !== item.expectedRole ||
         updated.displayName !== item.targetDisplayName
       ) {
         throw new UatDisplayNameUpdateError("A target account did not match the requested update; the transaction was rolled back");

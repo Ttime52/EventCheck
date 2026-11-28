@@ -23,7 +23,7 @@ async function main() {
       : "DRY RUN: no database writes were performed.");
     for (const item of plan) {
       const action = item.action === "unchanged" ? "already correct" : mode === "apply" ? "updated" : "would update";
-      console.info(`${item.loginIdentifier}: ${JSON.stringify(item.currentDisplayName)} -> ${JSON.stringify(item.targetDisplayName)} (${action})`);
+      console.info(`${item.loginIdentifier} (${item.expectedRole}): ${JSON.stringify(item.currentDisplayName)} -> ${JSON.stringify(item.targetDisplayName)} (${action})`);
     }
   } finally {
     await prisma.$disconnect();

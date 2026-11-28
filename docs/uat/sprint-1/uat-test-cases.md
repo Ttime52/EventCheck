@@ -47,9 +47,10 @@ Common synthetic values (change only the run token and future date):
 | Field | Value |
 | --- | --- |
 | Organizer test account | `organizer@example.test` / display name `Demo Organizer` in local seeded environments; deployed account label: `TODO: Confirm` |
+| Organizer A test account | `organizer-a@example.test` / `Production Demo Organizer A`; verify it exists in isolated UAT and obtain credentials privately |
+| Organizer B test account | `organizer-b@example.test` / `Production Demo Organizer B`; verify the distinct account exists in isolated UAT and obtain credentials privately; required for UAT-05 |
 | Participant A test account | Issue #67 reports `participant-demo@example.com` / `Production Demo Participant A`; verify the account in isolated UAT and obtain credentials privately |
 | Participant B test account | Issue #67 reports `participant-b@example.test` / `Production Demo Participant B`; verify the distinct account in isolated UAT and obtain credentials privately; required for UAT-03 |
-| Organizer B test account | `TODO: Confirm` a separately provisioned synthetic Organizer and private credential delivery; required for UAT-05 |
 | Normal journey title | `UAT-<RUN_ID>-01 Normal Journey` |
 | Duplicate case title | `UAT-<RUN_ID>-02 Duplicate Rule` |
 | Full-capacity case title | `UAT-<RUN_ID>-03 One Place` |
@@ -179,16 +180,16 @@ Common synthetic values (change only the run token and future date):
 - **Acceptance criteria:** AC-F02-08; AC-F04-05, AC-F04-07, AC-F04-08
 - **Objective:** Verify that Organizer B cannot retrieve a Registration list for an Event owned by Organizer A and that the denial exposes no protected fields or alters records.
 - **User roles:** Organizer A, Organizer B
-- **Preconditions:** A valid Organizer A account and a **separate Organizer B account** must exist in the non-production environment. Organizer B's label and private credential delivery are `TODO: Confirm`. If it is unavailable, record `BLOCKED`; do not use Participant B or claim the cross-owner check passed.
+- **Preconditions:** A valid `organizer-a@example.test` account (`Production Demo Organizer A`) and a **separate** `organizer-b@example.test` account (`Production Demo Organizer B`) must exist in the isolated non-production environment. Verify both accounts and obtain credentials privately. If Organizer B is unavailable, record `BLOCKED`; do not use Participant B or claim the cross-owner check passed.
 - **Test data:** Title `UAT-<RUN_ID>-05 Owner Fixture`; create it as Organizer A with generic description, location `CPE Test Hall A`, future time, and capacity `2`. Register Participant A once so the protected list contains a synthetic row.
 - **Test steps and expected results:**
-  1. As Organizer A, create/publish the Event, then have Participant A register once. Record the Event ID, Registration ID, and the owner's visible row count. **Expected:** the owning Organizer can see the one registration.
-  2. Log out and sign in as Organizer B. **Expected:** the app shows Organizer B's own identity; Organizer A's Event is not in Organizer B's **My Events** list.
+  1. As `Production Demo Organizer A`, create/publish the Event, then have Participant A register once. Record the Event ID, Registration ID, and the owner's visible row count. **Expected:** the owning Organizer can see the one registration.
+  2. Log out and sign in as `Production Demo Organizer B`. **Expected:** the app shows Organizer B's own identity; Organizer A's Event is not in Organizer B's **My Events** list.
   3. In the same-origin DevTools Console, run `fetch('/api/v1/organizer/events/<EVENT_ID>/registrations', { credentials: 'include' }).then(async r => ({ status: r.status, body: await r.json().catch(() => null) }))`. **Expected:** HTTP `404` (privacy-preserving not-found); no registrations, Registration ID, Participant ID/display name, Event title, or owner identity appears in the response.
-  4. Log out and sign in as Organizer A. Reopen the fixture Event's registration list. **Expected:** its original single row and Registration ID remain unchanged; no record was created, changed, or removed by Organizer B's request.
+  4. Log out and sign in as `Production Demo Organizer A`. Reopen the fixture Event's registration list. **Expected:** its original single row and Registration ID remain unchanged; no record was created, changed, or removed by Organizer B's request.
 - **Actual results:**
 - **Status:** NOT RUN
-- **Evidence:** _Record Organizer B's safe status/body observation with private identifiers redacted, and before/after owner list evidence._
+- **Evidence:** _Record Organizer B's safe status/body observation with private identifiers redacted, and before/after owner list evidence. Verify the UI displays the distinct Organizer A/B labels._
 - **Cleanup / reset:** Record Event and Registration IDs; use the approved non-production reset procedure.
 
 ## UAT-06 — Enforce event publication fields and capacity boundaries
@@ -259,7 +260,7 @@ This case requires a controlled application restart while preserving the UAT dat
 
 ## Coverage notes and known limits
 
-- UAT-03 requires Participant B and UAT-05 requires Organizer B. Issue #67 reports two synthetic Participant identifiers and corrected labels; their presence in the isolated deployment and private credential delivery are not confirmed. The repository's development seed still documents only one Participant and one Organizer. Confirm the accounts before scheduling UAT-03 or UAT-05.
+- UAT-03 requires Participant A/B and UAT-05 requires Organizer A/B. Issue #67 reports the Participant identifiers; the Organizer A/B identifiers were supplied in a follow-up request. Presence in the isolated deployment and private credential delivery are not confirmed. The repository's development seed still documents only one Participant and one Organizer. Confirm all required accounts before scheduling these cases.
 - The Event schema supports only published Events in the accepted Sprint 1 implementation, so a UI UAT of unpublished-event discovery/registration is not applicable to the shipped state model.
 - Manual UAT does not reproduce synchronized last-place races, database failure injection, or exact 30-minute/8-hour expiry boundaries. Those remain covered by the repository's recorded automated verification and are not claimed as manual UAT results.
 - Fixed published capacity and absence of capacity editing are in scope. Sprint 2 capacity modification and deadlines are excluded.
