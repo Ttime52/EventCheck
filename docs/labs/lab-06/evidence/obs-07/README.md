@@ -39,6 +39,7 @@ Exact outputs are preserved in this directory. The original PowerShell captures 
 | `npm.cmd run typecheck` | Server and client TypeScript checks passed; exit code 0. | [typecheck-final.log](typecheck-final.log) |
 | `npm.cmd run build` | Server TypeScript build and client Vite production build passed; exit code 0. | [build-final.log](build-final.log) |
 | `git diff --check` | Passed; exit code 0. | [diff-check.log](diff-check.log) |
+| GitHub Actions run `46115631896` | Passed on PR head `a0ea459aa1e94663b2db8188f78124e86b5fa487`; backend unit/integration, frontend tests/typecheck/build, Playwright E2E, and Docker build all passed. | [CI result record](ci-status.log), [workflow run](https://github.com/Ttime52/EventCheck/actions/runs/46115631896) |
 
 All automated tests used the working tree based on `7fb3620f2288b4062ccffa88c262bee42207dab5`. No test configured a database connection.
 
@@ -71,13 +72,13 @@ These are **manual steps only**. The current work did not run either command aga
 - `server/src/uat-display-name-update.test.ts` — mocked safety and invariant tests.
 - `server/package.json` — maintenance script entry.
 - `docs/uat/sprint-1/uat-handoff.md` and `docs/uat/sprint-1/uat-test-cases.md` — issue-reported Participant labels and deployment-confirmation notes.
-- `docs/labs/lab-06/evidence/obs-07/` — logs, review description, and this report.
+- `docs/labs/lab-06/evidence/obs-07/` — test/build logs, verified CI result record, review description, and this report.
 
 ## Review and release status
 
 - Fix commit: [`7a25ae8154ac95111521f42fdf279bd1f94ce20f`](https://github.com/Ttime52/EventCheck/commit/7a25ae8154ac95111521f42fdf279bd1f94ce20f).
 - Draft PR targeting `sprint-1-staging`: [#70](https://github.com/Ttime52/EventCheck/pull/70).
-- CI: **Pending at the last check on the initial PR head**; recheck [PR #70](https://github.com/Ttime52/EventCheck/pull/70) for the current head before approval/merge.
+- CI: [run `46115631896` passed](https://github.com/Ttime52/EventCheck/actions/runs/46115631896) on commit `a0ea459aa1e94663b2db8188f78124e86b5fa487`. Recheck [PR #70](https://github.com/Ttime52/EventCheck/pull/70) for the latest head before approval/merge.
 - UAT database plan/apply: **Pending environment owner review and approval**; no database has been changed.
 - Deployment: **Pending**.
 - Independent UAT retest: **Pending**. Sec01-Team047 must retest after the corrected test data is approved and available in the deployed UAT environment. No PASS is claimed.
