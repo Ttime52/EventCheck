@@ -48,6 +48,7 @@ Exact PowerShell capture files are preserved unchanged as UTF-16 `.txt` files; m
 | Historical targeted maintenance run | 10 passed on the earlier four-account Organizer extension; superseded by the participant-only review-response test above. | [organizer-support-final-targeted.log](organizer-support-final-targeted.log) |
 | GitHub Actions run `46115631896` | Passed on the earlier Participant-only PR head `a0ea459aa1e94663b2db8188f78124e86b5fa487`. It does not cover the Organizer A/B follow-up extension. | [CI result record](ci-status.log), [workflow run](https://github.com/Ttime52/EventCheck/actions/runs/46115631896) |
 | GitHub Actions run `46118119726` | Latest successful CI before the review-response changes; passed on the prior PR head `9976fdf739eeac899ae13dc4872dbf550bbc853a`. It does not verify the changes in this revision. | [Prior CI result](ci-status-followup.txt), [workflow run](https://github.com/Ttime52/EventCheck/actions/runs/46118119726) |
+| GitHub Actions run `46121943598` | **Passed** on review-response code commit `7ea51dd0dce88c084d87b635e745099c44cfced6`. | [Workflow run](https://github.com/Ttime52/EventCheck/actions/runs/46121943598) |
 
 The review-response tests used the PR #70 working branch based on `7fb3620f2288b4062ccffa88c262bee42207dab5`. All tests used mocked/local test data; no test configured or connected to a UAT database.
 
@@ -94,9 +95,9 @@ These are **manual steps only**. The current work did not run either command aga
 
 ## Review and release status
 
-- Code commits: [Participant maintenance setup `7a25ae8154ac95111521f42fdf279bd1f94ce20f`](https://github.com/Ttime52/EventCheck/commit/7a25ae8154ac95111521f42fdf279bd1f94ce20f) and [Organizer A/B extension `836cc74c13e820bd639ef2dcd390af78ae57a831`](https://github.com/Ttime52/EventCheck/commit/836cc74c13e820bd639ef2dcd390af78ae57a831).
+- Code commits: [Participant maintenance setup `7a25ae8154ac95111521f42fdf279bd1f94ce20f`](https://github.com/Ttime52/EventCheck/commit/7a25ae8154ac95111521f42fdf279bd1f94ce20f), [Organizer A/B extension `836cc74c13e820bd639ef2dcd390af78ae57a831`](https://github.com/Ttime52/EventCheck/commit/836cc74c13e820bd639ef2dcd390af78ae57a831), and [review-response fix `7ea51dd0dce88c084d87b635e745099c44cfced6`](https://github.com/Ttime52/EventCheck/commit/7ea51dd0dce88c084d87b635e745099c44cfced6).
 - Draft PR targeting `sprint-1-staging`: [#70](https://github.com/Ttime52/EventCheck/pull/70).
-- Latest prior successful CI: [run `46118119726`](https://github.com/Ttime52/EventCheck/actions/runs/46118119726) passed on pre-review head `9976fdf739eeac899ae13dc4872dbf550bbc853a`; it does not cover this review response. CI for the updated participant-only changes is **PENDING** until pushed and verified.
+- Review-response code CI: [run `46121943598`](https://github.com/Ttime52/EventCheck/actions/runs/46121943598) **PASSED** on code commit `7ea51dd0dce88c084d87b635e745099c44cfced6`. The prior run `46118119726` is retained as historical evidence only.
 - Peer review: Changes requested by Kwanchanok Thungsuk on 28 November 2026. The four requests are recorded above: independent Participant targeting, unresolved Organizer mapping excluded pending confirmation, database/User-ID-bound approval plus case-insensitive collision detection, and corrected handoff/evidence.
 - UAT database plan/apply: **Pending environment owner review and approval**; no database has been changed. No Organizer account was applied or otherwise modified.
 - Deployment: **Pending**.

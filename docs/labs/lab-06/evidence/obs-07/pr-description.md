@@ -38,7 +38,7 @@ No live UAT database was accessed or changed. No deployment or independent UAT r
 - `npm.cmd run typecheck` — server and client checks passed. Evidence: `review-fix-verified-typecheck.log` (UTF-8 copy) and `.txt` (raw capture).
 - `npm.cmd run build` — server and client production builds passed. Evidence: `review-fix-verified-build.log` (UTF-8 copy) and `.txt` (raw capture).
 - `git diff --check` — passed. Evidence: `review-fix-verified-diff-check-rerun.log` (UTF-8 copy) and `.txt` (raw capture).
-- Updated PR CI — **PENDING** until the review-response commit is pushed and verified.
+- GitHub Actions run [`46121943598`](https://github.com/Ttime52/EventCheck/actions/runs/46121943598) — **PASSED** on review-response commit `7ea51dd0dce88c084d87b635e745099c44cfced6`.
 - The previous successful CI run `46118119726` covered pre-review PR head `9976fdf`; it does not cover these changes.
 
 The initial review-response test attempts are preserved in UTF-8 copies `review-fix-final-targeted.log`, `review-fix-full-suite.log`, and `review-fix-final-suite.log`, with raw UTF-16 captures in their matching `.txt` files. Their assertion expected a Promise rejection from a synchronous fail-closed guard; this test matcher was corrected and the same assertions then passed on rerun. The application code was not relaxed.
