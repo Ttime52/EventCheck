@@ -59,7 +59,7 @@ Real headless Chromium screenshots were captured from the local Vite app with sy
 
 ## Review and release status
 
-- Fix commit: **Pending commit creation**.
+- Fix commit: [`e734e950cc39fbd1f30d914a5e1ed569e1b9bc4a`](https://github.com/Ttime52/EventCheck/commit/e734e950cc39fbd1f30d914a5e1ed569e1b9bc4a).
 - Pull request targeting `sprint-1-staging`: **Pending**.
 - CI status: **Pending**; no hosted CI result was checked.
 - Deployment: **Pending**.
