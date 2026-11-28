@@ -10,12 +10,12 @@ import {
 async function main() {
   const mode = parseMaintenanceArguments(process.argv.slice(2));
   // Refuse to create a Prisma client until the deployment and database identity are verified.
-  verifyUatMaintenanceTarget(process.env);
+  const verifiedTarget = verifyUatMaintenanceTarget(process.env, mode);
   const prisma = new PrismaClient();
 
   try {
     const plan = mode === "apply"
-      ? await applyUatDisplayNameUpdate(prisma)
+      ? await applyUatDisplayNameUpdate(prisma, verifiedTarget)
       : await planUatDisplayNameUpdate(prisma);
 
     console.info(mode === "apply"
@@ -23,7 +23,7 @@ async function main() {
       : "DRY RUN: no database writes were performed.");
     for (const item of plan) {
       const action = item.action === "unchanged" ? "already correct" : mode === "apply" ? "updated" : "would update";
-      console.info(`${item.loginIdentifier} (${item.expectedRole}): ${JSON.stringify(item.currentDisplayName)} -> ${JSON.stringify(item.targetDisplayName)} (${action})`);
+      console.info(`${item.loginIdentifier} (User ID ${item.userId}, ${item.expectedRole}): ${JSON.stringify(item.currentDisplayName)} -> ${JSON.stringify(item.targetDisplayName)} (${action})`);
     }
   } finally {
     await prisma.$disconnect();

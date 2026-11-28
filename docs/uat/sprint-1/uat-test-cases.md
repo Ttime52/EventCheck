@@ -47,8 +47,9 @@ Common synthetic values (change only the run token and future date):
 | Field | Value |
 | --- | --- |
 | Organizer test account | `organizer@example.test` / display name `Demo Organizer` in local seeded environments; deployed account label: `TODO: Confirm` |
-| Organizer A test account | `organizer-a@example.test` / `Production Demo Organizer A`; verify it exists in isolated UAT and obtain credentials privately |
-| Organizer B test account | `organizer-b@example.test` / `Production Demo Organizer B`; verify the distinct account exists in isolated UAT and obtain credentials privately; required for UAT-05 |
+| Report-identified Organizer A | `organizer-demo@example.com` per the PR #70 peer-review comment; verify against the original UAT report and isolated deployment. Display name/role remain unconfirmed. |
+| Proposed Organizer A/B follow-up accounts | `organizer-a@example.test` / `Production Demo Organizer A` and `organizer-b@example.test` / `Production Demo Organizer B` were requested later, but their mapping to the report's Organizer A/B accounts has not been verified. Do not use as UAT-05 identities until reconciled with the environment owner. |
+| Organizer B test account | `TODO: Confirm` authoritative login identifier, display name, role, and isolated-UAT presence; required for UAT-05 |
 | Participant A test account | Issue #67 reports `participant-demo@example.com` / `Production Demo Participant A`; verify the account in isolated UAT and obtain credentials privately |
 | Participant B test account | Issue #67 reports `participant-b@example.test` / `Production Demo Participant B`; verify the distinct account in isolated UAT and obtain credentials privately; required for UAT-03 |
 | Normal journey title | `UAT-<RUN_ID>-01 Normal Journey` |
@@ -180,16 +181,16 @@ Common synthetic values (change only the run token and future date):
 - **Acceptance criteria:** AC-F02-08; AC-F04-05, AC-F04-07, AC-F04-08
 - **Objective:** Verify that Organizer B cannot retrieve a Registration list for an Event owned by Organizer A and that the denial exposes no protected fields or alters records.
 - **User roles:** Organizer A, Organizer B
-- **Preconditions:** A valid `organizer-a@example.test` account (`Production Demo Organizer A`) and a **separate** `organizer-b@example.test` account (`Production Demo Organizer B`) must exist in the isolated non-production environment. Verify both accounts and obtain credentials privately. If Organizer B is unavailable, record `BLOCKED`; do not use Participant B or claim the cross-owner check passed.
+- **Preconditions:** Two distinct Organizer accounts, A and B, must be verified in the isolated non-production environment and their credentials delivered privately. The PR #70 peer-review comment says the independent report identifies Organizer A as `organizer-demo@example.com`; the original report is not present in this repository, and a later request proposed `organizer-a@example.test`/`organizer-b@example.test`. Reconcile these identities and verify Organizer B's authoritative login before execution. If either account is unavailable or the mapping is unresolved, record `BLOCKED`; do not substitute another identity or claim the cross-owner check passed.
 - **Test data:** Title `UAT-<RUN_ID>-05 Owner Fixture`; create it as Organizer A with generic description, location `CPE Test Hall A`, future time, and capacity `2`. Register Participant A once so the protected list contains a synthetic row.
 - **Test steps and expected results:**
-  1. As `Production Demo Organizer A`, create/publish the Event, then have Participant A register once. Record the Event ID, Registration ID, and the owner's visible row count. **Expected:** the owning Organizer can see the one registration.
-  2. Log out and sign in as `Production Demo Organizer B`. **Expected:** the app shows Organizer B's own identity; Organizer A's Event is not in Organizer B's **My Events** list.
+  1. As the verified Organizer A, create/publish the Event, then have Participant A register once. Record the Event ID, Registration ID, and the owner's visible row count. **Expected:** the owning Organizer can see the one registration.
+  2. Log out and sign in as the verified Organizer B. **Expected:** the app shows Organizer B's own identity; Organizer A's Event is not in Organizer B's **My Events** list.
   3. In the same-origin DevTools Console, run `fetch('/api/v1/organizer/events/<EVENT_ID>/registrations', { credentials: 'include' }).then(async r => ({ status: r.status, body: await r.json().catch(() => null) }))`. **Expected:** HTTP `404` (privacy-preserving not-found); no registrations, Registration ID, Participant ID/display name, Event title, or owner identity appears in the response.
-  4. Log out and sign in as `Production Demo Organizer A`. Reopen the fixture Event's registration list. **Expected:** its original single row and Registration ID remain unchanged; no record was created, changed, or removed by Organizer B's request.
+  4. Log out and sign in as the verified Organizer A. Reopen the fixture Event's registration list. **Expected:** its original single row and Registration ID remain unchanged; no record was created, changed, or removed by Organizer B's request.
 - **Actual results:**
 - **Status:** NOT RUN
-- **Evidence:** _Record Organizer B's safe status/body observation with private identifiers redacted, and before/after owner list evidence. Verify the UI displays the distinct Organizer A/B labels._
+- **Evidence:** _Record Organizer B's safe status/body observation with private identifiers redacted and before/after owner-list evidence. Record the verified account labels actually shown; do not assume the proposed Organizer A/B mapping._
 - **Cleanup / reset:** Record Event and Registration IDs; use the approved non-production reset procedure.
 
 ## UAT-06 — Enforce event publication fields and capacity boundaries
@@ -260,7 +261,7 @@ This case requires a controlled application restart while preserving the UAT dat
 
 ## Coverage notes and known limits
 
-- UAT-03 requires Participant A/B and UAT-05 requires Organizer A/B. Issue #67 reports the Participant identifiers; the Organizer A/B identifiers were supplied in a follow-up request. Presence in the isolated deployment and private credential delivery are not confirmed. The repository's development seed still documents only one Participant and one Organizer. Confirm all required accounts before scheduling these cases.
+- UAT-03 requires Participant A/B and UAT-05 requires two distinct Organizers. Issue #67 reports the Participant identifiers. The PR #70 peer review cites `organizer-demo@example.com` for report-identified Organizer A, while a later request proposed `organizer-a@example.test` and `organizer-b@example.test`; Organizer B is not independently verified. The original UAT report, deployed presence, account labels, and private credential delivery are not confirmed here. The development seed still documents only one Participant and one Organizer. Resolve the account mapping and confirm required accounts before scheduling these cases.
 - The Event schema supports only published Events in the accepted Sprint 1 implementation, so a UI UAT of unpublished-event discovery/registration is not applicable to the shipped state model.
 - Manual UAT does not reproduce synchronized last-place races, database failure injection, or exact 30-minute/8-hour expiry boundaries. Those remain covered by the repository's recorded automated verification and are not claimed as manual UAT results.
 - Fixed published capacity and absence of capacity editing are in scope. Sprint 2 capacity modification and deadlines are excluded.

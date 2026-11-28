@@ -27,18 +27,19 @@ See [UAT test cases](uat-test-cases.md) and the approved F-01 through F-04 contr
 
 ## Test accounts and credentials
 
-The checked-in local seed defines the local Organizer and Participant rows below. Issue #67 reports the two demo Participant accounts; the Organizer A/B test accounts were supplied in a follow-up request. Their presence in deployed UAT still requires confirmation.
+The checked-in local seed defines the local Organizer and Participant rows below. Issue #67 reports the two demo Participant accounts. The PR #70 peer review says the independent UAT report identifies Organizer A as `organizer-demo@example.com`, but the original report is not checked in and the deployed account has not been verified here. A later follow-up request proposed `organizer-a@example.test` and `organizer-b@example.test`; their relationship to the report's Organizer A/B accounts is unresolved. Do not treat those proposed addresses as verified UAT identities.
 
-| Login identifier / display name | Role | Usage |
+| Login identifier / reported or proposed display name | Role | Usage / verification status |
 | --- | --- | --- |
 | `organizer@example.test` / `Demo Organizer` | Organizer | Local development/test seed; create/publish Events and view owned registrations |
 | `participant@example.test` / `Demo Participant` | Participant | Local development/test seed only; not the OBS-07 deployed demo account |
-| `participant-demo@example.com` / `Production Demo Participant A` | Participant | OBS-07-reported synthetic account; discover/register and view personal registrations. Confirm it exists in the isolated deployed UAT environment. |
-| `participant-b@example.test` / `Production Demo Participant B` | Participant | OBS-07-reported synthetic account; required as the distinct second participant for full-capacity UAT-03. Confirm it exists in the isolated deployed UAT environment. |
-| `organizer-a@example.test` / `Production Demo Organizer A` | Organizer | Follow-up-requested synthetic account; verify it exists in isolated UAT before use. |
-| `organizer-b@example.test` / `Production Demo Organizer B` | Organizer | Follow-up-requested synthetic account; required as the distinct second owner for UAT-05. Verify it exists in isolated UAT before use. |
+| `participant-demo@example.com` / current reported label `Production Demo Participant`; proposed correction `Production Demo Participant A` | Participant | Issue #67 reports this synthetic account. Verify its deployed presence, role, User ID, and current name in isolated UAT. |
+| `participant-b@example.test` / current reported label `Production Demo Participant`; proposed correction `Production Demo Participant B` | Participant | Issue #67 reports this synthetic account; required as a distinct Participant for UAT-03. Verify deployed presence, role, User ID, and current name in isolated UAT. |
+| `organizer-demo@example.com` / display name `TODO: Confirm` | Organizer | Identifier cited as Organizer A in the PR #70 review of the independent report. Verify against the original report and isolated deployment before use. |
+| `organizer-a@example.test` / proposed `Production Demo Organizer A` | Organizer | Later product follow-up request; mapping to report-identified Organizer A is unverified and conflicts with the identifier cited above. Do not use for UAT-05 until reconciled. |
+| `organizer-b@example.test` / proposed `Production Demo Organizer B` | Organizer | Later product follow-up request only. Organizer B's authoritative identifier and deployed presence remain unverified; do not use for UAT-05 until confirmed. |
 
-The first two rows are local synthetic seed accounts; Issue #67 reports the Participant identifiers, while the Organizer A/B identifiers were supplied in a follow-up request. Neither this handoff nor the issue proves that any of these accounts exists in the currently deployed environment. Before execution, the environment owner must verify the isolated UAT deployment and privately share the confirmed account labels, roles, and credentials with the independent UAT team. Never store passwords, tokens, session cookies, connection strings, or production secrets in this handoff or execution evidence. If a required account is unavailable, mark the dependent UAT case `BLOCKED` and document the reason; do not substitute a different role or identity.
+Only the first two accounts above are local seed accounts. Issue #67 supplies the Participant identifiers; the Organizer identifier conflict is unresolved. This handoff does not prove that any reported/proposed demo account exists in the deployed environment. Before execution, the environment owner must verify the isolated UAT deployment and privately share confirmed account labels, roles, and credentials with the independent UAT team. Never store passwords, tokens, session cookies, connection strings, or production secrets here or in execution evidence. If a required account is unavailable or its identity is unresolved, mark the dependent UAT case `BLOCKED`; do not substitute another role or identity.
 
 ## Deployment and setup
 
@@ -46,7 +47,7 @@ The first two rows are local synthetic seed accounts; Issue #67 reports the Part
 2. Confirm the deployed build corresponds to the Sprint 1 F-01 through F-04 contracts. The documented Sprint 1 baseline is `da3fa630be862955c973cc9e0c8cddcc5e1dcd6e`; the current repository HEAD at package preparation is `91857c25f9ab27e9c904ca3886c0d3f1a67684dc`. Do not silently treat either value as the deployed version.
 3. Confirm the target database is isolated for UAT, contains no real user data, and is not shared with production or another test run. Event and Registration writes are persistent.
 4. Obtain credentials privately from the environment owner and verify each account's displayed name and role by signing in. Never include credentials in screenshots, browser console history sent as evidence, or defect reports.
-5. Confirm the Issue #67 Participant A/B accounts and follow-up Organizer A/B accounts are present in isolated UAT before UAT-03/UAT-05. UAT-03 and UAT-05 each require two distinct users of the indicated role; do not substitute accounts from another role or the local seed.
+5. Confirm the Issue #67 Participant A/B accounts are present in isolated UAT before UAT-03. Before UAT-05, reconcile the report-identified Organizer A address with the later `organizer-a@example.test` request, verify Organizer B's authoritative address, and confirm two distinct Organizer accounts. Do not use the proposed Organizer addresses until the environment owner confirms the mapping.
 6. Choose a unique `<RUN_ID>` and future event date per the shared rules in `uat-test-cases.md`. Record each created Event/Registration ID in the execution record.
 7. Keep one tester per account set at a time. The application has no Sprint 1 UI for deleting Events or Registrations, so plan cleanup with the non-production environment owner before generating records.
 
@@ -85,7 +86,8 @@ Each case uses its own unique test title and can otherwise run independently. UA
 
 - `TODO: Confirm` deployed app URL, deployed revision/SHA, and test environment isolation.
 - `TODO: Confirm` whether a release tag exists outside the inspected repository; none is recorded in the checked-in Sprint 1 report or local tag list.
-- `TODO: Confirm` the Issue #67 Participant A/B accounts and follow-up Organizer A/B accounts exist in the isolated deployed environment and privately deliver their credentials.
+- `TODO: Confirm` the Issue #67 Participant A/B accounts exist in the isolated deployed environment and privately deliver their credentials.
+- `TODO: Reconcile` Organizer A: PR #70 review cites `organizer-demo@example.com`; later request cites `organizer-a@example.test`. Organizer B's authoritative address is not independently verified. Obtain the original report/environment-owner confirmation before UAT-05 or any Organizer data update.
 - `TODO: Confirm` a safe application restart procedure that preserves the UAT database for UAT-07.
 - `TODO: Confirm` approved non-production data reset owner/procedure for tagged Event and Registration records.
 - Reconcile the stale Sprint 1 status text in `README.md` and `docs/traceability.md` with the Approved/Pass release decision before treating those docs as aligned handoff evidence.

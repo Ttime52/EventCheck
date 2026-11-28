@@ -1,47 +1,48 @@
-# fix(uat): correct duplicate participant demo names (OBS-07)
+# fix(uat): correct duplicate Participant demo names (OBS-07)
 
-Fixes #67
+Related to #67
 
 ## UAT reference
 
 - Finding: OBS-07
 - Test case: UAT-03 — Reject registration when capacity is full
 - Reporter: Sec01-Team047
-- Classification: Accepted test-data configuration issue; Minor; disposition Fix Test Data
-- Follow-up request: also distinguish Organizer A/B using `organizer-a@example.test` and `organizer-b@example.test`.
+- Confirmed disposition: Test Data Configuration Issue; Minor impact; Fix Test Data
+
+## Review response
+
+1. **Independent Participant targeting:** The maintenance command now queries and updates only the two Issue #67 Participant accounts. Missing or unverified Organizer accounts cannot block the Participant correction.
+2. **Organizer mapping:** Organizer accounts are excluded from this PR's update path. The review says the independent report identifies Organizer A as `organizer-demo@example.com`, while a later request proposed `organizer-a@example.test`; Organizer B remains unverified. The original UAT report is not checked in. The UAT handoff marks the conflict and requires environment-owner confirmation before UAT-05 or a separate Organizer data update.
+3. **Database and identity safeguards:** Apply mode requires the verified UAT marker, a PostgreSQL database target matching the separately confirmed host/port/database/schema, and a JSON approval manifest binding that same target to the two exact Participant User IDs. Account lookup detects case-insensitive login collisions; updates predicate on User ID, canonical login, and Participant role inside a serializable transaction.
+4. **Documentation:** The UAT handoff, test-case prerequisites, evidence README, and this PR description record the verified issue accounts, unresolved Organizer mapping, and current verification status.
 
 ## Root cause
 
-Issue #67 reports two distinct synthetic Participant accounts with the same display name, `Production Demo Participant`. Existing account provisioning intentionally leaves matching accounts unchanged, so rerunning that provisioner would not correct the labels. Triage found no evidence of an authorization or data-isolation defect.
-
-The user also requested distinct labels for `organizer-a@example.test` and `organizer-b@example.test`. This follow-up extends the same guarded maintenance command to those two Organizer accounts. Their expected shared current name is assumed to be `Production Demo Organizer`; the command aborts if the dry-run finds another name.
+Issue #67 reports two distinct synthetic Participant accounts with the same display name, `Production Demo Participant`. Existing account provisioning intentionally leaves existing accounts unchanged, so rerunning that provisioner does not correct the labels. Triage found no evidence of an authorization or data-isolation defect.
 
 ## Changes
 
-- Add a guarded, idempotent maintenance command that targets only the two issue-reported Participant accounts and the two user-requested Organizer accounts.
-- Map the Organizer logins to `Production Demo Organizer A/B`; keep the issue-reported Participant targets `Production Demo Participant A/B`.
-- Validate all four records exist exactly once, have the expected role for each login, resolve to distinct User IDs, and have either the expected shared name or the correct target name. The Organizer current-name expectation is `Production Demo Organizer`; an unexpected value aborts the plan.
-- Update only `displayName` inside a serializable transaction. The default is read-only; database writes require a verified UAT target plus both `--apply` and `--confirm-uat-database`.
-- Update the Sprint 1 UAT handoff labels and add Lab 6 Part D evidence/runbook for both role pairs.
+- Update the two Participant labels to `Production Demo Participant A` and `Production Demo Participant B` through a guarded maintenance command.
+- Require the approved database target and exact Participant User IDs for apply; refuse missing, extra, duplicate, case-variant, wrong-role, wrong-ID, or unexpected-name accounts.
+- Preserve IDs, logins, roles, password hashes, sessions, registrations, foreign keys, schemas, and API contracts.
+- Keep the operation read-only by default. Apply still requires `--apply` and `--confirm-uat-database` plus the database/User-ID approval manifest.
+- Keep Organizer A/B out of this command until their source mapping and scope are independently confirmed.
 
-The change does not modify application behavior, account IDs, login identifiers, roles, password hashes, sessions, registrations, foreign keys, schemas, or API contracts. No live UAT database was accessed or changed.
-
-## RED/GREEN status
-
-RED/GREEN is not applicable and is not claimed: accepted triage classifies OBS-07 as a test-data configuration issue, not a confirmed application defect. The task explicitly says not to fabricate RED/GREEN. Mocked automated tests verify the maintenance operation's safety and data invariants.
+No live UAT database was accessed or changed. No deployment or independent UAT retest is claimed.
 
 ## Verification
 
-- `npm.cmd run test --workspace server -- src/uat-display-name-update.test.ts --reporter=verbose` — 10 passed, 0 failed after the Organizer A/B extension.
-- `npm.cmd run test --workspace server -- src/production-provisioning.test.ts --reporter=verbose` — 13 passed, 0 failed.
-- `npm.cmd test` — server: 48 passed, 41 skipped; client: 28 passed, 0 skipped; exit code 0. The skipped server tests require an integration database.
-- `npm.cmd run typecheck` — server and client passed.
-- `npm.cmd run build` — server and client builds passed.
-- GitHub Actions run `46117485823` passed for the Organizer A/B code head `1326cb827cf9166e84c0632450c653b77d8f953d`; run `46117779515` also passed on evidence head `bd8b610694a97a4699121cfa2ac2c787c9e441f6`. Recheck PR #70 for the latest run after this description update.
-- No DB command was run. No deployed before/after screenshot is available because the UAT URL/revision is unconfirmed.
+- `npm.cmd run test --workspace server -- src/uat-display-name-update.test.ts --reporter=verbose` — **18 passed, 0 failed**. Evidence: `review-fix-verified-targeted.log` (UTF-8 copy) and `.txt` (raw capture).
+- `npm.cmd run test --workspace server -- src/production-provisioning.test.ts --reporter=verbose` — **13 passed, 0 failed**. Evidence: `review-fix-final-provisioning-rerun.log` (UTF-8 copy) and `.txt` (raw capture).
+- `npm.cmd test` — server **56 passed, 41 skipped** (integration database unavailable); client **28 passed, 0 skipped**; command exit code 0. Evidence: `review-fix-verified-suite.log` (UTF-8 copy) and `.txt` (raw capture).
+- `npm.cmd run typecheck` — server and client checks passed. Evidence: `review-fix-verified-typecheck.log` (UTF-8 copy) and `.txt` (raw capture).
+- `npm.cmd run build` — server and client production builds passed. Evidence: `review-fix-verified-build.log` (UTF-8 copy) and `.txt` (raw capture).
+- `git diff --check` — passed. Evidence: `review-fix-verified-diff-check-rerun.log` (UTF-8 copy) and `.txt` (raw capture).
+- Updated PR CI — **PENDING** until the review-response commit is pushed and verified.
+- The previous successful CI run `46118119726` covered pre-review PR head `9976fdf`; it does not cover these changes.
 
-Full logs and the manual operator runbook are in `docs/labs/lab-06/evidence/obs-07/README.md`.
+The initial review-response test attempts are preserved in UTF-8 copies `review-fix-final-targeted.log`, `review-fix-full-suite.log`, and `review-fix-final-suite.log`, with raw UTF-16 captures in their matching `.txt` files. Their assertion expected a Promise rejection from a synchronous fail-closed guard; this test matcher was corrected and the same assertions then passed on rerun. The application code was not relaxed.
 
 ## Lab 6 Part D status
 
-The maintenance path and mocked verification are prepared for peer review. The UAT owner must verify the target and approve any manual dry-run/apply. Deployment and the independent UAT-03 retest by Sec01-Team047 remain pending. Independent UAT retest is not marked PASS.
+Mocked maintenance verification is prepared for peer review. Environment-owner confirmation of the database target and exact Participant User IDs, any live data update, deployment, and Sec01-Team047's independent UAT-03 retest remain pending. Independent UAT retest is not marked PASS.
