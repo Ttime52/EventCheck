@@ -45,7 +45,7 @@ Exact outputs are preserved in this directory. The original PowerShell captures 
 | `npm.cmd run build` | Server TypeScript build and client Vite production build passed; exit code 0. | [organizer-support-final-build.log](organizer-support-final-build.log) |
 | `git diff --check` | Passed; exit code 0. | [organizer-support-final-diff-check.log](organizer-support-final-diff-check.log) |
 | GitHub Actions run `46115631896` | Passed on the earlier Participant-only PR head `a0ea459aa1e94663b2db8188f78124e86b5fa487`. It does not cover the Organizer A/B follow-up extension. | [CI result record](ci-status.log), [workflow run](https://github.com/Ttime52/EventCheck/actions/runs/46115631896) |
-| CI for Organizer A/B extension | Pending updated PR workflow. | [PR #70 checks](https://github.com/Ttime52/EventCheck/pull/70) |
+| GitHub Actions run `46117485823` | Passed on PR head `1326cb827cf9166e84c0632450c653b77d8f953d`, including backend unit/integration tests, frontend tests/typecheck/build, Playwright E2E, and Docker build. | [CI result record](organizer-support-ci.log), [workflow run](https://github.com/Ttime52/EventCheck/actions/runs/46117485823) |
 
 All automated tests used the working tree based on `7fb3620f2288b4062ccffa88c262bee42207dab5`. No test configured a database connection.
 
@@ -78,13 +78,13 @@ These are **manual steps only**. The current work did not run either command aga
 - `server/src/uat-display-name-update.test.ts` — mocked safety and invariant tests.
 - `server/package.json` — maintenance script entry.
 - `docs/uat/sprint-1/uat-handoff.md` and `docs/uat/sprint-1/uat-test-cases.md` — Participant labels and user-requested Organizer A/B labels, with deployment-confirmation notes.
-- `docs/labs/lab-06/evidence/obs-07/` — test/build logs, verified CI result record, review description, and this report.
+- `docs/labs/lab-06/evidence/obs-07/` — test/build logs, both CI result records, review description, and this report.
 
 ## Review and release status
 
 - Code commits: [Participant maintenance setup `7a25ae8154ac95111521f42fdf279bd1f94ce20f`](https://github.com/Ttime52/EventCheck/commit/7a25ae8154ac95111521f42fdf279bd1f94ce20f) and [Organizer A/B extension `836cc74c13e820bd639ef2dcd390af78ae57a831`](https://github.com/Ttime52/EventCheck/commit/836cc74c13e820bd639ef2dcd390af78ae57a831).
 - Draft PR targeting `sprint-1-staging`: [#70](https://github.com/Ttime52/EventCheck/pull/70).
-- CI: run `46115631896` passed for the earlier Participant-only version. Checks for the Organizer A/B extension are **Pending** on commit `836cc74c13e820bd639ef2dcd390af78ae57a831`; see [PR #70](https://github.com/Ttime52/EventCheck/pull/70) for the current result.
+- CI: [run `46117485823` passed](https://github.com/Ttime52/EventCheck/actions/runs/46117485823) on the Organizer A/B code and evidence head `1326cb827cf9166e84c0632450c653b77d8f953d`. Recheck [PR #70](https://github.com/Ttime52/EventCheck/pull/70) after this CI-record update for the latest head before approval/merge.
 - UAT database plan/apply: **Pending environment owner review and approval**; no database has been changed.
 - Deployment: **Pending**.
 - Independent UAT retest: **Pending**. Sec01-Team047 must retest after the corrected test data is approved and available in the deployed UAT environment. No PASS is claimed.
