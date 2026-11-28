@@ -61,6 +61,6 @@ Real headless Chromium screenshots were captured from the local Vite app with sy
 
 - Fix commit: [`e734e950cc39fbd1f30d914a5e1ed569e1b9bc4a`](https://github.com/Ttime52/EventCheck/commit/e734e950cc39fbd1f30d914a5e1ed569e1b9bc4a).
 - Draft pull request targeting `sprint-1-staging`: [#69](https://github.com/Ttime52/EventCheck/pull/69).
-- CI status: `test-and-docker` was **in progress** for PR head `9483f4386bf49a37985cd542dbdacdd67fe07672` when checked on 28 November 2026; see [ci-status-followup.txt](ci-status-followup.txt) and [workflow run 46110037296](https://github.com/Ttime52/EventCheck/actions/runs/46110037296). The earlier run was cancelled after the evidence update pushed a newer head. Check [PR #69](https://github.com/Ttime52/EventCheck/pull/69) for the latest state; no PASS is claimed.
+- CI status: workflow run [46110248329](https://github.com/Ttime52/EventCheck/actions/runs/46110248329) **passed** for PR head `01cdda794fc3b17c4274586e44dd77848faea56c`. Backend unit and PostgreSQL integration tests, frontend tests (28/28), typecheck, build, Playwright E2E (16/16), and Docker image build all passed. See [ci-status-success.txt](ci-status-success.txt); the evidence update now triggers a docs-only rerun, so use [PR #69](https://github.com/Ttime52/EventCheck/pull/69) for the latest check.
 - Deployment: **Pending**.
 - Independent UAT retest: **Pending**; Sec01-Team047 must retest the corrected release after deployment. No PASS is claimed.
